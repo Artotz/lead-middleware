@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
-import { Tabs } from "@/components/Tabs";
-import { LeadsList } from "@/components/LeadsList";
-import { TicketsList } from "@/components/TicketsList";
+import { MetricsTabs } from "@/components/MetricsTabs";
+import { TimeRangeSelector } from "@/components/TimeRangeSelector";
+import { LeadsMetricsView } from "@/components/LeadsMetricsView";
+import { TicketsMetricsView } from "@/components/TicketsMetricsView";
 import { fetchLeads, fetchTickets } from "@/lib/api";
-import { Lead, Ticket } from "@/lib/domain";
+import { Lead, Ticket, TimeRange } from "@/lib/domain";
 
-type DashboardTab = "leads" | "tickets";
+type MetricsTab = "leads" | "tickets";
 
-export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
+export default function MetricsPage() {
+  const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
+  const [timeRange, setTimeRange] = useState<TimeRange>("week");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,7 +45,7 @@ export default function DashboardPage() {
     if (loading) {
       return (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Carregando leads e tickets...
+          Carregando métricas...
         </div>
       );
     }
@@ -64,32 +66,28 @@ export default function DashboardPage() {
     }
 
     if (activeTab === "leads") {
-      return <LeadsList leads={leads} />;
+      return <LeadsMetricsView leads={leads} timeRange={timeRange} />;
     }
 
-    return <TicketsList tickets={tickets} />;
+    return <TicketsMetricsView tickets={tickets} timeRange={timeRange} />;
   };
 
   return (
     <PageShell
-      title="Dashboard"
-      subtitle="Leads & tickets mockados simulando uma camada de middleware."
+      title="Métricas"
+      subtitle="Visão rápida das volumetrias por período."
     >
       <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <Tabs
-            tabs={[
-              { id: "leads", label: "LEADS" },
-              { id: "tickets", label: "TICKETS" },
-            ]}
-            activeTabId={activeTab}
-            onTabChange={(id) => setActiveTab(id as DashboardTab)}
+          <MetricsTabs activeTabId={activeTab} onChange={setActiveTab} />
+          <TimeRangeSelector
+            activeRange={timeRange}
+            onChange={setTimeRange}
           />
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Fonte: mock API (front-end)
-          </div>
         </div>
-
+        <p className="text-xs text-slate-500">
+          Filtrando dados mockados do período selecionado.
+        </p>
         {renderContent()}
       </div>
     </PageShell>
