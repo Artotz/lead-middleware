@@ -36,9 +36,12 @@ export function LeadsMetricsView({ leads, timeRange }: LeadsMetricsViewProps) {
     isWithinRange(lead.importedAt, timeRange),
   );
 
-  const leadsWithTipo = leadsInRange.filter(
-    (lead) => lead.tipoLead && lead.tipoLead !== "indefinido",
-  );
+  const leadsWithTipo = leadsInRange.filter((lead) => {
+    const tipos = lead.tipoLeadList?.length
+      ? lead.tipoLeadList
+      : [lead.tipoLead];
+    return tipos.some((tipo) => tipo && tipo !== "indefinido");
+  });
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

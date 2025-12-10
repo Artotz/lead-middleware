@@ -1,22 +1,17 @@
 "use client";
 
-export type SortOrder = "recentes" | "antigos";
-
-export type FiltersState = {
-  search: string;
-  empresa: string;
-  tipoLead: string;
-  sort: SortOrder;
-};
+import { FiltersState, SortOrder } from "@/lib/filters";
 
 type FiltersBarProps = {
   value: FiltersState;
-  empresaOptions?: string[];
+  regiaoOptions?: string[];
+  estadoOptions?: string[];
   tipoLeadOptions?: string[];
   sortOptions?: { id: SortOrder; label: string }[];
   searchPlaceholder?: string;
   searchLabel?: string;
-  empresaLabel?: string;
+  regiaoLabel?: string;
+  estadoLabel?: string;
   tipoLeadLabel?: string;
   onFiltersChange: (filters: FiltersState) => void;
 };
@@ -28,12 +23,14 @@ const defaultSortOptions: { id: SortOrder; label: string }[] = [
 
 export function FiltersBar({
   value,
-  empresaOptions = [],
+  regiaoOptions,
+  estadoOptions,
   tipoLeadOptions = [],
   sortOptions = defaultSortOptions,
   searchPlaceholder = "Buscar...",
   searchLabel = "Busca",
-  empresaLabel = "Empresa",
+  regiaoLabel = "Região",
+  estadoLabel = "Estado",
   tipoLeadLabel = "Tipo de lead",
   onFiltersChange,
 }: FiltersBarProps) {
@@ -46,7 +43,7 @@ export function FiltersBar({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
           {searchLabel}
           <input
@@ -58,21 +55,41 @@ export function FiltersBar({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {empresaLabel}
-          <select
-            value={value.empresa}
-            onChange={(e) => handleChange("empresa", e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            <option value="">Todas</option>
-            {empresaOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+        {regiaoOptions !== undefined && (
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {regiaoLabel}
+            <select
+              value={value.regiao}
+              onChange={(e) => handleChange("regiao", e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todas</option>
+              {regiaoOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {estadoOptions !== undefined && (
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {estadoLabel}
+            <select
+              value={value.estado}
+              onChange={(e) => handleChange("estado", e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todos</option>
+              {estadoOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
           {tipoLeadLabel}

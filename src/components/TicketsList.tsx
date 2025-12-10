@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { Ticket } from "@/lib/domain";
+import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
 import { Badge } from "./Badge";
-import { FiltersBar, FiltersState } from "./FiltersBar";
+import { FiltersBar } from "./FiltersBar";
 
 type TicketsListProps = {
   tickets: Ticket[];
@@ -15,12 +16,7 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   year: "numeric",
 });
 
-const initialFilters: FiltersState = {
-  search: "",
-  empresa: "",
-  tipoLead: "",
-  sort: "recentes",
-};
+const initialFilters: FiltersState = { ...INITIAL_FILTERS };
 
 const ticketStatusTone: Record<Ticket["status"], Parameters<typeof Badge>[0]["tone"]> =
   {
@@ -40,11 +36,6 @@ const formatDate = (iso: string) => dateFormatter.format(new Date(iso));
 export function TicketsList({ tickets }: TicketsListProps) {
   const [filters, setFilters] = useState<FiltersState>(initialFilters);
 
-  const empresaOptions = useMemo(
-    () => Array.from(new Set(tickets.map((ticket) => ticket.empresa))).sort(),
-    [tickets],
-  );
-
   const tipoLeadOptions = useMemo(
     () =>
       Array.from(new Set(tickets.map((ticket) => ticket.tipoLeadOrigem))).sort(),
@@ -61,8 +52,6 @@ export function TicketsList({ tickets }: TicketsListProps) {
     });
 
     return sorted.filter((ticket) => {
-      const matchesEmpresa =
-        !filters.empresa || ticket.empresa === filters.empresa;
       const matchesTipo =
         !filters.tipoLead || ticket.tipoLeadOrigem === filters.tipoLead;
       const matchesSearch =
@@ -72,7 +61,7 @@ export function TicketsList({ tickets }: TicketsListProps) {
         ticket.tipoLeadOrigem.toLowerCase().includes(searchTerm) ||
         ticket.empresa.toLowerCase().includes(searchTerm);
 
-      return matchesEmpresa && matchesTipo && matchesSearch;
+      return matchesTipo && matchesSearch;
     });
   }, [filters, tickets]);
 
@@ -80,7 +69,6 @@ export function TicketsList({ tickets }: TicketsListProps) {
     <div className="space-y-4">
       <FiltersBar
         value={filters}
-        empresaOptions={empresaOptions}
         tipoLeadOptions={tipoLeadOptions}
         searchPlaceholder="Buscar por externo, chassi ou empresa"
         onFiltersChange={setFilters}

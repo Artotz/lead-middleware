@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabaseClient";
 import { Lead, LeadCategory } from "@/lib/domain";
+import { ESTADOS, REGIOES, SortOrder } from "@/lib/filters";
+import { getSupabaseServerClient } from "@/lib/supabaseClient";
 
 type LeadRow = {
   id: number;
@@ -43,21 +44,29 @@ const isYes = (value: string | null) =>
   value?.trim().toUpperCase() === "SIM";
 
 const mapLeadRow = (row: LeadRow): Lead => {
-  const foundType =
-    leadTypeOrder.find((entry) => isYes(row[entry.key] as string | null)) ??
-    null;
+  const foundTypes = leadTypeOrder
+    .filter((entry) => isYes(row[entry.key] as string | null))
+    .map((entry) => entry.category);
 
-  const tipoLead = foundType?.category ?? "indefinido";
+  const tipoLeadList = foundTypes.length ? foundTypes : ["indefinido"];
+  const tipoLead = tipoLeadList[0];
 
   const horimetro =
     row.horimetro_atual_machine_list === null
       ? null
       : Number(row.horimetro_atual_machine_list);
 
+  const regionalRaw = row.regional?.trim() ?? null;
+  const isControlRow =
+    regionalRaw?.toLowerCase().startsWith("filtros aplicados:") ?? false;
+  const regional = isControlRow ? null : regionalRaw;
+
+  const estado = row.estado?.trim() ?? null;
+
   return {
     id: row.id,
-    regional: row.regional,
-    estado: row.estado,
+    regional,
+    estado,
     city: row.city,
     chassi: row.chassi,
     modelName: row.model_name,
@@ -76,6 +85,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     leadTransferenciaDeAor: row.lead_transferencia_de_aor,
     importedAt: row.imported_at,
     tipoLead,
+    tipoLeadList,
   };
 };
 
@@ -87,13 +97,28 @@ export async function GET(request: Request) {
       Math.max(Number(searchParams.get("pageSize") ?? "10"), 1),
       100,
     );
+    const search = (searchParams.get("search") ?? "").trim();
+    const regiaoParam = searchParams.get("regiao");
+    const estadoParam = searchParams.get("estado");
+    const tipoLeadParam = searchParams.get("tipoLead") as LeadCategory | null;
+    const sortParam = searchParams.get("sort") as SortOrder | null;
+    const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
     const supabase = getSupabaseServerClient();
 
-    const { data, error, count } = await supabase
+    const regiao =
+      regiaoParam && REGIOES.includes(regiaoParam as (typeof REGIOES)[number])
+        ? (regiaoParam as (typeof REGIOES)[number])
+        : null;
+    const estado =
+      estadoParam && ESTADOS.includes(estadoParam as (typeof ESTADOS)[number])
+        ? (estadoParam as (typeof ESTADOS)[number])
+        : null;
+
+    let query = supabase
       .from("leads")
       .select(
         [
@@ -120,7 +145,44 @@ export async function GET(request: Request) {
         ].join(","),
         { count: "exact" },
       )
-      .order("imported_at", { ascending: false })
+      .not("regional", "ilike", "filtros aplicados:%");
+
+    if (regiao) {
+      query = query.eq("regional", regiao);
+    }
+
+    if (estado) {
+      query = query.eq("estado", estado);
+    }
+
+    if (tipoLeadParam) {
+      const tipoLeadDef = leadTypeOrder.find(
+        (entry) => entry.category === tipoLeadParam,
+      );
+      if (tipoLeadDef) {
+        query = query.ilike(tipoLeadDef.key, "%sim%");
+      }
+    }
+
+    if (search) {
+      const safeTerm = search.replace(/,/g, "\\,");
+      const pattern = `%${safeTerm}%`;
+      query = query.or(
+        [
+          `chassi.ilike.${pattern}`,
+          `model_name.ilike.${pattern}`,
+          `city.ilike.${pattern}`,
+          `regional.ilike.${pattern}`,
+          `estado.ilike.${pattern}`,
+          `last_called_group.ilike.${pattern}`,
+        ].join(","),
+      );
+    }
+
+    const ascending = sort === "antigos";
+
+    const { data, error, count } = await query
+      .order("imported_at", { ascending })
       .range(from, to);
 
     if (error) {
@@ -131,7 +193,12 @@ export async function GET(request: Request) {
       );
     }
 
-    const leads = (data ?? []).map(mapLeadRow);
+    const cleanedRows = (data ?? []).filter((row) => {
+      const regionalNormalized = row.regional?.trim().toLowerCase() ?? "";
+      return !regionalNormalized.startsWith("filtros aplicados:");
+    });
+
+    const leads = cleanedRows.map(mapLeadRow);
 
     return NextResponse.json({
       items: leads,

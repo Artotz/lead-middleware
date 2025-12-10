@@ -37,6 +37,7 @@ export type Lead = {
   leadTransferenciaDeAor: string | null;
   importedAt: string;
   tipoLead: LeadCategory;
+  tipoLeadList: LeadCategory[];
   ticketId?: string;
 };
 

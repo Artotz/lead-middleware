@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
-import { LeadsList } from "@/components/LeadsList";
 import { TicketsList } from "@/components/TicketsList";
 import { fetchLeads, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
+import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
 
 type DashboardTab = "leads" | "tickets";
 
@@ -17,36 +18,22 @@ export default function DashboardPage() {
   const [leadsPage, setLeadsPage] = useState<number>(1);
   const [leadsPageSize] = useState<number>(10);
   const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
+  const [leadFilters, setLeadFilters] =
+    useState<FiltersState>(INITIAL_FILTERS);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadInitial = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [leadsResp, ticketsData] = await Promise.all([
-        fetchLeads({ page: 1, pageSize: leadsPageSize }),
-        fetchTickets(),
-      ]);
-      setLeads(leadsResp.items);
-      setLeadsTotal(leadsResp.total);
-      setLeadsPage(leadsResp.page);
-      setTickets(ticketsData);
-    } catch (err) {
-      console.error(err);
-      setError("Não foi possível carregar os dados iniciais.");
-    } finally {
-      setLoading(false);
-    }
-  }, [leadsPageSize]);
-
-  const loadLeadsPage = useCallback(
-    async (page: number) => {
+  const loadLeads = useCallback(
+    async (page: number, filters: FiltersState) => {
       setLeadsLoading(true);
       setError(null);
       try {
-        const resp = await fetchLeads({ page, pageSize: leadsPageSize });
+        const resp = await fetchLeads({
+          page,
+          pageSize: leadsPageSize,
+          ...filters,
+        });
         setLeads(resp.items);
         setLeadsTotal(resp.total);
         setLeadsPage(resp.page);
@@ -60,6 +47,29 @@ export default function DashboardPage() {
     [leadsPageSize],
   );
 
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setLeadsLoading(true);
+    try {
+      const [leadsResp, ticketsData] = await Promise.all([
+        fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
+        fetchTickets(),
+      ]);
+      setLeads(leadsResp.items);
+      setLeadsTotal(leadsResp.total);
+      setLeadsPage(leadsResp.page);
+      setTickets(ticketsData);
+      setLeadFilters(INITIAL_FILTERS);
+    } catch (err) {
+      console.error(err);
+      setError("Não foi possível carregar os dados iniciais.");
+    } finally {
+      setLeadsLoading(false);
+      setLoading(false);
+    }
+  }, [leadsPageSize]);
+
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
@@ -69,8 +79,14 @@ export default function DashboardPage() {
   const handlePageChange = (direction: -1 | 1) => {
     const next = Math.min(totalPages, Math.max(1, leadsPage + direction));
     if (next !== leadsPage) {
-      void loadLeadsPage(next);
+      void loadLeads(next, leadFilters);
     }
+  };
+
+  const handleLeadFiltersChange = (next: FiltersState) => {
+    setLeadFilters(next);
+    setLeadsPage(1);
+    void loadLeads(1, next);
   };
 
   const renderContent = () => {
@@ -100,7 +116,12 @@ export default function DashboardPage() {
     if (activeTab === "leads") {
       return (
         <div className="space-y-3">
-          <LeadsList leads={leads} />
+          <LeadsList
+            leads={leads}
+            filters={leadFilters}
+            onFiltersChange={handleLeadFiltersChange}
+            loading={leadsLoading}
+          />
           <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
             <div className="flex items-center gap-2">
               <span>
