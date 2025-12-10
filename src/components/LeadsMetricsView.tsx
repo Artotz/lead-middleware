@@ -33,18 +33,20 @@ const isWithinRange = (dateStr: string, range: TimeRange) => {
 
 export function LeadsMetricsView({ leads, timeRange }: LeadsMetricsViewProps) {
   const leadsInRange = leads.filter((lead) =>
-    isWithinRange(lead.criadoEm, timeRange),
+    isWithinRange(lead.importedAt, timeRange),
   );
 
-  const leadsWithTickets = leadsInRange.filter((lead) => !!lead.ticketId);
+  const leadsWithTipo = leadsInRange.filter(
+    (lead) => lead.tipoLead && lead.tipoLead !== "indefinido",
+  );
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <MetricCard label="Leads adicionados" value={leadsInRange.length} />
       <MetricCard
-        label="Leads que viraram ticket"
-        value={leadsWithTickets.length}
-        subtitle="Possuem ticket vinculado"
+        label="Leads com tipo identificado"
+        value={leadsWithTipo.length}
+        subtitle="Possuem tipo marcado"
       />
     </div>
   );

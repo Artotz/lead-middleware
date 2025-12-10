@@ -13,31 +13,65 @@ type DashboardTab = "leads" | "tickets";
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsTotal, setLeadsTotal] = useState<number>(0);
+  const [leadsPage, setLeadsPage] = useState<number>(1);
+  const [leadsPageSize] = useState<number>(10);
+  const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadInitial = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [leadsData, ticketsData] = await Promise.all([
-        fetchLeads(),
+      const [leadsResp, ticketsData] = await Promise.all([
+        fetchLeads({ page: 1, pageSize: leadsPageSize }),
         fetchTickets(),
       ]);
-      setLeads(leadsData);
+      setLeads(leadsResp.items);
+      setLeadsTotal(leadsResp.total);
+      setLeadsPage(leadsResp.page);
       setTickets(ticketsData);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível carregar os dados de mock.");
+      setError("Não foi possível carregar os dados iniciais.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [leadsPageSize]);
+
+  const loadLeadsPage = useCallback(
+    async (page: number) => {
+      setLeadsLoading(true);
+      setError(null);
+      try {
+        const resp = await fetchLeads({ page, pageSize: leadsPageSize });
+        setLeads(resp.items);
+        setLeadsTotal(resp.total);
+        setLeadsPage(resp.page);
+      } catch (err) {
+        console.error(err);
+        setError("Não foi possível carregar os leads do Supabase.");
+      } finally {
+        setLeadsLoading(false);
+      }
+    },
+    [leadsPageSize],
+  );
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    void loadInitial();
+  }, [loadInitial]);
+
+  const totalPages = Math.max(1, Math.ceil(leadsTotal / leadsPageSize));
+
+  const handlePageChange = (direction: -1 | 1) => {
+    const next = Math.min(totalPages, Math.max(1, leadsPage + direction));
+    if (next !== leadsPage) {
+      void loadLeadsPage(next);
+    }
+  };
 
   const renderContent = () => {
     if (loading) {
@@ -54,7 +88,7 @@ export default function DashboardPage() {
           <span>{error}</span>
           <button
             type="button"
-            onClick={loadData}
+            onClick={loadInitial}
             className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
           >
             Tentar novamente
@@ -64,7 +98,42 @@ export default function DashboardPage() {
     }
 
     if (activeTab === "leads") {
-      return <LeadsList leads={leads} />;
+      return (
+        <div className="space-y-3">
+          <LeadsList leads={leads} />
+          <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+            <div className="flex items-center gap-2">
+              <span>
+                Página {leadsPage} de {totalPages}
+              </span>
+              <span className="text-slate-400">
+                ({leadsTotal} leads no total)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handlePageChange(-1)}
+                disabled={leadsPage <= 1 || leadsLoading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePageChange(1)}
+                disabled={leadsPage >= totalPages || leadsLoading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+              >
+                Próxima
+              </button>
+              {leadsLoading && (
+                <span className="text-xs text-slate-500">Atualizando...</span>
+              )}
+            </div>
+          </div>
+        </div>
+      );
     }
 
     return <TicketsList tickets={tickets} />;
@@ -86,7 +155,7 @@ export default function DashboardPage() {
             onTabChange={(id) => setActiveTab(id as DashboardTab)}
           />
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Fonte: mock API (front-end)
+            Fonte: Supabase (leads) / Mock (tickets)
           </div>
         </div>
 

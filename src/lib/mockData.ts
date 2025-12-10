@@ -1,94 +1,7 @@
-import { Lead, Ticket } from "./domain";
+import { Ticket } from "./domain";
 
 const daysAgo = (days: number) =>
   new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-export const mockLeads: Lead[] = [
-  {
-    id: "lead-1",
-    empresa: "VE Fortaleza",
-    nomeContato: "Camila Rocha",
-    telefone: "+55 85 99999-1111",
-    tipoLead: "WhatsApp",
-    chassiOuMaquina: "1BZ644KXHLD001224",
-    criadoEm: daysAgo(1),
-    status: "novo",
-    ticketId: "ticket-1",
-  },
-  {
-    id: "lead-2",
-    empresa: "VE Mossoró",
-    nomeContato: "Marcos Tavares",
-    telefone: "+55 84 98888-2222",
-    tipoLead: "Telefone",
-    chassiOuMaquina: "1BZ850JACRD001165",
-    criadoEm: daysAgo(3),
-    status: "em_triagem",
-    ticketId: "ticket-2",
-  },
-  {
-    id: "lead-3",
-    empresa: "VE Recife",
-    nomeContato: "Larissa Nogueira",
-    telefone: "+55 81 97777-3333",
-    tipoLead: "Feira",
-    chassiOuMaquina: "1F9210GXCLD521793",
-    criadoEm: daysAgo(8),
-    status: "descartado",
-  },
-  {
-    id: "lead-4",
-    empresa: "VE Fortaleza",
-    nomeContato: "Pedro Albuquerque",
-    telefone: "+55 85 96666-4444",
-    tipoLead: "Landing Page",
-    chassiOuMaquina: "210K-BAR456",
-    criadoEm: daysAgo(10),
-    status: "convertido",
-    ticketId: "ticket-3",
-  },
-  {
-    id: "lead-5",
-    empresa: "VE Mossoró",
-    nomeContato: "Ana Bezerra",
-    telefone: "+55 84 95555-5555",
-    tipoLead: "Campanha Safra",
-    chassiOuMaquina: "480T-HEL222",
-    criadoEm: daysAgo(0),
-    status: "novo",
-  },
-  {
-    id: "lead-6",
-    empresa: "VE Recife",
-    nomeContato: "Thiago Castro",
-    telefone: "+55 81 94444-6666",
-    tipoLead: "WhatsApp",
-    chassiOuMaquina: "520M-NEW999",
-    criadoEm: daysAgo(15),
-    status: "em_triagem",
-  },
-  {
-    id: "lead-7",
-    empresa: "VE Salvador",
-    nomeContato: "Helena Dias",
-    telefone: "+55 88 93333-7777",
-    tipoLead: "Feira",
-    chassiOuMaquina: "730P-GHI555",
-    criadoEm: daysAgo(5),
-    status: "novo",
-    ticketId: "ticket-4",
-  },
-  {
-    id: "lead-8",
-    empresa: "VE Fortaleza",
-    nomeContato: "Rafael Lima",
-    telefone: "+55 85 92222-8888",
-    tipoLead: "Telefone",
-    chassiOuMaquina: "350X-ZZZ321",
-    criadoEm: daysAgo(25),
-    status: "convertido",
-  },
-];
 
 export const mockTickets: Ticket[] = [
   {
@@ -107,7 +20,7 @@ export const mockTickets: Ticket[] = [
     id: "ticket-2",
     externalId: "EXT-2310",
     linkExterno: "https://example.com/tickets/EXT-2310",
-    empresa: "VE Mossoró",
+    empresa: "VE Mossoro",
     chassiOuMaquina: "850J-FOO777",
     tipoLeadOrigem: "Telefone",
     criadoEm: daysAgo(4),
@@ -131,7 +44,7 @@ export const mockTickets: Ticket[] = [
     id: "ticket-4",
     externalId: "EXT-5511",
     linkExterno: "https://example.com/tickets/EXT-5511",
-    empresa: "VE Salvador",
+    empresa: "VE Cariri",
     chassiOuMaquina: "730P-GHI555",
     tipoLeadOrigem: "Feira",
     criadoEm: daysAgo(2),

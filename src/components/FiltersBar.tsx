@@ -15,6 +15,9 @@ type FiltersBarProps = {
   tipoLeadOptions?: string[];
   sortOptions?: { id: SortOrder; label: string }[];
   searchPlaceholder?: string;
+  searchLabel?: string;
+  empresaLabel?: string;
+  tipoLeadLabel?: string;
   onFiltersChange: (filters: FiltersState) => void;
 };
 
@@ -29,6 +32,9 @@ export function FiltersBar({
   tipoLeadOptions = [],
   sortOptions = defaultSortOptions,
   searchPlaceholder = "Buscar...",
+  searchLabel = "Busca",
+  empresaLabel = "Empresa",
+  tipoLeadLabel = "Tipo de lead",
   onFiltersChange,
 }: FiltersBarProps) {
   const handleChange = <K extends keyof FiltersState>(
@@ -42,7 +48,7 @@ export function FiltersBar({
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="grid gap-3 md:grid-cols-4">
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Busca
+          {searchLabel}
           <input
             type="search"
             value={value.search}
@@ -53,7 +59,7 @@ export function FiltersBar({
         </label>
 
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Empresa
+          {empresaLabel}
           <select
             value={value.empresa}
             onChange={(e) => handleChange("empresa", e.target.value)}
@@ -69,7 +75,7 @@ export function FiltersBar({
         </label>
 
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Tipo de lead
+          {tipoLeadLabel}
           <select
             value={value.tipoLead}
             onChange={(e) => handleChange("tipoLead", e.target.value)}

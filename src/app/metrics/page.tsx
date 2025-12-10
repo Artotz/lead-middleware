@@ -19,23 +19,47 @@ export default function MetricsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadAllLeads = useCallback(async () => {
+    const pageSize = 100;
+    let page = 1;
+    let accumulated: Lead[] = [];
+    let total = 0;
+
+    for (;;) {
+      const resp = await fetchLeads({ page, pageSize });
+      accumulated = accumulated.concat(resp.items);
+      total = resp.total ?? accumulated.length;
+
+      const fetchedAll =
+        accumulated.length >= total || resp.items.length < pageSize;
+
+      if (fetchedAll) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return accumulated;
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [leadsData, ticketsData] = await Promise.all([
-        fetchLeads(),
+      const [allLeads, ticketsData] = await Promise.all([
+        loadAllLeads(),
         fetchTickets(),
       ]);
-      setLeads(leadsData);
+      setLeads(allLeads);
       setTickets(ticketsData);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível carregar os dados de mock.");
+      setError("Não foi possível carregar as métricas.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadAllLeads]);
 
   useEffect(() => {
     void loadData();
@@ -86,7 +110,7 @@ export default function MetricsPage() {
           />
         </div>
         <p className="text-xs text-slate-500">
-          Filtrando dados mockados do período selecionado.
+          Filtrando dados do período selecionado.
         </p>
         {renderContent()}
       </div>
