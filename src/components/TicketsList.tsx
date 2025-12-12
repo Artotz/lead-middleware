@@ -1,24 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Ticket, TicketStatus } from "@/lib/domain";
-import { SortOrder } from "@/lib/filters";
+import { TicketFiltersState } from "@/lib/ticketFilters";
 import { Badge } from "./Badge";
 
 type TicketsListProps = {
   tickets: Ticket[];
-};
-
-type TicketFiltersState = {
-  search: string;
-  status: TicketStatus | "";
-  sort: SortOrder;
-};
-
-const initialFilters: TicketFiltersState = {
-  search: "",
-  status: "",
-  sort: "recentes",
+  total: number;
+  page: number;
+  pageSize: number;
+  filters: TicketFiltersState;
+  loading?: boolean;
+  onFiltersChange: (filters: TicketFiltersState) => void;
+  onPageChange: (direction: -1 | 1) => void;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
@@ -49,42 +43,24 @@ const formatDate = (iso: string | null) => {
   return dateFormatter.format(date);
 };
 
-const normalize = (value: string | null | undefined) =>
-  value?.toLowerCase() ?? "";
+export function TicketsList({
+  tickets,
+  total,
+  page,
+  pageSize,
+  filters,
+  loading = false,
+  onFiltersChange,
+  onPageChange,
+}: TicketsListProps) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-const sortTime = (ticket: Ticket) =>
-  new Date(ticket.updatedAt ?? ticket.createdAt ?? 0).getTime();
-
-export function TicketsList({ tickets }: TicketsListProps) {
-  const [filters, setFilters] = useState<TicketFiltersState>(initialFilters);
-
-  const statusOptions = useMemo(
-    () => Array.from(new Set(tickets.map((ticket) => ticket.status))),
-    [tickets],
-  );
-
-  const filteredTickets = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase();
-
-    const sorted = [...tickets].sort((a, b) => {
-      const aDate = sortTime(a);
-      const bDate = sortTime(b);
-      return filters.sort === "recentes" ? bDate - aDate : aDate - bDate;
-    });
-
-    return sorted.filter((ticket) => {
-      const matchesStatus =
-        !filters.status || ticket.status === filters.status;
-
-      const matchesSearch =
-        !searchTerm ||
-        [ticket.number, ticket.title, ticket.serialNumber, ticket.advisorName]
-          .concat([ticket.customerName, ticket.teamName])
-          .some((field) => normalize(field).includes(searchTerm));
-
-      return matchesStatus && matchesSearch;
-    });
-  }, [filters, tickets]);
+  const handleFilterChange = <K extends keyof TicketFiltersState>(
+    key: K,
+    val: TicketFiltersState[K],
+  ) => {
+    onFiltersChange({ ...filters, [key]: val });
+  };
 
   return (
     <div className="space-y-4">
@@ -95,9 +71,7 @@ export function TicketsList({ tickets }: TicketsListProps) {
             <input
               type="search"
               value={filters.search}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, search: e.target.value }))
-              }
+              onChange={(e) => handleFilterChange("search", e.target.value)}
               placeholder="Buscar por ticket, título, chassi ou cliente"
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             />
@@ -108,19 +82,13 @@ export function TicketsList({ tickets }: TicketsListProps) {
             <select
               value={filters.status}
               onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  status: e.target.value as TicketStatus | "",
-                }))
+                handleFilterChange("status", e.target.value as TicketStatus | "")
               }
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
               <option value="">Todos</option>
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {ticketStatusLabel[status]}
-                </option>
-              ))}
+              <option value="aberto">Aberto</option>
+              <option value="fechado">Fechado</option>
             </select>
           </label>
 
@@ -129,10 +97,7 @@ export function TicketsList({ tickets }: TicketsListProps) {
             <select
               value={filters.sort}
               onChange={(e) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  sort: e.target.value as SortOrder,
-                }))
+                handleFilterChange("sort", e.target.value as SortOrder)
               }
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
@@ -144,7 +109,7 @@ export function TicketsList({ tickets }: TicketsListProps) {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[0.9fr_1.4fr_0.8fr_1fr_1fr_1fr_0.9fr_1fr] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <div className="grid grid-cols-[1fr_1.5fr_0.9fr_1.1fr_1.1fr_1.1fr_1fr_1fr] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
           <span>Ticket</span>
           <span>Título</span>
           <span>Status</span>
@@ -156,10 +121,10 @@ export function TicketsList({ tickets }: TicketsListProps) {
         </div>
 
         <div className="divide-y divide-slate-200">
-          {filteredTickets.map((ticket) => (
+          {tickets.map((ticket) => (
             <div
               key={ticket.id}
-              className="grid grid-cols-[0.9fr_1.4fr_0.8fr_1fr_1fr_1fr_0.9fr_1fr] items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50"
+              className="grid grid-cols-[1fr_1.5fr_0.9fr_1.1fr_1.1fr_1.1fr_1fr_1fr] items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="slate">#{ticket.number}</Badge>
@@ -208,11 +173,42 @@ export function TicketsList({ tickets }: TicketsListProps) {
               </div>
             </div>
           ))}
-          {filteredTickets.length === 0 && (
+          {tickets.length === 0 && (
             <div className="px-5 py-4 text-sm text-slate-500">
-              Nenhum ticket encontrado com esses filtros.
+              {loading
+                ? "Carregando tickets..."
+                : "Nenhum ticket encontrado com esses filtros."}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+        <div className="flex items-center gap-2">
+          <span>
+            Página {page} de {totalPages}
+          </span>
+          <span className="text-slate-400">
+            ({total} tickets filtrados)
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onPageChange(-1)}
+            disabled={page <= 1 || loading}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(1)}
+            disabled={page >= totalPages || loading}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+          >
+            Próxima
+          </button>
         </div>
       </div>
     </div>

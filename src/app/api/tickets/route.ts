@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Ticket, TicketStatus } from "@/lib/domain";
+import { SortOrder } from "@/lib/filters";
 import { getSupabaseServerClient } from "@/lib/supabaseClient";
 
 type TicketRow = {
@@ -74,11 +75,31 @@ const mapTicketRow = (row: TicketRow): Ticket => {
   };
 };
 
-export async function GET() {
+const statusToCode: Record<TicketStatus, number | null> = {
+  aberto: 1,
+  fechado: 2,
+  desconhecido: null,
+};
+
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
+    const pageSize = Math.min(
+      Math.max(Number(searchParams.get("pageSize") ?? "10"), 1),
+      200,
+    );
+    const search = (searchParams.get("search") ?? "").trim();
+    const statusParam = searchParams.get("status") as TicketStatus | "" | null;
+    const sortParam = searchParams.get("sort") as SortOrder | null;
+    const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
     const supabase = getSupabaseServerClient();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("tickets")
       .select(
         [
@@ -100,8 +121,35 @@ export async function GET() {
           "created_date",
           "url",
         ].join(","),
+        { count: "exact" },
       )
-      .order("updated_date", { ascending: false });
+      .order("updated_date", { ascending: sort === "antigos", nullsFirst: false })
+      .range(from, to);
+
+    if (statusParam) {
+      const statusCode = statusToCode[statusParam];
+      if (statusCode !== null) {
+        query = query.eq("status", statusCode);
+      }
+    }
+
+    if (search) {
+      const safe = search.replace(/,/g, "\\,");
+      const pattern = `%${safe}%`;
+      query = query.or(
+        [
+          `number.ilike.${pattern}`,
+          `title.ilike.${pattern}`,
+          `serial_number.ilike.${pattern}`,
+          `customer_organization.ilike.${pattern}`,
+          `advisor_first_name.ilike.${pattern}`,
+          `advisor_last_name.ilike.${pattern}`,
+          `team_name.ilike.${pattern}`,
+        ].join(","),
+      );
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("Supabase tickets error", error);
@@ -113,7 +161,12 @@ export async function GET() {
 
     const tickets = (data ?? []).map(mapTicketRow);
 
-    return NextResponse.json(tickets);
+    return NextResponse.json({
+      items: tickets,
+      total: count ?? tickets.length,
+      page,
+      pageSize,
+    });
   } catch (err) {
     console.error("Unexpected error fetching tickets", err);
     return NextResponse.json(

@@ -8,11 +8,17 @@ import { TicketsList } from "@/components/TicketsList";
 import { fetchLeads, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
+import {
+  INITIAL_TICKET_FILTERS,
+  TicketFiltersState,
+} from "@/lib/ticketFilters";
 
 type DashboardTab = "leads" | "tickets";
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
+
+  // Leads
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState<number>(0);
   const [leadsPage, setLeadsPage] = useState<number>(1);
@@ -20,7 +26,17 @@ export default function DashboardPage() {
   const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
   const [leadFilters, setLeadFilters] =
     useState<FiltersState>(INITIAL_FILTERS);
+
+  // Tickets
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsTotal, setTicketsTotal] = useState<number>(0);
+  const [ticketsPage, setTicketsPage] = useState<number>(1);
+  const [ticketsPageSize] = useState<number>(10);
+  const [ticketsLoading, setTicketsLoading] = useState<boolean>(false);
+  const [ticketFilters, setTicketFilters] = useState<TicketFiltersState>(
+    INITIAL_TICKET_FILTERS,
+  );
+
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +55,7 @@ export default function DashboardPage() {
         setLeadsPage(resp.page);
       } catch (err) {
         console.error(err);
-        setError("Não foi possível carregar os leads do Supabase.");
+        setError("NÇœo foi possÇðvel carregar os leads do Supabase.");
       } finally {
         setLeadsLoading(false);
       }
@@ -47,37 +63,78 @@ export default function DashboardPage() {
     [leadsPageSize],
   );
 
+  const loadTickets = useCallback(
+    async (page: number, filters: TicketFiltersState) => {
+      setTicketsLoading(true);
+      setError(null);
+      try {
+        const resp = await fetchTickets({
+          page,
+          pageSize: ticketsPageSize,
+          ...filters,
+        });
+        setTickets(resp.items);
+        setTicketsTotal(resp.total);
+        setTicketsPage(resp.page);
+      } catch (err) {
+        console.error(err);
+        setError("NÇœo foi possÇðvel carregar os tickets do Supabase.");
+      } finally {
+        setTicketsLoading(false);
+      }
+    },
+    [ticketsPageSize],
+  );
+
   const loadInitial = useCallback(async () => {
     setLoading(true);
     setError(null);
     setLeadsLoading(true);
+    setTicketsLoading(true);
     try {
-      const [leadsResp, ticketsData] = await Promise.all([
+      const [leadsResp, ticketsResp] = await Promise.all([
         fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
-        fetchTickets(),
+        fetchTickets({
+          page: 1,
+          pageSize: ticketsPageSize,
+          ...INITIAL_TICKET_FILTERS,
+        }),
       ]);
       setLeads(leadsResp.items);
       setLeadsTotal(leadsResp.total);
       setLeadsPage(leadsResp.page);
-      setTickets(ticketsData);
+
+      setTickets(ticketsResp.items);
+      setTicketsTotal(ticketsResp.total);
+      setTicketsPage(ticketsResp.page);
+
       setLeadFilters(INITIAL_FILTERS);
+      setTicketFilters(INITIAL_TICKET_FILTERS);
     } catch (err) {
       console.error(err);
-      setError("Não foi possível carregar os dados iniciais.");
+      setError("NÇœo foi possÇðvel carregar os dados iniciais.");
     } finally {
       setLeadsLoading(false);
+      setTicketsLoading(false);
       setLoading(false);
     }
-  }, [leadsPageSize]);
+  }, [leadsPageSize, ticketsPageSize]);
 
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
 
-  const totalPages = Math.max(1, Math.ceil(leadsTotal / leadsPageSize));
+  const leadsTotalPages = Math.max(1, Math.ceil(leadsTotal / leadsPageSize));
+  const ticketsTotalPages = Math.max(
+    1,
+    Math.ceil(ticketsTotal / ticketsPageSize),
+  );
 
-  const handlePageChange = (direction: -1 | 1) => {
-    const next = Math.min(totalPages, Math.max(1, leadsPage + direction));
+  const handleLeadPageChange = (direction: -1 | 1) => {
+    const next = Math.min(
+      leadsTotalPages,
+      Math.max(1, leadsPage + direction),
+    );
     if (next !== leadsPage) {
       void loadLeads(next, leadFilters);
     }
@@ -87,6 +144,22 @@ export default function DashboardPage() {
     setLeadFilters(next);
     setLeadsPage(1);
     void loadLeads(1, next);
+  };
+
+  const handleTicketPageChange = (direction: -1 | 1) => {
+    const next = Math.min(
+      ticketsTotalPages,
+      Math.max(1, ticketsPage + direction),
+    );
+    if (next !== ticketsPage) {
+      void loadTickets(next, ticketFilters);
+    }
+  };
+
+  const handleTicketFiltersChange = (next: TicketFiltersState) => {
+    setTicketFilters(next);
+    setTicketsPage(1);
+    void loadTickets(1, next);
   };
 
   const renderContent = () => {
@@ -125,7 +198,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
             <div className="flex items-center gap-2">
               <span>
-                Página {leadsPage} de {totalPages}
+                PÇ­gina {leadsPage} de {leadsTotalPages}
               </span>
               <span className="text-slate-400">
                 ({leadsTotal} leads no total)
@@ -134,7 +207,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => handlePageChange(-1)}
+                onClick={() => handleLeadPageChange(-1)}
                 disabled={leadsPage <= 1 || leadsLoading}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
               >
@@ -142,11 +215,11 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handlePageChange(1)}
-                disabled={leadsPage >= totalPages || leadsLoading}
+                onClick={() => handleLeadPageChange(1)}
+                disabled={leadsPage >= leadsTotalPages || leadsLoading}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
               >
-                Próxima
+                PrÇüxima
               </button>
               {leadsLoading && (
                 <span className="text-xs text-slate-500">Atualizando...</span>
@@ -157,7 +230,18 @@ export default function DashboardPage() {
       );
     }
 
-    return <TicketsList tickets={tickets} />;
+    return (
+      <TicketsList
+        tickets={tickets}
+        total={ticketsTotal}
+        page={ticketsPage}
+        pageSize={ticketsPageSize}
+        filters={ticketFilters}
+        loading={ticketsLoading}
+        onFiltersChange={handleTicketFiltersChange}
+        onPageChange={handleTicketPageChange}
+      />
+    );
   };
 
   return (

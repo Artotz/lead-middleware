@@ -1,5 +1,9 @@
 import { FiltersState, INITIAL_FILTERS } from "./filters";
 import { Lead, Ticket } from "./domain";
+import {
+  INITIAL_TICKET_FILTERS,
+  TicketFiltersState,
+} from "./ticketFilters";
 
 export type LeadsPageResponse = {
   items: Lead[];
@@ -10,6 +14,17 @@ export type LeadsPageResponse = {
 
 export type LeadsQueryParams = Partial<
   { page: number; pageSize: number } & FiltersState
+>;
+
+export type TicketsPageResponse = {
+  items: Ticket[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type TicketsQueryParams = Partial<
+  { page: number; pageSize: number } & TicketFiltersState
 >;
 
 export async function fetchLeads(
@@ -47,11 +62,33 @@ export async function fetchLeads(
   return data;
 }
 
-export async function fetchTickets(): Promise<Ticket[]> {
-  const response = await fetch("/api/tickets", { cache: "no-store" });
+export async function fetchTickets(
+  params?: TicketsQueryParams,
+): Promise<TicketsPageResponse> {
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 10;
+
+  const {
+    search = INITIAL_TICKET_FILTERS.search,
+    status = INITIAL_TICKET_FILTERS.status,
+    sort = INITIAL_TICKET_FILTERS.sort,
+  } = params ?? {};
+
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    sort,
+  });
+
+  if (search) searchParams.set("search", search);
+  if (status) searchParams.set("status", status);
+
+  const response = await fetch(`/api/tickets?${searchParams.toString()}`, {
+    cache: "no-store",
+  });
   if (!response.ok) {
     throw new Error("Falha ao buscar tickets do Supabase");
   }
-  const data = (await response.json()) as Ticket[];
+  const data = (await response.json()) as TicketsPageResponse;
   return data;
 }

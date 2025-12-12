@@ -92,7 +92,7 @@ export function LeadsList({
       />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid grid-cols-[0.8fr_0.8fr_1fr_1fr_1fr_0.9fr_0.9fr_0.9fr] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <div className="grid grid-cols-[0.9fr_0.9fr_1.2fr_1.3fr_1.3fr_0.95fr_0.95fr_1fr] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
           <span>Região</span>
           <span>Estado</span>
           <span>Cidade</span>
@@ -107,7 +107,7 @@ export function LeadsList({
           {leads.map((lead) => (
             <div
               key={lead.id}
-              className="grid grid-cols-[0.8fr_0.8fr_1fr_1fr_1fr_0.9fr_0.9fr_0.9fr] items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50"
+              className="grid grid-cols-[0.9fr_0.9fr_1.2fr_1.3fr_1.3fr_0.95fr_0.95fr_1fr] items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50"
             >
               <div>
                 <Badge tone="sky">{lead.regional ?? "Sem regional"}</Badge>
