@@ -163,7 +163,7 @@ export default function DashboardPage() {
   return (
     <PageShell
       title="Dashboard"
-      subtitle="Leads & tickets mockados simulando uma camada de middleware."
+      subtitle="Leads e tickets servidos direto do Supabase."
     >
       <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -176,7 +176,7 @@ export default function DashboardPage() {
             onTabChange={(id) => setActiveTab(id as DashboardTab)}
           />
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Fonte: Supabase (leads) / Mock (tickets)
+            Fonte: Supabase (leads e tickets)
           </div>
         </div>
 

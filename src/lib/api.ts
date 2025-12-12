@@ -1,6 +1,5 @@
 import { FiltersState, INITIAL_FILTERS } from "./filters";
 import { Lead, Ticket } from "./domain";
-import { mockTickets } from "./mockData";
 
 export type LeadsPageResponse = {
   items: Lead[];
@@ -49,5 +48,10 @@ export async function fetchLeads(
 }
 
 export async function fetchTickets(): Promise<Ticket[]> {
-  return mockTickets;
+  const response = await fetch("/api/tickets", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Falha ao buscar tickets do Supabase");
+  }
+  const data = (await response.json()) as Ticket[];
+  return data;
 }

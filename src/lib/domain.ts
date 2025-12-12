@@ -1,4 +1,4 @@
-export type TicketStatus = "aberto" | "em_andamento" | "fechado";
+export type TicketStatus = "aberto" | "fechado" | "desconhecido";
 
 export type TimeRange = "today" | "week" | "month";
 
@@ -43,13 +43,15 @@ export type Lead = {
 
 export type Ticket = {
   id: string;
-  externalId: string;
-  linkExterno: string;
-  empresa: string;
-  chassiOuMaquina: string;
-  tipoLeadOrigem: string;
-  criadoEm: string;
+  number: string;
+  title: string;
   status: TicketStatus;
-  virouOS: boolean;
-  leadId?: string;
+  statusCode: number | null;
+  serialNumber: string | null;
+  advisorName: string | null;
+  customerName: string | null;
+  teamName: string | null;
+  updatedAt: string | null;
+  createdAt: string | null;
+  url: string | null;
 };
