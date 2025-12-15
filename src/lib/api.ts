@@ -21,11 +21,18 @@ export type TicketsPageResponse = {
   total: number;
   page: number;
   pageSize: number;
+  options?: TicketFilterOptions;
 };
 
 export type TicketsQueryParams = Partial<
   { page: number; pageSize: number } & TicketFiltersState
 >;
+
+export type TicketFilterOptions = {
+  consultores: string[];
+  clientes: string[];
+  equipes: string[];
+};
 
 export async function fetchLeads(
   params?: LeadsQueryParams,
@@ -80,6 +87,9 @@ export async function fetchTickets(
     sort = INITIAL_TICKET_FILTERS.sort,
     groupByEmpresa = INITIAL_TICKET_FILTERS.groupByEmpresa,
     groupByChassi = INITIAL_TICKET_FILTERS.groupByChassi,
+    consultor = INITIAL_TICKET_FILTERS.consultor,
+    cliente = INITIAL_TICKET_FILTERS.cliente,
+    equipe = INITIAL_TICKET_FILTERS.equipe,
   } = params ?? {};
 
   const searchParams = new URLSearchParams({
@@ -90,6 +100,9 @@ export async function fetchTickets(
 
   if (search) searchParams.set("search", search);
   if (status) searchParams.set("status", status);
+  if (consultor) searchParams.set("consultor", consultor);
+  if (cliente) searchParams.set("cliente", cliente);
+  if (equipe) searchParams.set("equipe", equipe);
   const groupBy: string[] = [];
   if (groupByEmpresa) groupBy.push("empresa");
   if (groupByChassi) groupBy.push("chassi");
@@ -103,4 +116,12 @@ export async function fetchTickets(
   }
   const data = (await response.json()) as TicketsPageResponse;
   return data;
+}
+
+export async function fetchTicketOptions() {
+  const response = await fetch("/api/tickets/options", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Falha ao buscar opções de tickets");
+  }
+  return (await response.json()) as TicketFilterOptions;
 }

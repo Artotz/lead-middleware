@@ -45,8 +45,8 @@ const mapTicketRow = (row: TicketRow): Ticket => {
     typeof row.status === "number"
       ? row.status
       : row.status === null
-        ? null
-        : Number(row.status);
+      ? null
+      : Number(row.status);
 
   const number = clean(row.number) ?? "Sem número";
   const title = clean(row.title) ?? "Sem título";
@@ -65,8 +65,8 @@ const mapTicketRow = (row: TicketRow): Ticket => {
       clean(row.advisor_email) ??
       clean(row.advisor_racfid),
     customerName:
-      clean(row.customer_organization) ??
       buildName(row.customer_first_name, row.customer_last_name) ??
+      clean(row.customer_organization) ??
       clean(row.customer_account),
     teamName: clean(row.team_name),
     updatedAt,
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const page = Math.max(Number(searchParams.get("page") ?? "1"), 1);
     const pageSize = Math.min(
       Math.max(Number(searchParams.get("pageSize") ?? "10"), 1),
-      200,
+      200
     );
     const search = (searchParams.get("search") ?? "").trim();
     const statusParam = searchParams.get("status") as TicketStatus | "" | null;
@@ -99,6 +99,9 @@ export async function GET(request: Request) {
       .filter(Boolean);
     const groupByEmpresa = groupByRaw.includes("empresa");
     const groupByChassi = groupByRaw.includes("chassi");
+    const consultorParam = (searchParams.get("consultor") ?? "").trim();
+    const clienteParam = (searchParams.get("cliente") ?? "").trim();
+    const equipeParam = (searchParams.get("equipe") ?? "").trim();
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -127,7 +130,7 @@ export async function GET(request: Request) {
           "created_date",
           "url",
         ].join(","),
-        { count: "exact" },
+        { count: "exact" }
       );
 
     if (groupByChassi) {
@@ -178,8 +181,30 @@ export async function GET(request: Request) {
           `advisor_first_name.ilike.${pattern}`,
           `advisor_last_name.ilike.${pattern}`,
           `team_name.ilike.${pattern}`,
-        ].join(","),
+        ].join(",")
       );
+    }
+
+    if (consultorParam) {
+      const safe = consultorParam.replace(/,/g, "\\,");
+      const pattern = `%${safe}%`;
+      query = query.or(
+        [
+          `advisor_first_name.ilike.${pattern}`,
+          `advisor_last_name.ilike.${pattern}`,
+          `advisor_email.ilike.${pattern}`,
+          `advisor_racfid.ilike.${pattern}`,
+        ].join(",")
+      );
+    }
+
+    if (clienteParam) {
+      const pattern = `%${clienteParam.replace(/,/g, "\\,")}%`;
+      query = query.ilike("customer_organization", pattern);
+    }
+
+    if (equipeParam) {
+      query = query.ilike("team_name", `%${equipeParam.replace(/,/g, "\\,")}%`);
     }
 
     const { data, error, count } = await query;
@@ -188,7 +213,7 @@ export async function GET(request: Request) {
       console.error("Supabase tickets error", error);
       return NextResponse.json(
         { message: "Erro ao buscar tickets", details: error.message },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -204,7 +229,7 @@ export async function GET(request: Request) {
     console.error("Unexpected error fetching tickets", err);
     return NextResponse.json(
       { message: "Erro inesperado ao buscar tickets" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

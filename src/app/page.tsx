@@ -5,7 +5,7 @@ import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
-import { fetchLeads, fetchTickets } from "@/lib/api";
+import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
 import {
@@ -36,6 +36,11 @@ export default function DashboardPage() {
   const [ticketFilters, setTicketFilters] = useState<TicketFiltersState>(
     INITIAL_TICKET_FILTERS,
   );
+  const [ticketOptions, setTicketOptions] = useState<{
+    consultores: string[];
+    clientes: string[];
+    equipes: string[];
+  } | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +60,7 @@ export default function DashboardPage() {
         setLeadsPage(resp.page);
       } catch (err) {
         console.error(err);
-        setError("NÇœo foi possÇðvel carregar os leads do Supabase.");
+        setError("Não foi possível carregar os leads do Supabase.");
       } finally {
         setLeadsLoading(false);
       }
@@ -76,9 +81,12 @@ export default function DashboardPage() {
         setTickets(resp.items);
         setTicketsTotal(resp.total);
         setTicketsPage(resp.page);
+        if (resp.options) {
+          setTicketOptions(resp.options);
+        }
       } catch (err) {
         console.error(err);
-        setError("NÇœo foi possÇðvel carregar os tickets do Supabase.");
+        setError("Não foi possível carregar os tickets do Supabase.");
       } finally {
         setTicketsLoading(false);
       }
@@ -92,13 +100,14 @@ export default function DashboardPage() {
     setLeadsLoading(true);
     setTicketsLoading(true);
     try {
-      const [leadsResp, ticketsResp] = await Promise.all([
+      const [leadsResp, ticketsResp, optionsResp] = await Promise.all([
         fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
         fetchTickets({
           page: 1,
           pageSize: ticketsPageSize,
           ...INITIAL_TICKET_FILTERS,
         }),
+        fetchTicketOptions(),
       ]);
       setLeads(leadsResp.items);
       setLeadsTotal(leadsResp.total);
@@ -107,12 +116,13 @@ export default function DashboardPage() {
       setTickets(ticketsResp.items);
       setTicketsTotal(ticketsResp.total);
       setTicketsPage(ticketsResp.page);
+      setTicketOptions(optionsResp);
 
       setLeadFilters(INITIAL_FILTERS);
       setTicketFilters(INITIAL_TICKET_FILTERS);
     } catch (err) {
       console.error(err);
-      setError("NÇœo foi possÇðvel carregar os dados iniciais.");
+      setError("Não foi possível carregar os dados iniciais.");
     } finally {
       setLeadsLoading(false);
       setTicketsLoading(false);
@@ -198,7 +208,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
             <div className="flex items-center gap-2">
               <span>
-                PÇ­gina {leadsPage} de {leadsTotalPages}
+                Página {leadsPage} de {leadsTotalPages}
               </span>
               <span className="text-slate-400">
                 ({leadsTotal} leads no total)
@@ -219,7 +229,7 @@ export default function DashboardPage() {
                 disabled={leadsPage >= leadsTotalPages || leadsLoading}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
               >
-                PrÇüxima
+                Próxima
               </button>
               {leadsLoading && (
                 <span className="text-xs text-slate-500">Atualizando...</span>
@@ -240,6 +250,7 @@ export default function DashboardPage() {
         loading={ticketsLoading}
         onFiltersChange={handleTicketFiltersChange}
         onPageChange={handleTicketPageChange}
+        options={ticketOptions ?? undefined}
       />
     );
   };

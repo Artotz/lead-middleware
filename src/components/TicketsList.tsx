@@ -15,6 +15,11 @@ type TicketsListProps = {
   loading?: boolean;
   onFiltersChange: (filters: TicketFiltersState) => void;
   onPageChange: (direction: -1 | 1) => void;
+  options?: {
+    consultores: string[];
+    clientes: string[];
+    equipes: string[];
+  };
 };
 
 type ColumnId =
@@ -109,6 +114,7 @@ export function TicketsList({
   loading = false,
   onFiltersChange,
   onPageChange,
+  options,
 }: TicketsListProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -195,6 +201,58 @@ export function TicketsList({
             >
               <option value="recentes">Mais recentes</option>
               <option value="antigos">Mais antigos</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Consultor
+            <select
+              value={filters.consultor}
+              onChange={(e) =>
+                handleFilterChange("consultor", e.target.value)
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todos</option>
+              {(options?.consultores ?? []).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Cliente
+            <select
+              value={filters.cliente}
+              onChange={(e) => handleFilterChange("cliente", e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todos</option>
+              {(options?.clientes ?? []).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Equipe
+            <select
+              value={filters.equipe}
+              onChange={(e) => handleFilterChange("equipe", e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todas</option>
+              {(options?.equipes ?? []).map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
             </select>
           </label>
         </div>

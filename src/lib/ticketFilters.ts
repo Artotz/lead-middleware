@@ -7,6 +7,9 @@ export type TicketFiltersState = {
   sort: SortOrder;
   groupByEmpresa: boolean;
   groupByChassi: boolean;
+  consultor: string;
+  cliente: string;
+  equipe: string;
 };
 
 export const INITIAL_TICKET_FILTERS: TicketFiltersState = {
@@ -15,4 +18,7 @@ export const INITIAL_TICKET_FILTERS: TicketFiltersState = {
   sort: "recentes",
   groupByEmpresa: false,
   groupByChassi: false,
+  consultor: "",
+  cliente: "",
+  equipe: "",
 };
