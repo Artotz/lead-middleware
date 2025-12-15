@@ -247,7 +247,7 @@ export function LeadsList({
                 </div>
               ),
               cliente: (
-                <span className="truncate text-slate-800">
+                <span className="block max-w-[240px] truncate text-slate-800">
                   {lead.clienteBaseEnriquecida ?? "Sem cliente"}
                 </span>
               ),
