@@ -39,6 +39,8 @@ export async function fetchLeads(
     estado = INITIAL_FILTERS.estado,
     tipoLead = INITIAL_FILTERS.tipoLead,
     sort = INITIAL_FILTERS.sort,
+    groupByChassi = INITIAL_FILTERS.groupByChassi ?? false,
+    groupByEmpresa = INITIAL_FILTERS.groupByEmpresa ?? false,
   } = params ?? {};
 
   const searchParams = new URLSearchParams({
@@ -51,6 +53,10 @@ export async function fetchLeads(
   if (regiao) searchParams.set("regiao", regiao);
   if (estado) searchParams.set("estado", estado);
   if (tipoLead) searchParams.set("tipoLead", tipoLead);
+  const groupBy: string[] = [];
+  if (groupByEmpresa) groupBy.push("empresa");
+  if (groupByChassi) groupBy.push("chassi");
+  if (groupBy.length) searchParams.set("groupBy", groupBy.join(","));
 
   const response = await fetch(`/api/leads?${searchParams.toString()}`, {
     cache: "no-store",
@@ -72,6 +78,8 @@ export async function fetchTickets(
     search = INITIAL_TICKET_FILTERS.search,
     status = INITIAL_TICKET_FILTERS.status,
     sort = INITIAL_TICKET_FILTERS.sort,
+    groupByEmpresa = INITIAL_TICKET_FILTERS.groupByEmpresa,
+    groupByChassi = INITIAL_TICKET_FILTERS.groupByChassi,
   } = params ?? {};
 
   const searchParams = new URLSearchParams({
@@ -82,6 +90,10 @@ export async function fetchTickets(
 
   if (search) searchParams.set("search", search);
   if (status) searchParams.set("status", status);
+  const groupBy: string[] = [];
+  if (groupByEmpresa) groupBy.push("empresa");
+  if (groupByChassi) groupBy.push("chassi");
+  if (groupBy.length) searchParams.set("groupBy", groupBy.join(","));
 
   const response = await fetch(`/api/tickets?${searchParams.toString()}`, {
     cache: "no-store",

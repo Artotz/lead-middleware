@@ -93,6 +93,12 @@ export async function GET(request: Request) {
     const statusParam = searchParams.get("status") as TicketStatus | "" | null;
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
+    const groupByRaw = (searchParams.get("groupBy") ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    const groupByEmpresa = groupByRaw.includes("empresa");
+    const groupByChassi = groupByRaw.includes("chassi");
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -122,9 +128,36 @@ export async function GET(request: Request) {
           "url",
         ].join(","),
         { count: "exact" },
-      )
-      .order("updated_date", { ascending: sort === "antigos", nullsFirst: false })
-      .range(from, to);
+      );
+
+    if (groupByChassi) {
+      query = query.not("serial_number", "is", null).neq("serial_number", "");
+    }
+
+    if (groupByEmpresa) {
+      query = query
+        .not("customer_organization", "is", null)
+        .neq("customer_organization", "");
+    }
+
+    // Order respecting grouping -> empresa -> chassi -> updated_date
+    const orders: { column: string; ascending: boolean }[] = [];
+    if (groupByEmpresa) {
+      orders.push({ column: "customer_organization", ascending: true });
+    }
+    if (groupByChassi) {
+      orders.push({ column: "serial_number", ascending: true });
+    }
+    orders.push({ column: "updated_date", ascending: sort === "antigos" });
+
+    orders.forEach((orderDef) => {
+      query = query.order(orderDef.column, {
+        ascending: orderDef.ascending,
+        nullsFirst: true,
+      });
+    });
+
+    query = query.range(from, to);
 
     if (statusParam) {
       const statusCode = statusToCode[statusParam];

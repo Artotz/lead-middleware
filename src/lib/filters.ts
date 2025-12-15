@@ -15,6 +15,8 @@ export type FiltersState = {
   estado: Estado | "";
   tipoLead: LeadCategory | "";
   sort: SortOrder;
+  groupByEmpresa?: boolean;
+  groupByChassi?: boolean;
 };
 
 export const INITIAL_FILTERS: FiltersState = {
@@ -23,6 +25,8 @@ export const INITIAL_FILTERS: FiltersState = {
   estado: "",
   tipoLead: "",
   sort: "recentes",
+  groupByEmpresa: false,
+  groupByChassi: false,
 };
 
 export const REGIAO_FILTER_QUERIES: Record<Regiao, string> = {

@@ -103,6 +103,12 @@ export async function GET(request: Request) {
     const tipoLeadParam = searchParams.get("tipoLead") as LeadCategory | null;
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
+    const groupByRaw = (searchParams.get("groupBy") ?? "")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+    const groupByEmpresa = groupByRaw.includes("empresa");
+    const groupByChassi = groupByRaw.includes("chassi");
 
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
@@ -147,6 +153,16 @@ export async function GET(request: Request) {
       )
       .not("regional", "ilike", "filtros aplicados:%");
 
+    if (groupByChassi) {
+      query = query.not("chassi", "is", null).neq("chassi", "");
+    }
+
+    if (groupByEmpresa) {
+      query = query
+        .not("cliente_base_enriquecida", "is", null)
+        .neq("cliente_base_enriquecida", "");
+    }
+
     if (regiao) {
       query = query.eq("regional", regiao);
     }
@@ -181,9 +197,16 @@ export async function GET(request: Request) {
 
     const ascending = sort === "antigos";
 
-    const { data, error, count } = await query
-      .order("imported_at", { ascending })
-      .range(from, to);
+    const orders: { column: string; ascending: boolean }[] = [];
+    if (groupByEmpresa) orders.push({ column: "cliente_base_enriquecida", ascending: true });
+    if (groupByChassi) orders.push({ column: "chassi", ascending: true });
+    orders.push({ column: "imported_at", ascending });
+
+    orders.forEach((orderDef) => {
+      query = query.order(orderDef.column, { ascending: orderDef.ascending, nullsFirst: true });
+    });
+
+    const { data, error, count } = await query.range(from, to);
 
     if (error) {
       console.error("Supabase leads error", error);
