@@ -230,25 +230,33 @@ export function LeadsList({
 
             const cells: Record<ColumnId, React.ReactNode> = {
               regional: (
-                <Badge tone="sky">{lead.regional ?? "Sem regional"}</Badge>
+                <Badge tone="sky" className="max-w-[130px] truncate">
+                  {lead.regional ?? "Sem regional"}
+                </Badge>
               ),
-              estado: <Badge tone="slate">{lead.estado ?? "Sem estado"}</Badge>,
+              estado: (
+                <Badge tone="slate" className="max-w-[90px] truncate">
+                  {lead.estado ?? "Sem estado"}
+                </Badge>
+              ),
               cidade: (
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-semibold text-slate-900">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate font-semibold text-slate-900">
                     {lead.city ?? "Cidade não informada"}
                   </span>
                 </div>
               ),
               cliente: (
-                <span className="text-slate-800">
+                <span className="truncate text-slate-800">
                   {lead.clienteBaseEnriquecida ?? "Sem cliente"}
                 </span>
               ),
               chassiModelo: (
                 <div className="flex flex-wrap gap-2">
-                  <Badge tone="emerald">{lead.chassi ?? "Sem chassi"}</Badge>
-                  <Badge tone="violet">
+                  <Badge tone="emerald" className="max-w-[170px] truncate">
+                    {lead.chassi ?? "Sem chassi"}
+                  </Badge>
+                  <Badge tone="violet" className="max-w-[170px] truncate">
                     {lead.modelName ?? "Modelo não informado"}
                   </Badge>
                 </div>
@@ -266,7 +274,7 @@ export function LeadsList({
                 </div>
               ),
               horimetro: (
-                <span className="text-slate-800">
+                <span className="truncate text-slate-800">
                   {lead.horimetroAtualMachineList !== null
                     ? `${numberFormatter.format(
                         lead.horimetroAtualMachineList,
@@ -275,7 +283,7 @@ export function LeadsList({
                 </span>
               ),
               importadoEm: (
-                <span className="text-slate-800">
+                <span className="truncate text-slate-800">
                   {formatDate(lead.importedAt)}
                 </span>
               ),
@@ -284,11 +292,13 @@ export function LeadsList({
             return (
               <div
                 key={lead.id}
-                className={`grid items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
+                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
                 style={{ gridTemplateColumns }}
               >
                 {columnOrder.map((col) => (
-                  <div key={col}>{cells[col]}</div>
+                  <div key={col} className="min-w-0">
+                    {cells[col]}
+                  </div>
                 ))}
               </div>
             );

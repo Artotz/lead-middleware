@@ -310,8 +310,10 @@ export function TicketsList({
 
             const cells: Record<ColumnId, React.ReactNode> = {
               ticket: (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="slate">#{ticket.number}</Badge>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Badge tone="slate" className="max-w-[150px] truncate">
+                    #{ticket.number}
+                  </Badge>
                   {ticket.url && (
                     <a
                       href={ticket.url}
@@ -325,8 +327,8 @@ export function TicketsList({
                 </div>
               ),
               titulo: (
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold text-slate-800">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-semibold text-slate-800">
                     {ticket.title}
                   </span>
                   {ticket.createdAt && (
@@ -337,30 +339,38 @@ export function TicketsList({
                 </div>
               ),
               status: (
-                <Badge tone={ticketStatusTone[ticket.status]}>
+                <Badge
+                  tone={ticketStatusTone[ticket.status]}
+                  className="max-w-[120px] truncate"
+                >
                   {ticketStatusLabel[ticket.status]}
                 </Badge>
               ),
               chassi: (
-                <Badge tone={ticket.serialNumber ? "emerald" : "slate"}>
+                <Badge
+                  tone={ticket.serialNumber ? "emerald" : "slate"}
+                  className="max-w-[170px] truncate"
+                >
                   {ticket.serialNumber ?? "Sem chassi"}
                 </Badge>
               ),
               consultor: (
-                <span className="truncate text-slate-700">
+                <span className="block max-w-[220px] truncate text-slate-700">
                   {ticket.advisorName ?? "N/A"}
                 </span>
               ),
               cliente: (
-                <span className="truncate text-slate-700">
+                <span className="block max-w-[220px] truncate text-slate-700">
                   {ticket.customerName ?? "N/A"}
                 </span>
               ),
               equipe: (
-                <Badge tone="sky">{ticket.teamName ?? "N/A"}</Badge>
+                <Badge tone="sky" className="max-w-[150px] truncate">
+                  {ticket.teamName ?? "N/A"}
+                </Badge>
               ),
               atualizado: (
-                <span className="text-slate-700">
+                <span className="truncate text-slate-700">
                   {formatDate(ticket.updatedAt)}
                 </span>
               ),
@@ -369,11 +379,13 @@ export function TicketsList({
             return (
               <div
                 key={ticket.id}
-                className={`grid items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
+                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
                 style={{ gridTemplateColumns }}
               >
                 {columnOrder.map((column) => (
-                  <div key={column}>{cells[column]}</div>
+                  <div key={column} className="min-w-0 overflow-hidden">
+                    {cells[column]}
+                  </div>
                 ))}
               </div>
             );

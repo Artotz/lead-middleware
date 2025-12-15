@@ -60,7 +60,9 @@ export function FiltersBar({
             {regiaoLabel}
             <select
               value={value.regiao}
-              onChange={(e) => handleChange("regiao", e.target.value)}
+              onChange={(e) =>
+                handleChange("regiao", e.target.value as FiltersState["regiao"])
+              }
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
               <option value="">Todas</option>
@@ -78,7 +80,9 @@ export function FiltersBar({
             {estadoLabel}
             <select
               value={value.estado}
-              onChange={(e) => handleChange("estado", e.target.value)}
+              onChange={(e) =>
+                handleChange("estado", e.target.value as FiltersState["estado"])
+              }
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
               <option value="">Todos</option>
@@ -95,7 +99,9 @@ export function FiltersBar({
           {tipoLeadLabel}
           <select
             value={value.tipoLead}
-            onChange={(e) => handleChange("tipoLead", e.target.value)}
+            onChange={(e) =>
+              handleChange("tipoLead", e.target.value as FiltersState["tipoLead"])
+            }
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
           >
             <option value="">Todos</option>

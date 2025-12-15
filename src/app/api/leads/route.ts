@@ -48,8 +48,10 @@ const mapLeadRow = (row: LeadRow): Lead => {
     .filter((entry) => isYes(row[entry.key] as string | null))
     .map((entry) => entry.category);
 
-  const tipoLeadList = foundTypes.length ? foundTypes : ["indefinido"];
-  const tipoLead = tipoLeadList[0];
+  const tipoLeadList: LeadCategory[] = foundTypes.length
+    ? foundTypes
+    : ["indefinido"];
+  const tipoLead: LeadCategory = tipoLeadList[0];
 
   const horimetro =
     row.horimetro_atual_machine_list === null
@@ -216,7 +218,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const cleanedRows = (data ?? []).filter((row) => {
+    const cleanedRows = ((data ?? []) as unknown as LeadRow[]).filter((row) => {
       const regionalNormalized = row.regional?.trim().toLowerCase() ?? "";
       return !regionalNormalized.startsWith("filtros aplicados:");
     });

@@ -217,7 +217,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const tickets = (data ?? []).map(mapTicketRow);
+    const tickets = ((data ?? []) as unknown as TicketRow[]).map(mapTicketRow);
 
     return NextResponse.json({
       items: tickets,
