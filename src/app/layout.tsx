@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,7 +29,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-slate-100 text-slate-900 antialiased`}
       >
-        <div className="min-h-screen bg-slate-100">
+        <ToastProvider>
+          <div className="min-h-screen bg-slate-100">
           <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex items-center justify-between px-6 py-4">
               <div className="flex items-center gap-3">
@@ -59,8 +61,9 @@ export default function RootLayout({
               </nav>
             </div>
           </header>
-          <main>{children}</main>
-        </div>
+            <main>{children}</main>
+          </div>
+        </ToastProvider>
       </body>
     </html>
   );

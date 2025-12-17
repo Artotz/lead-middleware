@@ -9,6 +9,7 @@ import {
   REGIOES,
 } from "@/lib/filters";
 import { Badge } from "./Badge";
+import { ActionButtonCell } from "./ActionButtonCell";
 import { FiltersBar } from "./FiltersBar";
 
 type LeadsListProps = {
@@ -27,14 +28,18 @@ type ColumnId =
   | "tipoLead"
   | "status"
   | "horimetro"
-  | "importadoEm";
+  | "importadoEm"
+  | "acoes";
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const dateOnlyFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
   year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
 });
 
 const numberFormatter = new Intl.NumberFormat("pt-BR");
@@ -68,7 +73,16 @@ const leadTypeLabel: Record<LeadCategory, string> = {
   indefinido: "Indefinido",
 };
 
-const formatDate = (iso: string) => dateFormatter.format(new Date(iso));
+const formatDateParts = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return { time: "N/A", date: "N/A" };
+  }
+  return {
+    time: dateFormatter.format(date),
+    date: dateOnlyFormatter.format(date),
+  };
+};
 
 const pickStatusTone = (
   status: string | null,
@@ -93,6 +107,7 @@ const columnLabels: Record<ColumnId, string> = {
   horimetro: "Horímetro",
   importadoEm: "Importado em",
   status: "Status",
+  acoes: "Ações",
 };
 
 const columnWidths: Record<ColumnId, string> = {
@@ -105,6 +120,7 @@ const columnWidths: Record<ColumnId, string> = {
   horimetro: "1fr",
   importadoEm: "1fr",
   status: "1fr",
+  acoes: "0.8fr",
 };
 
 const buildColumnOrder = (
@@ -121,6 +137,7 @@ const buildColumnOrder = (
     "status",
     "horimetro",
     "importadoEm",
+    "acoes",
   ];
   const prioritized: ColumnId[] = [];
   if (groupByEmpresa) prioritized.push("cliente");
@@ -308,9 +325,25 @@ export function LeadsList({
                 </span>
               ),
               importadoEm: (
-                <span className="truncate text-slate-800">
-                  {formatDate(lead.importedAt)}
-                </span>
+                (() => {
+                  const parts = formatDateParts(lead.importedAt);
+                  return (
+                    <div className="min-w-0 leading-tight">
+                      <span className="block truncate text-xs font-semibold text-slate-700">
+                        {parts.time}
+                      </span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {parts.date}
+                      </span>
+                    </div>
+                  );
+                })()
+              ),
+              acoes: (
+                <ActionButtonCell
+                  entity="lead"
+                  leadId={lead.id}
+                />
               ),
             };
 

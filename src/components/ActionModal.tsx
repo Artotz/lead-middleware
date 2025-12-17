@@ -1,0 +1,387 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  type ActionDefinition,
+  type EventPayload,
+  MAX_NOTE_CHARS,
+  LEAD_ACTION_DEFINITIONS,
+  TICKET_ACTION_DEFINITIONS,
+} from "@/lib/events";
+
+type EntityKind = "lead" | "ticket";
+
+type ActionModalProps<Action extends string> = {
+  open: boolean;
+  entity: EntityKind;
+  actions: ActionDefinition<Action>[];
+  onClose: () => void;
+  onConfirm: (action: Action, payload: EventPayload) => Promise<void>;
+  loading?: boolean;
+  error?: string | null;
+};
+
+type ChangedFieldRow = { key: string; value: string };
+
+const parseTags = (value: string): string[] =>
+  value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+export function ActionModal<Action extends string>({
+  open,
+  entity,
+  actions,
+  onClose,
+  onConfirm,
+  loading = false,
+  error = null,
+}: ActionModalProps<Action>) {
+  const firstAction = actions[0]?.id;
+  const [action, setAction] = useState<Action | undefined>(firstAction);
+  const [note, setNote] = useState("");
+  const [reason, setReason] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [tags, setTags] = useState("");
+  const [method, setMethod] = useState("manual");
+  const [changedFields, setChangedFields] = useState<ChangedFieldRow[]>([
+    { key: "", value: "" },
+  ]);
+
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const activeDef = useMemo(
+    () => actions.find((item) => item.id === action) ?? null,
+    [action, actions],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+
+    setAction(firstAction);
+    setNote("");
+    setReason("");
+    setAssignee("");
+    setTags("");
+    setMethod("manual");
+    setChangedFields([{ key: "", value: "" }]);
+
+    const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [firstAction, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, open]);
+
+  const canConfirm = useMemo(() => {
+    if (!activeDef || !action) return false;
+    if (loading) return false;
+    if (activeDef.requiresReason && !reason.trim()) return false;
+    if (activeDef.requiresAssignee && !assignee.trim()) return false;
+    if (activeDef.requiresTags && parseTags(tags).length === 0) return false;
+    if (activeDef.requiresChangedFields) {
+      const hasOne = changedFields.some(
+        (row) => row.key.trim() && row.value.trim(),
+      );
+      if (!hasOne) return false;
+    }
+    return true;
+  }, [action, activeDef, assignee, changedFields, loading, reason, tags]);
+
+  const handleConfirm = async () => {
+    if (!action || !activeDef) return;
+
+    const payload: EventPayload = {};
+
+    const normalizedNote = note.trim().slice(0, MAX_NOTE_CHARS);
+    if (normalizedNote) payload.note = normalizedNote;
+
+    if (activeDef.requiresReason || reason.trim()) {
+      const normalizedReason = reason.trim();
+      if (normalizedReason) payload.reason = normalizedReason;
+    }
+
+    if (activeDef.requiresAssignee) {
+      payload.assignee = assignee.trim();
+    } else if (assignee.trim()) {
+      payload.assignee = assignee.trim();
+    }
+
+    if (activeDef.requiresTags || tags.trim()) {
+      const list = parseTags(tags);
+      if (list.length) payload.tags = list;
+    }
+
+    if (entity === "lead" && action === ("convert_to_ticket" as Action)) {
+      payload.method = method.trim() || "manual";
+    }
+
+    if (entity === "lead" && action === ("update_field" as Action)) {
+      const entries = changedFields
+        .map((row) => [row.key.trim(), row.value.trim()] as const)
+        .filter(([k, v]) => Boolean(k) && Boolean(v));
+      if (entries.length) {
+        payload.changed_fields = Object.fromEntries(entries);
+      }
+    }
+
+    await onConfirm(action, payload);
+  };
+
+  const showMethod =
+    entity === "lead" && action === ("convert_to_ticket" as Action);
+  const showChangedFields =
+    entity === "lead" && action === ("update_field" as Action);
+  const showTags =
+    entity === "ticket" &&
+    (action === ("add_tags" as Action) || action === ("remove_tags" as Action));
+  const showAssignee = action === ("assign" as Action);
+
+  if (!open) return null;
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onClick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Registrar aǧǜo"
+    >
+      <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-slate-900">
+              Registrar aǧǜo
+            </h2>
+            <p className="text-xs text-slate-500">
+              Escolha a aǧǜo e preencha detalhes (se necessǭrio).
+            </p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+          >
+            Fechar
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-[1.1fr_1fr]">
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Aǧǜo
+            </p>
+            <div className="space-y-2">
+              {actions.map((item) => {
+                const active = item.id === action;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setAction(item.id)}
+                    className={`w-full rounded-xl border p-3 text-left transition ${
+                      active
+                        ? "border-sky-300 bg-sky-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.label}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {item.description}
+                        </div>
+                      </div>
+                      <div
+                        className={`h-3 w-3 rounded-full border ${
+                          active
+                            ? "border-sky-400 bg-sky-500"
+                            : "border-slate-300 bg-white"
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Detalhes
+            </p>
+
+            {error && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+                {error}
+              </div>
+            )}
+
+            {activeDef?.requiresReason && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Motivo <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Explique o motivo"
+                  required
+                />
+              </label>
+            )}
+
+            {showAssignee && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Responsǭvel <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Email ou nome"
+                />
+              </label>
+            )}
+
+            {showTags && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Tags <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Ex.: urgente, callback, vip"
+                />
+                <p className="text-xs text-slate-500">
+                  Separe por vǭrgula.
+                </p>
+              </label>
+            )}
+
+            {showMethod && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>MǸtodo</span>
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                >
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+            )}
+
+            {showChangedFields && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-slate-700">
+                    Campos alterados <span className="text-rose-600">*</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setChangedFields((prev) => [...prev, { key: "", value: "" }])
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+                {changedFields.map((row, idx) => (
+                  <div key={idx} className="grid grid-cols-2 gap-2">
+                    <input
+                      value={row.key}
+                      onChange={(e) =>
+                        setChangedFields((prev) =>
+                          prev.map((item, i) =>
+                            i === idx ? { ...item, key: e.target.value } : item,
+                          ),
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      placeholder="Campo"
+                    />
+                    <input
+                      value={row.value}
+                      onChange={(e) =>
+                        setChangedFields((prev) =>
+                          prev.map((item, i) =>
+                            i === idx ? { ...item, value: e.target.value } : item,
+                          ),
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      placeholder="Novo valor"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label className="space-y-1 text-sm font-medium text-slate-700">
+              <span>Observaǧǜo (opcional)</span>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={MAX_NOTE_CHARS}
+                rows={4}
+                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                placeholder="Adicione contexto (atǻ 2000 caracteres)"
+              />
+              <div className="flex justify-end text-xs text-slate-400">
+                {note.length}/{MAX_NOTE_CHARS}
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!canConfirm}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? "Registrando..." : "Confirmar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  , document.body);
+}
+
+export const LEAD_ACTIONS_FOR_UI = LEAD_ACTION_DEFINITIONS;
+export const TICKET_ACTIONS_FOR_UI = TICKET_ACTION_DEFINITIONS;

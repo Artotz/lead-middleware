@@ -4,6 +4,7 @@ import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
 } from "./ticketFilters";
+import type { MetricsRange, UserActionMetricsRow } from "./metrics";
 
 export type LeadsPageResponse = {
   items: Lead[];
@@ -136,4 +137,29 @@ export async function fetchTicketOptions() {
     throw new Error("Falha ao buscar opВリes de tickets");
   }
   return (await response.json()) as TicketFilterOptions;
+}
+
+export type MetricsApiResponse = {
+  success: true;
+  range: MetricsRange;
+  items: UserActionMetricsRow[];
+};
+
+async function fetchMetrics(path: string, range: MetricsRange) {
+  const response = await fetch(`${path}?range=${encodeURIComponent(range)}`, {
+    cache: "no-store",
+  });
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    throw new Error("Falha ao buscar mÇ¸tricas");
+  }
+  return (await response.json()) as MetricsApiResponse;
+}
+
+export async function fetchLeadMetrics(range: MetricsRange) {
+  return fetchMetrics("/api/metrics/leads", range);
+}
+
+export async function fetchTicketMetrics(range: MetricsRange) {
+  return fetchMetrics("/api/metrics/tickets", range);
 }

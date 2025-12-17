@@ -1,0 +1,54 @@
+import { NextResponse } from "next/server";
+import { requireCurrentUser } from "@/lib/currentUser";
+import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { aggregateUserMetrics, rangeToStart } from "@/lib/metricsAggregation";
+import { isMetricsRange, type MetricsRange } from "@/lib/metrics";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  try {
+    await requireCurrentUser();
+
+    const { searchParams } = new URL(request.url);
+    const rangeParam = (searchParams.get("range") ?? "week").trim();
+    const range: MetricsRange = isMetricsRange(rangeParam) ? rangeParam : "week";
+    const start = rangeToStart(range);
+
+    const supabase = getSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("ticket_events")
+      .select("ticket_id,actor_user_id,actor_email,actor_name,action,occurred_at")
+      .gte("occurred_at", start.toISOString());
+
+    if (error) {
+      console.error("Supabase ticket metrics error", error);
+      return NextResponse.json(
+        { success: false, message: "Erro ao buscar mǸtricas de tickets.", details: error.message },
+        { status: 500 },
+      );
+    }
+
+    const rows = (data ?? []).map((row: any) => ({
+      actor_user_id: row.actor_user_id as string | null,
+      actor_email: row.actor_email as string | null,
+      actor_name: row.actor_name as string | null,
+      action: row.action as string | null,
+      item_id: row.ticket_id as string | null,
+    }));
+
+    const metrics = aggregateUserMetrics(rows);
+    return NextResponse.json({ success: true, range, items: metrics });
+  } catch (err: any) {
+    const status = typeof err?.status === "number" ? err.status : 500;
+    if (status !== 500) {
+      return NextResponse.json({ success: false, message: "Nǜo autenticado." }, { status });
+    }
+    console.error("Unexpected tickets metrics error", err);
+    return NextResponse.json(
+      { success: false, message: "Erro inesperado ao buscar mǸtricas." },
+      { status: 500 },
+    );
+  }
+}
+

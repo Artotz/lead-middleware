@@ -5,6 +5,7 @@ import { Ticket, TicketStatus } from "@/lib/domain";
 import { SortOrder } from "@/lib/filters";
 import { TicketFiltersState } from "@/lib/ticketFilters";
 import { Badge } from "./Badge";
+import { ActionButtonCell } from "./ActionButtonCell";
 
 type TicketsListProps = {
   tickets: Ticket[];
@@ -31,14 +32,18 @@ type ColumnId =
   | "consultor"
   | "cliente"
   | "equipe"
-  | "atualizado";
+  | "atualizado"
+  | "acoes";
+
+const timeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
   year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
 });
 
 const ticketStatusTone: Record<
@@ -56,11 +61,14 @@ const ticketStatusLabel: Record<TicketStatus, string> = {
   desconhecido: "Desconhecido",
 };
 
-const formatDate = (iso: string | null) => {
-  if (!iso) return "N/A";
+const formatDateParts = (iso: string | null) => {
+  if (!iso) return { time: "N/A", date: "N/A" };
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "N/A";
-  return dateFormatter.format(date);
+  if (Number.isNaN(date.getTime())) return { time: "N/A", date: "N/A" };
+  return {
+    time: timeFormatter.format(date),
+    date: dateFormatter.format(date),
+  };
 };
 
 const columnLabels: Record<ColumnId, string> = {
@@ -72,6 +80,7 @@ const columnLabels: Record<ColumnId, string> = {
   cliente: "Cliente",
   equipe: "Equipe",
   atualizado: "Atualizado",
+  acoes: "Ações",
 };
 
 const columnWidths: Record<ColumnId, string> = {
@@ -83,6 +92,7 @@ const columnWidths: Record<ColumnId, string> = {
   cliente: "1.2fr",
   equipe: "1fr",
   atualizado: "1fr",
+  acoes: "0.8fr",
 };
 
 const buildColumnOrder = (
@@ -98,6 +108,7 @@ const buildColumnOrder = (
     "cliente",
     "equipe",
     "atualizado",
+    "acoes",
   ];
 
   const prioritized: ColumnId[] = [];
@@ -341,11 +352,16 @@ export function TicketsList({
                   <span className="truncate font-semibold text-slate-800">
                     {ticket.title}
                   </span>
-                  {ticket.createdAt && (
-                    <span className="text-xs text-slate-500">
-                      Criado em {formatDate(ticket.createdAt)}
-                    </span>
-                  )}
+                  {ticket.createdAt &&
+                    (() => {
+                      const parts = formatDateParts(ticket.createdAt);
+                      return (
+                        <span className="text-xs text-slate-500 leading-tight">
+                          <span className="block truncate">{parts.time}</span>
+                          <span className="block truncate">{parts.date}</span>
+                        </span>
+                      );
+                    })()}
                 </div>
               ),
               status: (
@@ -386,10 +402,25 @@ export function TicketsList({
                   {ticket.teamName ?? "N/A"}
                 </Badge>
               ),
-              atualizado: (
-                <span className="truncate text-slate-700">
-                  {formatDate(ticket.updatedAt)}
-                </span>
+              atualizado:
+                (() => {
+                  const parts = formatDateParts(ticket.updatedAt);
+                  return (
+                    <div className="min-w-0 leading-tight">
+                      <span className="block truncate text-xs font-semibold text-slate-700">
+                        {parts.time}
+                      </span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {parts.date}
+                      </span>
+                    </div>
+                  );
+                })(),
+              acoes: (
+                <ActionButtonCell
+                  entity="ticket"
+                  ticketId={ticket.id}
+                />
               ),
             };
 

@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
     request: {
@@ -47,6 +52,10 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute = pathname === "/" || pathname.startsWith("/metrics");
 
   if (!session && isProtectedRoute) {
+    const mockUserId = process.env.MOCK_USER_ID?.trim();
+    if (mockUserId && isUuid(mockUserId)) {
+      return response;
+    }
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("message", "Faça login para acessar o painel.");
     return NextResponse.redirect(redirectUrl, {
@@ -67,4 +76,3 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/", "/metrics/:path*", "/login"],
 };
-

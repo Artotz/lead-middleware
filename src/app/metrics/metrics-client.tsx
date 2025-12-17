@@ -4,86 +4,36 @@ import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { MetricsTabs } from "@/components/MetricsTabs";
 import { TimeRangeSelector } from "@/components/TimeRangeSelector";
-import { LeadsMetricsView } from "@/components/LeadsMetricsView";
-import { TicketsMetricsView } from "@/components/TicketsMetricsView";
-import { fetchLeads, fetchTickets } from "@/lib/api";
-import { Lead, Ticket, TimeRange } from "@/lib/domain";
+import { UserActionMetricsView } from "@/components/UserActionMetricsView";
+import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
+import { TimeRange } from "@/lib/domain";
+import type { UserActionMetricsRow } from "@/lib/metrics";
 
 type MetricsTab = "leads" | "tickets";
 
 export default function MetricsClient() {
   const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  const loadAllLeads = useCallback(async () => {
-    const pageSize = 100;
-    let page = 1;
-    let accumulated: Lead[] = [];
-    let total = 0;
-
-    for (;;) {
-      const resp = await fetchLeads({ page, pageSize });
-      accumulated = accumulated.concat(resp.items);
-      total = resp.total ?? accumulated.length;
-
-      const fetchedAll =
-        accumulated.length >= total || resp.items.length < pageSize;
-
-      if (fetchedAll) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return accumulated;
-  }, []);
-
-  const loadAllTickets = useCallback(async () => {
-    const pageSize = 200;
-    let page = 1;
-    let accumulated: Ticket[] = [];
-    let total = 0;
-
-    for (;;) {
-      const resp = await fetchTickets({ page, pageSize });
-      accumulated = accumulated.concat(resp.items);
-      total = resp.total ?? accumulated.length;
-
-      const fetchedAll =
-        accumulated.length >= total || resp.items.length < pageSize;
-
-      if (fetchedAll) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return accumulated;
-  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [allLeads, allTickets] = await Promise.all([
-        loadAllLeads(),
-        loadAllTickets(),
-      ]);
-      setLeads(allLeads);
-      setTickets(allTickets);
+      const response =
+        activeTab === "leads"
+          ? await fetchLeadMetrics(timeRange)
+          : await fetchTicketMetrics(timeRange);
+      setRows(response.items);
     } catch (err) {
       console.error(err);
       setError("Não foi possível carregar as métricas.");
     } finally {
       setLoading(false);
     }
-  }, [loadAllLeads, loadAllTickets]);
+  }, [activeTab, timeRange]);
 
   useEffect(() => {
     void loadData();
@@ -113,11 +63,7 @@ export default function MetricsClient() {
       );
     }
 
-    if (activeTab === "leads") {
-      return <LeadsMetricsView leads={leads} timeRange={timeRange} />;
-    }
-
-    return <TicketsMetricsView tickets={tickets} timeRange={timeRange} />;
+    return <UserActionMetricsView entity={activeTab} rows={rows} />;
   };
 
   return (
