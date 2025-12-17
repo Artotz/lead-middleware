@@ -5,6 +5,7 @@ import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
+import { TicketDetailsAside } from "@/components/TicketDetailsAside";
 import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
@@ -41,6 +42,8 @@ export default function DashboardClient() {
     clientes: string[];
     equipes: string[];
   } | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketDetailsOpen, setTicketDetailsOpen] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -241,17 +244,31 @@ export default function DashboardClient() {
     }
 
     return (
-      <TicketsList
-        tickets={tickets}
-        total={ticketsTotal}
-        page={ticketsPage}
-        pageSize={ticketsPageSize}
-        filters={ticketFilters}
-        loading={ticketsLoading}
-        onFiltersChange={handleTicketFiltersChange}
-        onPageChange={handleTicketPageChange}
-        options={ticketOptions ?? undefined}
-      />
+      <>
+        <TicketsList
+          tickets={tickets}
+          total={ticketsTotal}
+          page={ticketsPage}
+          pageSize={ticketsPageSize}
+          filters={ticketFilters}
+          loading={ticketsLoading}
+          onFiltersChange={handleTicketFiltersChange}
+          onPageChange={handleTicketPageChange}
+          options={ticketOptions ?? undefined}
+          onTicketSelect={(ticket: Ticket) => {
+            setSelectedTicketId(ticket.id);
+            setTicketDetailsOpen(true);
+          }}
+        />
+
+        {selectedTicketId ? (
+          <TicketDetailsAside
+            ticketId={selectedTicketId}
+            open={ticketDetailsOpen}
+            onClose={() => setTicketDetailsOpen(false)}
+          />
+        ) : null}
+      </>
     );
   };
 
@@ -288,4 +305,3 @@ export default function DashboardClient() {
     </PageShell>
   );
 }
-

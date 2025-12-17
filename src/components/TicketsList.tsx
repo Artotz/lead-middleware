@@ -15,6 +15,7 @@ type TicketsListProps = {
   loading?: boolean;
   onFiltersChange: (filters: TicketFiltersState) => void;
   onPageChange: (direction: -1 | 1) => void;
+  onTicketSelect?: (ticket: Ticket) => void;
   options?: {
     consultores: string[];
     clientes: string[];
@@ -114,6 +115,7 @@ export function TicketsList({
   loading = false,
   onFiltersChange,
   onPageChange,
+  onTicketSelect,
   options,
 }: TicketsListProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -319,6 +321,7 @@ export function TicketsList({
                       href={ticket.url}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="text-xs font-semibold text-sky-700 underline decoration-sky-300 decoration-2 underline-offset-4 transition hover:text-sky-900"
                     >
                       Abrir
@@ -379,7 +382,22 @@ export function TicketsList({
             return (
               <div
                 key={ticket.id}
-                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
+                role={onTicketSelect ? "button" : undefined}
+                tabIndex={onTicketSelect ? 0 : undefined}
+                onClick={onTicketSelect ? () => onTicketSelect(ticket) : undefined}
+                onKeyDown={
+                  onTicketSelect
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onTicketSelect(ticket);
+                        }
+                      }
+                    : undefined
+                }
+                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass} ${
+                  onTicketSelect ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200" : ""
+                }`}
                 style={{ gridTemplateColumns }}
               >
                 {columnOrder.map((column) => (
