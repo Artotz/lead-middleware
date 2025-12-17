@@ -67,3 +67,4 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/", "/metrics/:path*", "/login"],
 };
+
