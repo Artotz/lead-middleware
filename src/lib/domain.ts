@@ -50,6 +50,7 @@ export type Ticket = {
   serialNumber: string | null;
   advisorName: string | null;
   customerName: string | null;
+  customerOrganization: string | null;
   teamName: string | null;
   updatedAt: string | null;
   createdAt: string | null;

@@ -41,12 +41,14 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
-const ticketStatusTone: Record<TicketStatus, Parameters<typeof Badge>[0]["tone"]> =
-  {
-    aberto: "amber",
-    fechado: "emerald",
-    desconhecido: "slate",
-  };
+const ticketStatusTone: Record<
+  TicketStatus,
+  Parameters<typeof Badge>[0]["tone"]
+> = {
+  aberto: "amber",
+  fechado: "emerald",
+  desconhecido: "slate",
+};
 
 const ticketStatusLabel: Record<TicketStatus, string> = {
   aberto: "Aberto",
@@ -85,7 +87,7 @@ const columnWidths: Record<ColumnId, string> = {
 
 const buildColumnOrder = (
   groupByEmpresa: boolean,
-  groupByChassi: boolean,
+  groupByChassi: boolean
 ): ColumnId[] => {
   const baseOrder: ColumnId[] = [
     "ticket",
@@ -122,7 +124,7 @@ export function TicketsList({
 
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
-    [filters.groupByEmpresa, filters.groupByChassi],
+    [filters.groupByEmpresa, filters.groupByChassi]
   );
 
   const gridTemplateColumns = columnOrder
@@ -131,7 +133,7 @@ export function TicketsList({
 
   const handleFilterChange = <K extends keyof TicketFiltersState>(
     key: K,
-    val: TicketFiltersState[K],
+    val: TicketFiltersState[K]
   ) => {
     onFiltersChange({ ...filters, [key]: val });
   };
@@ -140,7 +142,9 @@ export function TicketsList({
     return (ticket: Ticket) => {
       const parts: string[] = [];
       if (filters.groupByEmpresa) {
-        parts.push(ticket.customerName ?? "Sem empresa");
+        parts.push(
+          ticket.customerOrganization ?? ticket.customerName ?? "Sem empresa"
+        );
       }
       if (filters.groupByChassi) {
         parts.push(ticket.serialNumber ?? "Sem chassi");
@@ -156,7 +160,9 @@ export function TicketsList({
       const groupKey = makeGroupKey(ticket);
       const last = acc[acc.length - 1];
       const groupIndex =
-        last && last.groupKey === groupKey ? last.groupIndex : (last?.groupIndex ?? -1) + 1;
+        last && last.groupKey === groupKey
+          ? last.groupIndex
+          : (last?.groupIndex ?? -1) + 1;
       acc.push({ ticket, groupKey, groupIndex });
       return acc;
     }, []);
@@ -182,7 +188,10 @@ export function TicketsList({
             <select
               value={filters.status}
               onChange={(e) =>
-                handleFilterChange("status", e.target.value as TicketStatus | "")
+                handleFilterChange(
+                  "status",
+                  e.target.value as TicketStatus | ""
+                )
               }
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
@@ -212,9 +221,7 @@ export function TicketsList({
             Consultor
             <select
               value={filters.consultor}
-              onChange={(e) =>
-                handleFilterChange("consultor", e.target.value)
-              }
+              onChange={(e) => handleFilterChange("consultor", e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
             >
               <option value="">Todos</option>
@@ -363,9 +370,16 @@ export function TicketsList({
                 </span>
               ),
               cliente: (
-                <span className="block max-w-[220px] truncate text-slate-700">
-                  {ticket.customerName ?? "N/A"}
-                </span>
+                <div className="flex min-w-0 max-w-[220px] flex-col">
+                  <span className="truncate text-slate-700">
+                    {ticket.customerName ?? "N/A"}
+                  </span>
+                  {ticket.customerOrganization && (
+                    <span className="truncate text-xs text-slate-500">
+                      {ticket.customerOrganization}
+                    </span>
+                  )}
+                </div>
               ),
               equipe: (
                 <Badge tone="sky" className="max-w-[150px] truncate">
@@ -384,7 +398,9 @@ export function TicketsList({
                 key={ticket.id}
                 role={onTicketSelect ? "button" : undefined}
                 tabIndex={onTicketSelect ? 0 : undefined}
-                onClick={onTicketSelect ? () => onTicketSelect(ticket) : undefined}
+                onClick={
+                  onTicketSelect ? () => onTicketSelect(ticket) : undefined
+                }
                 onKeyDown={
                   onTicketSelect
                     ? (e) => {
@@ -396,7 +412,9 @@ export function TicketsList({
                     : undefined
                 }
                 className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass} ${
-                  onTicketSelect ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200" : ""
+                  onTicketSelect
+                    ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200"
+                    : ""
                 }`}
                 style={{ gridTemplateColumns }}
               >
@@ -423,9 +441,7 @@ export function TicketsList({
           <span>
             Página {page} de {totalPages}
           </span>
-          <span className="text-slate-400">
-            ({total} tickets filtrados)
-          </span>
+          <span className="text-slate-400">({total} tickets filtrados)</span>
         </div>
         <div className="flex items-center gap-2">
           <button

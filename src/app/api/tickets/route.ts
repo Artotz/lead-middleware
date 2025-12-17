@@ -52,6 +52,12 @@ const mapTicketRow = (row: TicketRow): Ticket => {
   const title = clean(row.title) ?? "Sem título";
   const updatedAt = row.updated_date ?? row.created_date ?? null;
   const createdAt = row.created_date ?? row.updated_date ?? null;
+  const customerPersonName = buildName(
+    row.customer_first_name,
+    row.customer_last_name,
+  );
+  const customerOrganization = clean(row.customer_organization);
+  const customerAccount = clean(row.customer_account);
 
   return {
     id: clean(row.ticket_id) ?? number,
@@ -64,10 +70,8 @@ const mapTicketRow = (row: TicketRow): Ticket => {
       buildName(row.advisor_first_name, row.advisor_last_name) ??
       clean(row.advisor_email) ??
       clean(row.advisor_racfid),
-    customerName:
-      buildName(row.customer_first_name, row.customer_last_name) ??
-      clean(row.customer_organization) ??
-      clean(row.customer_account),
+    customerName: customerPersonName ?? customerOrganization ?? customerAccount,
+    customerOrganization: customerOrganization ?? customerAccount,
     teamName: clean(row.team_name),
     updatedAt,
     createdAt,
