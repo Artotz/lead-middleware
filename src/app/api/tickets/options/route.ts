@@ -18,7 +18,17 @@ const dedupe = (items: (string | null)[]) => {
 
 export async function GET() {
   try {
-    const supabase = getSupabaseServerClient();
+    const supabase = await getSupabaseServerClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { message: "Não autenticado" },
+        { status: 401 },
+      );
+    }
 
     const [advisorsResp, customersResp, teamsResp] = await Promise.all([
       supabase

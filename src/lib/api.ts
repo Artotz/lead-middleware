@@ -34,6 +34,15 @@ export type TicketFilterOptions = {
   equipes: string[];
 };
 
+const ensureAuthenticated = (response: Response) => {
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login?message=Faça login para continuar.";
+    }
+    throw new Error("auth_required");
+  }
+};
+
 export async function fetchLeads(
   params?: LeadsQueryParams,
 ): Promise<LeadsPageResponse> {
@@ -68,6 +77,7 @@ export async function fetchLeads(
   const response = await fetch(`/api/leads?${searchParams.toString()}`, {
     cache: "no-store",
   });
+  ensureAuthenticated(response);
   if (!response.ok) {
     throw new Error("Falha ao buscar leads do Supabase");
   }
@@ -111,6 +121,7 @@ export async function fetchTickets(
   const response = await fetch(`/api/tickets?${searchParams.toString()}`, {
     cache: "no-store",
   });
+  ensureAuthenticated(response);
   if (!response.ok) {
     throw new Error("Falha ao buscar tickets do Supabase");
   }
@@ -120,8 +131,9 @@ export async function fetchTickets(
 
 export async function fetchTicketOptions() {
   const response = await fetch("/api/tickets/options", { cache: "no-store" });
+  ensureAuthenticated(response);
   if (!response.ok) {
-    throw new Error("Falha ao buscar opções de tickets");
+    throw new Error("Falha ao buscar opВリes de tickets");
   }
   return (await response.json()) as TicketFilterOptions;
 }

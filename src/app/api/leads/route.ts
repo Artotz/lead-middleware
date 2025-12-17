@@ -115,7 +115,17 @@ export async function GET(request: Request) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const supabase = getSupabaseServerClient();
+    const supabase = await getSupabaseServerClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json(
+        { message: "Não autenticado" },
+        { status: 401 },
+      );
+    }
 
     const regiao =
       regiaoParam && REGIOES.includes(regiaoParam as (typeof REGIOES)[number])
