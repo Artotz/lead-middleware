@@ -17,6 +17,7 @@ export type LeadCategory =
 
 export type Lead = {
   id: number;
+  status: string | null;
   regional: string | null;
   estado: string | null;
   city: string | null;

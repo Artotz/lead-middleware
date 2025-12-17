@@ -25,6 +25,7 @@ type ColumnId =
   | "cliente"
   | "chassiModelo"
   | "tipoLead"
+  | "status"
   | "horimetro"
   | "importadoEm";
 
@@ -69,6 +70,19 @@ const leadTypeLabel: Record<LeadCategory, string> = {
 
 const formatDate = (iso: string) => dateFormatter.format(new Date(iso));
 
+const pickStatusTone = (
+  status: string | null,
+): Parameters<typeof Badge>[0]["tone"] => {
+  const normalized = status?.trim().toLowerCase();
+  if (!normalized) return "stone";
+  if (normalized.includes("fech") || normalized.includes("conclu"))
+    return "emerald";
+  if (normalized.includes("cancel")) return "rose";
+  if (normalized.includes("novo")) return "sky";
+  if (normalized.includes("pend")) return "amber";
+  return "slate";
+};
+
 const columnLabels: Record<ColumnId, string> = {
   regional: "Região",
   estado: "Estado",
@@ -78,6 +92,7 @@ const columnLabels: Record<ColumnId, string> = {
   tipoLead: "Tipo de lead",
   horimetro: "Horímetro",
   importadoEm: "Importado em",
+  status: "Status",
 };
 
 const columnWidths: Record<ColumnId, string> = {
@@ -89,6 +104,7 @@ const columnWidths: Record<ColumnId, string> = {
   tipoLead: "1.3fr",
   horimetro: "1fr",
   importadoEm: "1fr",
+  status: "1fr",
 };
 
 const buildColumnOrder = (
@@ -102,6 +118,7 @@ const buildColumnOrder = (
     "cliente",
     "chassiModelo",
     "tipoLead",
+    "status",
     "horimetro",
     "importadoEm",
   ];
@@ -272,6 +289,14 @@ export function LeadsList({
                     </Badge>
                   ))}
                 </div>
+              ),
+              status: (
+                <Badge
+                  tone={pickStatusTone(lead.status)}
+                  className="max-w-[160px] truncate"
+                >
+                  {lead.status ?? "Sem status"}
+                </Badge>
               ),
               horimetro: (
                 <span className="truncate text-slate-800">

@@ -5,6 +5,7 @@ import { getSupabaseServerClient } from "@/lib/supabaseClient";
 
 type LeadRow = {
   id: number;
+  status: string | null;
   regional: string | null;
   estado: string | null;
   city: string | null;
@@ -64,9 +65,11 @@ const mapLeadRow = (row: LeadRow): Lead => {
   const regional = isControlRow ? null : regionalRaw;
 
   const estado = row.estado?.trim() ?? null;
+  const status = row.status?.trim() ?? null;
 
   return {
     id: row.id,
+    status,
     regional,
     estado,
     city: row.city,
@@ -141,6 +144,7 @@ export async function GET(request: Request) {
       .select(
         [
           "id",
+          "status",
           "regional",
           "estado",
           "city",
