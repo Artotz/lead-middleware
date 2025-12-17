@@ -12,9 +12,9 @@ export async function POST(request: Request) {
       "error",
       "Não foi possível encerrar a sessão. Tente novamente."
     );
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
   redirectUrl.searchParams.set("message", "Você saiu da sua conta com segurança.");
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.redirect(redirectUrl, { status: 303 });
 }

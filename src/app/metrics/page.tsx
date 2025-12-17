@@ -1,143 +1,19 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import MetricsClient from "./metrics-client";
 
-import { useCallback, useEffect, useState } from "react";
-import { PageShell } from "@/components/PageShell";
-import { MetricsTabs } from "@/components/MetricsTabs";
-import { TimeRangeSelector } from "@/components/TimeRangeSelector";
-import { LeadsMetricsView } from "@/components/LeadsMetricsView";
-import { TicketsMetricsView } from "@/components/TicketsMetricsView";
-import { fetchLeads, fetchTickets } from "@/lib/api";
-import { Lead, Ticket, TimeRange } from "@/lib/domain";
+export const dynamic = "force-dynamic";
 
-type MetricsTab = "leads" | "tickets";
+export default async function MetricsPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-export default function MetricsPage() {
-  const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
-  const [timeRange, setTimeRange] = useState<TimeRange>("week");
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  if (!session) {
+    redirect("/login");
+  }
 
-  const loadAllLeads = useCallback(async () => {
-    const pageSize = 100;
-    let page = 1;
-    let accumulated: Lead[] = [];
-    let total = 0;
-
-    for (;;) {
-      const resp = await fetchLeads({ page, pageSize });
-      accumulated = accumulated.concat(resp.items);
-      total = resp.total ?? accumulated.length;
-
-      const fetchedAll =
-        accumulated.length >= total || resp.items.length < pageSize;
-
-      if (fetchedAll) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return accumulated;
-  }, []);
-
-  const loadAllTickets = useCallback(async () => {
-    const pageSize = 200;
-    let page = 1;
-    let accumulated: Ticket[] = [];
-    let total = 0;
-
-    for (;;) {
-      const resp = await fetchTickets({ page, pageSize });
-      accumulated = accumulated.concat(resp.items);
-      total = resp.total ?? accumulated.length;
-
-      const fetchedAll =
-        accumulated.length >= total || resp.items.length < pageSize;
-
-      if (fetchedAll) {
-        break;
-      }
-
-      page += 1;
-    }
-
-    return accumulated;
-  }, []);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [allLeads, allTickets] = await Promise.all([
-        loadAllLeads(),
-        loadAllTickets(),
-      ]);
-      setLeads(allLeads);
-      setTickets(allTickets);
-    } catch (err) {
-      console.error(err);
-      setError("NÇœo foi possÇðvel carregar as mÇ¸tricas.");
-    } finally {
-      setLoading(false);
-    }
-  }, [loadAllLeads, loadAllTickets]);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Carregando mÇ¸tricas...
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-900 shadow-sm">
-          <span>{error}</span>
-          <button
-            type="button"
-            onClick={loadData}
-            className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      );
-    }
-
-    if (activeTab === "leads") {
-      return <LeadsMetricsView leads={leads} timeRange={timeRange} />;
-    }
-
-    return <TicketsMetricsView tickets={tickets} timeRange={timeRange} />;
-  };
-
-  return (
-    <PageShell
-      title="MÇ¸tricas"
-      subtitle="VisÇœo rÇ­pida das volumetrias por perÇðodo."
-    >
-      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <MetricsTabs activeTabId={activeTab} onChange={setActiveTab} />
-          <TimeRangeSelector
-            activeRange={timeRange}
-            onChange={setTimeRange}
-          />
-        </div>
-        <p className="text-xs text-slate-500">
-          Filtrando dados do perÇðodo selecionado.
-        </p>
-        {renderContent()}
-      </div>
-    </PageShell>
-  );
+  return <MetricsClient />;
 }
+

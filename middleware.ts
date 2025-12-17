@@ -44,9 +44,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLoginRoute = pathname.startsWith("/login");
-  const protectedRoots = ["/", "/metrics"];
-  const isProtectedRoute =
-    pathname.startsWith("/app") || protectedRoots.includes(pathname);
+  const isProtectedRoute = pathname === "/" || pathname.startsWith("/metrics");
 
   if (!session && isProtectedRoute) {
     const redirectUrl = new URL("/login", request.url);
@@ -57,7 +55,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (session && isLoginRoute) {
-    const redirectUrl = new URL("/app/dashboard", request.url);
+    const redirectUrl = new URL("/", request.url);
     return NextResponse.redirect(redirectUrl, {
       headers: response.headers,
     });
@@ -67,5 +65,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/metrics", "/app/:path*", "/login"],
+  matcher: ["/", "/metrics/:path*", "/login"],
 };
