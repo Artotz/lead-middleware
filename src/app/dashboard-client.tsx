@@ -6,6 +6,7 @@ import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
 import { TicketDetailsAside } from "@/components/TicketDetailsAside";
+import { CreateLeadModal } from "@/components/CreateLeadModal";
 import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
@@ -27,6 +28,7 @@ export default function DashboardClient() {
   const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
   const [leadFilters, setLeadFilters] =
     useState<FiltersState>(INITIAL_FILTERS);
+  const [createLeadOpen, setCreateLeadOpen] = useState<boolean>(false);
 
   // Tickets
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -202,6 +204,15 @@ export default function DashboardClient() {
     if (activeTab === "leads") {
       return (
         <div className="space-y-3">
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setCreateLeadOpen(true)}
+              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              Novo lead
+            </button>
+          </div>
           <LeadsList
             leads={leads}
             filters={leadFilters}
@@ -239,6 +250,17 @@ export default function DashboardClient() {
               )}
             </div>
           </div>
+
+          <CreateLeadModal
+            open={createLeadOpen}
+            onClose={() => setCreateLeadOpen(false)}
+            initial={{
+              regional: leadFilters.regiao || null,
+              estado: leadFilters.estado || null,
+              tipoLead: leadFilters.tipoLead || null,
+            }}
+            onCreated={() => void loadLeads(1, leadFilters)}
+          />
         </div>
       );
     }

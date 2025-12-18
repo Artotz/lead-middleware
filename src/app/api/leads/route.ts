@@ -3,6 +3,30 @@ import { Lead, LeadCategory } from "@/lib/domain";
 import { ESTADOS, REGIOES, SortOrder } from "@/lib/filters";
 import { getSupabaseServerClient } from "@/lib/supabaseClient";
 
+const SELECT_COLUMNS = [
+  "id",
+  "status",
+  "regional",
+  "estado",
+  "city",
+  "chassi",
+  "model_name",
+  "cliente_base_enriquecida",
+  "horimetro_atual_machine_list",
+  "last_called_group",
+  "lead_preventiva",
+  "lead_garantia_basica",
+  "lead_garantia_estendida",
+  "lead_reforma_de_componentes",
+  "lead_lamina",
+  "lead_dentes",
+  "lead_rodante",
+  "lead_disponibilidade",
+  "lead_reconexao",
+  "lead_transferencia_de_aor",
+  "imported_at",
+].join(",");
+
 type LeadRow = {
   id: number;
   status: string | null;
@@ -27,7 +51,19 @@ type LeadRow = {
   imported_at: string;
 };
 
-const leadTypeOrder: { key: keyof LeadRow; category: LeadCategory; label: string }[] =
+type LeadTypeColumn =
+  | "lead_preventiva"
+  | "lead_garantia_basica"
+  | "lead_garantia_estendida"
+  | "lead_reforma_de_componentes"
+  | "lead_lamina"
+  | "lead_dentes"
+  | "lead_rodante"
+  | "lead_disponibilidade"
+  | "lead_reconexao"
+  | "lead_transferencia_de_aor";
+
+const leadTypeOrder: { key: LeadTypeColumn; category: LeadCategory; label: string }[] =
   [
     { key: "lead_preventiva", category: "preventiva", label: "Preventiva" },
     { key: "lead_garantia_basica", category: "garantia_basica", label: "Garantia básica" },
@@ -94,6 +130,48 @@ const mapLeadRow = (row: LeadRow): Lead => {
   };
 };
 
+type LeadInsertRow = Omit<LeadRow, "id">;
+
+type CreateLeadBody = {
+  status?: unknown;
+  regional?: unknown;
+  estado?: unknown;
+  city?: unknown;
+  chassi?: unknown;
+  modelName?: unknown;
+  clienteBaseEnriquecida?: unknown;
+  horimetroAtualMachineList?: unknown;
+  tipoLead?: unknown;
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (!value || typeof value !== "object") return false;
+  return Object.getPrototypeOf(value) === Object.prototype;
+};
+
+const normalizeText = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const normalizeNumber = (value: unknown): number | null => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const isLeadCategory = (value: unknown): value is LeadCategory => {
+  if (typeof value !== "string") return false;
+  if (value === "indefinido") return true;
+  return leadTypeOrder.some((entry) => entry.category === value);
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -142,29 +220,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("leads")
       .select(
-        [
-          "id",
-          "status",
-          "regional",
-          "estado",
-          "city",
-          "chassi",
-          "model_name",
-          "cliente_base_enriquecida",
-          "horimetro_atual_machine_list",
-          "last_called_group",
-          "lead_preventiva",
-          "lead_garantia_basica",
-          "lead_garantia_estendida",
-          "lead_reforma_de_componentes",
-          "lead_lamina",
-          "lead_dentes",
-          "lead_rodante",
-          "lead_disponibilidade",
-          "lead_reconexao",
-          "lead_transferencia_de_aor",
-          "imported_at",
-        ].join(","),
+        SELECT_COLUMNS,
         { count: "exact" },
       )
       .not("regional", "ilike", "filtros aplicados:%");
@@ -249,6 +305,103 @@ export async function GET(request: Request) {
     console.error("Unexpected error", err);
     return NextResponse.json(
       { message: "Erro inesperado ao buscar leads" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const supabase = await getSupabaseServerClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      return NextResponse.json({ message: "Nao autenticado" }, { status: 401 });
+    }
+
+    const raw = (await request.json().catch(() => null)) as unknown;
+    if (!isPlainObject(raw)) {
+      return NextResponse.json(
+        { message: "Body invalido (esperado JSON object)" },
+        { status: 400 },
+      );
+    }
+
+    const body = raw as CreateLeadBody;
+
+    const regional = normalizeText(body.regional);
+    const estado = normalizeText(body.estado);
+    const city = normalizeText(body.city);
+    const chassi = normalizeText(body.chassi);
+    const modelName = normalizeText(body.modelName);
+    const clienteBaseEnriquecida = normalizeText(body.clienteBaseEnriquecida);
+    const status = normalizeText(body.status);
+    const horimetro = normalizeNumber(body.horimetroAtualMachineList);
+    const tipoLead = isLeadCategory(body.tipoLead) ? body.tipoLead : null;
+
+    if (regional && !REGIOES.includes(regional as (typeof REGIOES)[number])) {
+      return NextResponse.json(
+        { message: "Regional invalida" },
+        { status: 400 },
+      );
+    }
+
+    if (estado && !ESTADOS.includes(estado as (typeof ESTADOS)[number])) {
+      return NextResponse.json({ message: "Estado invalido" }, { status: 400 });
+    }
+
+    const insertRow: LeadInsertRow = {
+      status,
+      regional,
+      estado,
+      city,
+      chassi,
+      model_name: modelName,
+      cliente_base_enriquecida: clienteBaseEnriquecida,
+      horimetro_atual_machine_list: horimetro,
+      last_called_group: null,
+      lead_preventiva: null,
+      lead_garantia_basica: null,
+      lead_garantia_estendida: null,
+      lead_reforma_de_componentes: null,
+      lead_lamina: null,
+      lead_dentes: null,
+      lead_rodante: null,
+      lead_disponibilidade: null,
+      lead_reconexao: null,
+      lead_transferencia_de_aor: null,
+      imported_at: new Date().toISOString(),
+    };
+
+    if (tipoLead && tipoLead !== "indefinido") {
+      const tipoDef = leadTypeOrder.find((entry) => entry.category === tipoLead);
+      if (tipoDef) {
+        insertRow[tipoDef.key] = "SIM";
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("leads")
+      .insert(insertRow)
+      .select(SELECT_COLUMNS)
+      .single();
+
+    if (error) {
+      console.error("Supabase lead insert error", error);
+      return NextResponse.json(
+        { message: "Erro ao criar lead", details: error.message },
+        { status: 500 },
+      );
+    }
+
+    const lead = mapLeadRow(data as unknown as LeadRow);
+    return NextResponse.json({ item: lead });
+  } catch (err) {
+    console.error("Unexpected lead insert error", err);
+    return NextResponse.json(
+      { message: "Erro inesperado ao criar lead" },
       { status: 500 },
     );
   }

@@ -1,5 +1,5 @@
 import { FiltersState, INITIAL_FILTERS } from "./filters";
-import { Lead, Ticket } from "./domain";
+import { Lead, LeadCategory, Ticket } from "./domain";
 import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
@@ -16,6 +16,22 @@ export type LeadsPageResponse = {
 export type LeadsQueryParams = Partial<
   { page: number; pageSize: number } & FiltersState
 >;
+
+export type CreateLeadInput = {
+  status?: string | null;
+  regional?: string | null;
+  estado?: string | null;
+  city?: string | null;
+  chassi?: string | null;
+  modelName?: string | null;
+  clienteBaseEnriquecida?: string | null;
+  horimetroAtualMachineList?: number | null;
+  tipoLead?: LeadCategory | null;
+};
+
+export type CreateLeadResponse = {
+  item: Lead;
+};
 
 export type TicketsPageResponse = {
   items: Ticket[];
@@ -84,6 +100,20 @@ export async function fetchLeads(
   }
   const data = (await response.json()) as LeadsPageResponse;
   return data;
+}
+
+export async function createLead(input: CreateLeadInput): Promise<CreateLeadResponse> {
+  const response = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "Falha ao criar lead");
+  }
+  return (await response.json()) as CreateLeadResponse;
 }
 
 export async function fetchTickets(
