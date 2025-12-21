@@ -6,6 +6,7 @@ import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
 import { TicketDetailsAside } from "@/components/TicketDetailsAside";
+import { LeadDetailsAside } from "@/components/LeadDetailsAside";
 import { CreateLeadModal } from "@/components/CreateLeadModal";
 import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
@@ -29,6 +30,8 @@ export default function DashboardClient() {
   const [leadFilters, setLeadFilters] =
     useState<FiltersState>(INITIAL_FILTERS);
   const [createLeadOpen, setCreateLeadOpen] = useState<boolean>(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadDetailsOpen, setLeadDetailsOpen] = useState<boolean>(false);
 
   // Tickets
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -218,6 +221,10 @@ export default function DashboardClient() {
             filters={leadFilters}
             onFiltersChange={handleLeadFiltersChange}
             loading={leadsLoading}
+            onLeadSelect={(lead) => {
+              setSelectedLead(lead);
+              setLeadDetailsOpen(true);
+            }}
           />
           <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
             <div className="flex items-center gap-2">
@@ -261,6 +268,14 @@ export default function DashboardClient() {
             }}
             onCreated={() => void loadLeads(1, leadFilters)}
           />
+
+          {selectedLead ? (
+            <LeadDetailsAside
+              lead={selectedLead}
+              open={leadDetailsOpen}
+              onClose={() => setLeadDetailsOpen(false)}
+            />
+          ) : null}
         </div>
       );
     }

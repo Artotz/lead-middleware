@@ -16,6 +16,7 @@ type LeadsListProps = {
   leads: Lead[];
   filters: FiltersState;
   onFiltersChange: (filters: FiltersState) => void;
+  onLeadSelect?: (lead: Lead) => void;
   loading?: boolean;
 };
 
@@ -149,6 +150,7 @@ export function LeadsList({
   leads,
   filters,
   onFiltersChange,
+  onLeadSelect,
   loading = false,
 }: LeadsListProps) {
   const regiaoOptions = useMemo(
@@ -350,7 +352,24 @@ export function LeadsList({
             return (
               <div
                 key={lead.id}
-                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass}`}
+                role={onLeadSelect ? "button" : undefined}
+                tabIndex={onLeadSelect ? 0 : undefined}
+                onClick={onLeadSelect ? () => onLeadSelect(lead) : undefined}
+                onKeyDown={
+                  onLeadSelect
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onLeadSelect(lead);
+                        }
+                      }
+                    : undefined
+                }
+                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass} ${
+                  onLeadSelect
+                    ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200"
+                    : ""
+                }`}
                 style={{ gridTemplateColumns }}
               >
                 {columnOrder.map((col) => (
