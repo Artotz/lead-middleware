@@ -180,11 +180,7 @@ async function main() {
   }
 
   const leadActions = [
-    "view",
-    "qualify",
-    "add_note",
-    "assign",
-    "update_field",
+    "register_contact",
     "convert_to_ticket",
     "discard",
   ];
@@ -205,10 +201,10 @@ async function main() {
       const user = randomFrom(users);
       const action = randomFrom(leadActions);
       const payload = {};
+      if (action === "register_contact") {
+        payload.note = "Contato realizado (seed)";
+      }
       if (action === "discard") payload.reason = "Lead fora do perfil (seed)";
-      if (action === "add_note") payload.note = "Contato feito (seed)";
-      if (action === "assign") payload.assignee = "owner.seed@example.com";
-      if (action === "update_field") payload.changed_fields = { status: "em_andamento" };
       if (action === "convert_to_ticket") payload.method = "manual";
       leadEvents.push({
         lead_id: leadId,
@@ -263,4 +259,3 @@ main().catch((err) => {
   console.error("Seed falhou:", err?.message ?? err);
   process.exit(1);
 });
-

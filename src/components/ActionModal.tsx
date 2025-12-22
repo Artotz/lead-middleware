@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -87,6 +87,7 @@ export function ActionModal<Action extends string>({
   const canConfirm = useMemo(() => {
     if (!activeDef || !action) return false;
     if (loading) return false;
+    if (activeDef.requiresNote && !note.trim()) return false;
     if (activeDef.requiresReason && !reason.trim()) return false;
     if (activeDef.requiresAssignee && !assignee.trim()) return false;
     if (activeDef.requiresTags && parseTags(tags).length === 0) return false;
@@ -97,7 +98,7 @@ export function ActionModal<Action extends string>({
       if (!hasOne) return false;
     }
     return true;
-  }, [action, activeDef, assignee, changedFields, loading, reason, tags]);
+  }, [action, activeDef, assignee, changedFields, loading, note, reason, tags]);
 
   const handleConfirm = async () => {
     if (!action || !activeDef) return;
@@ -146,7 +147,12 @@ export function ActionModal<Action extends string>({
   const showTags =
     entity === "ticket" &&
     (action === ("add_tags" as Action) || action === ("remove_tags" as Action));
-  const showAssignee = action === ("assign" as Action);
+  const showAssignee = Boolean(activeDef?.requiresAssignee);
+  const noteRequired = Boolean(activeDef?.requiresNote);
+  const noteLabel = noteRequired ? "Descricao do contato" : "Observacao (opcional)";
+  const notePlaceholder = noteRequired
+    ? "Descreva o contato realizado"
+    : "Adicione contexto (ate 2000 caracteres)";
 
   if (!open) return null;
   if (typeof document === "undefined") return null;
@@ -161,16 +167,16 @@ export function ActionModal<Action extends string>({
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
-      aria-label="Registrar aǧǜo"
+      aria-label="Registrar aÃºÃ£o"
     >
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-slate-900">
-              Registrar aǧǜo
+              Registrar aÃºÃ£o
             </h2>
             <p className="text-xs text-slate-500">
-              Escolha a aǧǜo e preencha detalhes (se necessǭrio).
+              Escolha a aÃºÃ£o e preencha detalhes (se necessÃ¡rio).
             </p>
           </div>
           <button
@@ -186,7 +192,7 @@ export function ActionModal<Action extends string>({
         <div className="grid gap-4 p-5 md:grid-cols-[1.1fr_1fr]">
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Aǧǜo
+              AÃºÃ£o
             </p>
             <div className="space-y-2">
               {actions.map((item) => {
@@ -255,7 +261,7 @@ export function ActionModal<Action extends string>({
             {showAssignee && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
-                  Responsǭvel <span className="text-rose-600">*</span>
+                  ResponsÃ¡vel <span className="text-rose-600">*</span>
                 </span>
                 <input
                   value={assignee}
@@ -278,14 +284,14 @@ export function ActionModal<Action extends string>({
                   placeholder="Ex.: urgente, callback, vip"
                 />
                 <p className="text-xs text-slate-500">
-                  Separe por vǭrgula.
+                  Separe por vÃ¡rgula.
                 </p>
               </label>
             )}
 
             {showMethod && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>MǸtodo</span>
+                <span>MÃ©todo</span>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
@@ -344,14 +350,17 @@ export function ActionModal<Action extends string>({
             )}
 
             <label className="space-y-1 text-sm font-medium text-slate-700">
-              <span>Observaǧǜo (opcional)</span>
+              <span>
+                {noteLabel} {noteRequired ? <span className="text-rose-600">*</span> : null}
+              </span>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 maxLength={MAX_NOTE_CHARS}
                 rows={4}
+                required={noteRequired}
                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                placeholder="Adicione contexto (atǻ 2000 caracteres)"
+                placeholder={notePlaceholder}
               />
               <div className="flex justify-end text-xs text-slate-400">
                 {note.length}/{MAX_NOTE_CHARS}

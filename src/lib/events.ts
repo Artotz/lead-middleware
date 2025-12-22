@@ -1,11 +1,7 @@
 export type LeadEventAction =
-  | "view"
-  | "qualify"
+  | "register_contact"
   | "discard"
-  | "convert_to_ticket"
-  | "add_note"
-  | "assign"
-  | "update_field";
+  | "convert_to_ticket";
 
 export type TicketEventAction =
   | "view"
@@ -31,6 +27,7 @@ export type ActionDefinition<Action extends string> = {
   id: Action;
   label: string;
   description: string;
+  requiresNote?: boolean;
   requiresReason?: boolean;
   requiresTags?: boolean;
   requiresAssignee?: boolean;
@@ -40,43 +37,22 @@ export type ActionDefinition<Action extends string> = {
 
 export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
-    id: "view",
-    label: "Visualizar",
-    description: "Marca que vocǻ visualizou/avaliou o lead.",
+    id: "register_contact",
+    label: "Registrar contato",
+    description: "Registra o contato realizado com descricao obrigatoria.",
+    requiresNote: true,
   },
   {
-    id: "qualify",
-    label: "Qualificar",
-    description: "Marca o lead como qualificado para abordagem.",
+    id: "convert_to_ticket",
+    label: "Converter em ticket",
+    description: "Registra intencao de converter esse lead em ticket.",
+    payloadDefaults: { method: "manual" },
   },
   {
     id: "discard",
     label: "Descartar",
     description: "Descarta o lead (exige motivo).",
     requiresReason: true,
-  },
-  {
-    id: "convert_to_ticket",
-    label: "Converter em ticket",
-    description: "Registra intenǧǜo de converter esse lead em ticket.",
-    payloadDefaults: { method: "manual" },
-  },
-  {
-    id: "add_note",
-    label: "Adicionar nota",
-    description: "Registra uma observaǧǜo sobre o lead.",
-  },
-  {
-    id: "assign",
-    label: "Atribuir",
-    description: "Atribui o lead a um responsǭvel.",
-    requiresAssignee: true,
-  },
-  {
-    id: "update_field",
-    label: "Atualizar campo",
-    description: "Registra alteraǧǜo em algum campo do lead.",
-    requiresChangedFields: true,
   },
 ];
 
@@ -253,6 +229,12 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
   if (!common.ok) return common;
 
   const def = LEAD_ACTION_DEFINITIONS.find((d) => d.id === action)!;
+  if (def.requiresNote && !common.value.note) {
+    return {
+      ok: false,
+      error: "Descricao do contato (payload.note) e obrigatoria para register_contact.",
+    };
+  }
   if (def.requiresReason && !common.value.reason) {
     return { ok: false, error: "Motivo (payload.reason) ǻ obrigatǭrio para discard." };
   }
@@ -337,4 +319,3 @@ export function validateTicketEventInput(
     },
   };
 }
-

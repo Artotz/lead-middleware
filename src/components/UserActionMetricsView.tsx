@@ -36,6 +36,7 @@ type ActionTone =
 
 const actionTone = (action: string): ActionTone => {
   const normalized = action.toLowerCase();
+  if (normalized.includes("register_contact")) return "sky";
   if (normalized.includes("discard")) return "rose";
   if (normalized.includes("close")) return "emerald";
   if (normalized.includes("reopen")) return "amber";
