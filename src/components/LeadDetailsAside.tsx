@@ -95,7 +95,7 @@ type EventsState =
   | { status: "success"; data: LeadEventItem[] }
   | { status: "error"; message: string };
 
-const leadActionMeta = new Map(
+const leadActionMeta = new Map<string, { label: string; description: string }>(
   LEAD_ACTION_DEFINITIONS.map((def) => [
     def.id,
     { label: def.label, description: def.description },
