@@ -27,6 +27,7 @@ export type CreateLeadInput = {
   estado?: string | null;
   city?: string | null;
   consultor?: string | null;
+  nomeContato?: string | null;
   telefone?: string | null;
   chassi?: string | null;
   modelName?: string | null;
@@ -45,9 +46,9 @@ export type LeadImportItem = {
   estado?: string | null;
   city?: string | null;
   consultor?: string | null;
+  nomeContato?: string | null;
   telefone?: string | null;
   chassi?: string | null;
-  modelName?: string | null;
   clienteBaseEnriquecida?: string | null;
   horimetroAtualMachineList?: number | string | null;
   leadTipos?: string[] | string | null;

@@ -10,6 +10,7 @@ const SELECT_COLUMNS = [
   "estado",
   "city",
   "consultor",
+  "nome_contato",
   "telefone",
   "created_by",
   "chassi",
@@ -40,6 +41,7 @@ type LeadRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  nome_contato: string | null;
   telefone: string | null;
   created_by?: string | null;
   chassi: string | null;
@@ -126,6 +128,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     estado,
     city: row.city,
     consultor: row.consultor,
+    nomeContato: row.nome_contato,
     telefone: row.telefone,
     createdBy: row.created_by ?? null,
     chassi: row.chassi,
@@ -160,6 +163,7 @@ type CreateLeadBody = {
   estado?: unknown;
   city?: unknown;
   consultor?: unknown;
+  nomeContato?: unknown;
   telefone?: unknown;
   chassi?: unknown;
   modelName?: unknown;
@@ -366,6 +370,7 @@ export async function POST(request: Request) {
     const estado = normalizeText(body.estado);
     const city = normalizeText(body.city);
     const consultor = normalizeText(body.consultor);
+    const nomeContato = normalizeText(body.nomeContato);
     const telefone = normalizeText(body.telefone);
     const chassi = normalizeText(body.chassi);
     const modelName = normalizeText(body.modelName);
@@ -391,6 +396,7 @@ export async function POST(request: Request) {
       estado,
       city,
       consultor,
+      nome_contato: nomeContato,
       telefone,
       chassi,
       model_name: modelName,

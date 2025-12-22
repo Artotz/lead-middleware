@@ -24,6 +24,7 @@ export type Lead = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  nomeContato: string | null;
   createdBy: string | null;
   telefone: string | null;
   chassi: string | null;

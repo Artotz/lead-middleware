@@ -9,9 +9,9 @@ type LeadImportItem = {
   estado?: unknown;
   city?: unknown;
   consultor?: unknown;
+  nomeContato?: unknown;
   telefone?: unknown;
   chassi?: unknown;
-  modelName?: unknown;
   clienteBaseEnriquecida?: unknown;
   horimetroAtualMachineList?: unknown;
   leadTipos?: unknown;
@@ -23,10 +23,10 @@ type LeadInsertRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  nome_contato: string | null;
   telefone: string | null;
   created_by: string | null;
   chassi: string | null;
-  model_name: string | null;
   cliente_base_enriquecida: string | null;
   horimetro_atual_machine_list: number | null;
   last_called_group: string | null;
@@ -172,10 +172,10 @@ const mapImportItem = (
   estado: normalizeText(item.estado),
   city: normalizeText(item.city),
   consultor: normalizeText(item.consultor),
+  nome_contato: normalizeText(item.nomeContato),
   telefone: normalizeText(item.telefone),
   created_by: createdBy,
   chassi: normalizeText(item.chassi),
-  model_name: normalizeText(item.modelName),
   cliente_base_enriquecida: normalizeText(item.clienteBaseEnriquecida),
   horimetro_atual_machine_list: normalizeNumber(item.horimetroAtualMachineList),
   last_called_group: null,

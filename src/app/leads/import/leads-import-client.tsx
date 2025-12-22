@@ -12,10 +12,10 @@ type LeadImportRow = {
   estado: string;
   city: string;
   consultor: string;
+  nomeContato: string;
   telefone: string;
   clienteBaseEnriquecida: string;
   chassi: string;
-  modelName: string;
   horimetroAtualMachineList: string;
   leadTipos: string[];
 };
@@ -51,9 +51,9 @@ const COLUMNS: ColumnDef[] = [
   { key: "city", label: "Cidade", widthClass: "w-[8%]", type: "text" },
   { key: "consultor", label: "Consultor", widthClass: "w-[10%]", type: "text" },
   { key: "clienteBaseEnriquecida", label: "Cliente", widthClass: "w-[14%]", type: "text" },
+  { key: "nomeContato", label: "Contato", widthClass: "w-[10%]", type: "text" },
   { key: "telefone", label: "Telefone", widthClass: "w-[10%]", type: "text" },
   { key: "chassi", label: "Chassi", widthClass: "w-[7%]", type: "text" },
-  { key: "modelName", label: "Modelo", widthClass: "w-[8%]", type: "text" },
   { key: "horimetroAtualMachineList", label: "Horimetro", widthClass: "w-[7%]", type: "number" },
   { key: "leadTipos", label: "Tipos do lead", widthClass: "w-[15%]", type: "multi" },
 ];
@@ -71,10 +71,10 @@ const createEmptyRow = (): LeadImportRow => ({
   estado: "",
   city: "",
   consultor: "",
+  nomeContato: "",
   telefone: "",
   clienteBaseEnriquecida: "",
   chassi: "",
-  modelName: "",
   horimetroAtualMachineList: "",
   leadTipos: [],
 });
@@ -92,10 +92,10 @@ const toPayloadItem = (row: LeadImportRow): LeadImportItem => ({
   estado: row.estado.trim() || null,
   city: row.city.trim() || null,
   consultor: row.consultor.trim() || null,
+  nomeContato: row.nomeContato.trim() || null,
   telefone: row.telefone.trim() || null,
   clienteBaseEnriquecida: row.clienteBaseEnriquecida.trim() || null,
   chassi: row.chassi.trim() || null,
-  modelName: row.modelName.trim() || null,
   horimetroAtualMachineList: row.horimetroAtualMachineList.trim() || null,
   leadTipos: row.leadTipos.length ? row.leadTipos : null,
 });
