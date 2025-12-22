@@ -27,14 +27,14 @@ const pickName = (user: { email?: string | null; user_metadata?: any }) => {
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createSupabaseServerClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (session?.user?.id) {
+  if (user?.id) {
     return {
-      id: session.user.id,
-      email: session.user.email ?? "",
-      name: pickName(session.user),
+      id: user.id,
+      email: user.email ?? "",
+      name: pickName(user),
     };
   }
 
@@ -60,4 +60,3 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
   }
   return user;
 }
-

@@ -112,10 +112,10 @@ export async function GET(request: Request) {
 
     const supabase = await getSupabaseServerClient();
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json(
         { message: "Não autenticado" },
         { status: 401 }

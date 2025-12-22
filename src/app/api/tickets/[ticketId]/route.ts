@@ -50,10 +50,10 @@ export async function GET(
 
     const supabase = await getSupabaseServerClient();
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return jsonError(401, {
         code: "unauthenticated",
         message: "Não autenticado",

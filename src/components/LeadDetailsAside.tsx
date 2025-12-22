@@ -6,6 +6,9 @@ import { LEAD_ACTION_DEFINITIONS, type EventPayload } from "@/lib/events";
 import { Badge } from "@/components/Badge";
 import { CollapsibleSection } from "@/components/ticket-details/CollapsibleSection";
 import { KeyValueGrid, type KeyValueItem } from "@/components/ticket-details/KeyValueGrid";
+import { useCreateEvent } from "@/hooks/useCreateEvent";
+import { useToast } from "@/components/ToastProvider";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type LeadDetailsAsideProps = {
   lead: Lead | null;
@@ -94,6 +97,22 @@ type EventsState =
   | { status: "loading" }
   | { status: "success"; data: LeadEventItem[] }
   | { status: "error"; message: string };
+
+const pickUserLabel = (user: { email?: string | null; user_metadata?: any; id?: string | null }) => {
+  const metadata = user.user_metadata ?? {};
+  const fromMetadata =
+    metadata.full_name ??
+    metadata.name ??
+    metadata.user_name ??
+    metadata.username ??
+    null;
+  const label =
+    (typeof fromMetadata === "string" ? fromMetadata.trim() : "") ||
+    (user.email?.trim() ?? "") ||
+    (user.id ?? "") ||
+    "Usuario";
+  return label;
+};
 
 const leadActionMeta = new Map<string, { label: string; description: string }>(
   LEAD_ACTION_DEFINITIONS.map((def) => [
@@ -193,8 +212,30 @@ function LeadHeader({ lead, onClose }: { lead: Lead; onClose: () => void }) {
 export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps) {
   const [eventsState, setEventsState] = useState<EventsState>({ status: "idle" });
   const [eventsReloadNonce, setEventsReloadNonce] = useState(0);
+  const [currentUserLabel, setCurrentUserLabel] = useState<string | null>(null);
+  const [localConsultor, setLocalConsultor] = useState<string | null>(null);
   const leadId = lead?.id ?? null;
   const hasLeadId = typeof leadId === "number" && Number.isFinite(leadId);
+  const { createLeadEvent, loading: assigning } = useCreateEvent();
+  const toast = useToast();
+
+  useEffect(() => {
+    setLocalConsultor(null);
+  }, [lead?.id, lead?.consultor]);
+
+  useEffect(() => {
+    if (!open) return;
+    const supabase = createSupabaseBrowserClient();
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data?.user) {
+        setCurrentUserLabel(null);
+        return;
+      }
+      setCurrentUserLabel(pickUserLabel(data.user));
+    };
+    void loadUser();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -260,12 +301,49 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
   const summaryItems = useMemo<KeyValueItem[]>(() => {
     if (!lead) return [];
     const importedParts = formatDateParts(lead.importedAt);
+    const consultorValue = localConsultor ?? lead.consultor ?? null;
+    const canAssign = !consultorValue && currentUserLabel;
     const items: KeyValueItem[] = [
       { label: "Lead ID", value: String(lead.id) },
       { label: "Status", value: lead.status ?? "Sem status" },
       { label: "Criado por", value: lead.createdBy ?? "Nao informado" },
       { label: "Cliente", value: lead.clienteBaseEnriquecida ?? "Sem cliente" },
-      { label: "Consultor", value: lead.consultor ?? "Sem consultor" },
+      {
+        label: "Consultor",
+        value: consultorValue ?? (canAssign ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (!leadId || !currentUserLabel) return;
+              try {
+                await createLeadEvent({
+                  leadId,
+                  action: "assign",
+                  payload: { assignee: currentUserLabel },
+                });
+                setLocalConsultor(currentUserLabel);
+                setEventsReloadNonce((prev) => prev + 1);
+                toast.push({
+                  variant: "success",
+                  message: "Atribuicao registrada para voce.",
+                });
+              } catch (err: any) {
+                const message =
+                  typeof err?.message === "string" && err.message
+                    ? err.message
+                    : "Nao foi possivel atribuir o lead.";
+                toast.push({ variant: "error", message });
+              }
+            }}
+            disabled={assigning}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {assigning ? "Atribuindo..." : "Atribuir a mim"}
+          </button>
+        ) : (
+          "Sem consultor"
+        )),
+      },
       { label: "Regional", value: lead.regional ?? "Sem regional" },
       { label: "Estado", value: lead.estado ?? "Sem estado" },
       { label: "Cidade", value: lead.city ?? "Sem cidade" },
@@ -273,7 +351,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
       { label: "Importado em", value: `${importedParts.date} ${importedParts.time}` },
     ];
     return items;
-  }, [lead]);
+  }, [assigning, createLeadEvent, currentUserLabel, lead, leadId, localConsultor, toast]);
 
   const equipmentItems = useMemo<KeyValueItem[]>(() => {
     if (!lead) return [];

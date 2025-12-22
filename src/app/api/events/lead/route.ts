@@ -19,6 +19,25 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdminClient();
+    const updatePayload: Record<string, string> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (parsed.value.action === "assign" && parsed.value.payload.assignee) {
+      updatePayload.consultor = parsed.value.payload.assignee;
+    }
+
+    const { error: updateError } = await supabase
+      .from("leads")
+      .update(updatePayload)
+      .eq("id", parsed.value.leadId);
+    if (updateError) {
+      console.error("Supabase lead update error", updateError);
+      return NextResponse.json(
+        { success: false, message: "Erro ao atualizar lead." },
+        { status: 500 },
+      );
+    }
+
     const { data, error } = await supabase
       .from("lead_events")
       .insert({
@@ -57,4 +76,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

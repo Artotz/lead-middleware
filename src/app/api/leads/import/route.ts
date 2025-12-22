@@ -169,10 +169,10 @@ export async function POST(request: Request) {
   try {
     const supabase = await getSupabaseServerClient();
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ message: "Nao autenticado" }, { status: 401 });
     }
 
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const createdBy = session.user.email ?? session.user.id ?? null;
+    const createdBy = user.email ?? user.id ?? null;
 
     const mapped = items
       .filter((item) => isPlainObject(item) && hasAnyValue(item as LeadImportItem))
