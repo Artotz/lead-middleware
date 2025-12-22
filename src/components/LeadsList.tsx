@@ -57,6 +57,8 @@ const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> =
     disponibilidade: "sky",
     reconexao: "slate",
     transferencia_aor: "slate",
+    pops: "slate",
+    outros: "stone",
     indefinido: "stone",
   };
 
@@ -71,6 +73,8 @@ const leadTypeLabel: Record<LeadCategory, string> = {
   disponibilidade: "Disponibilidade",
   reconexao: "Reconexão",
   transferencia_aor: "Transferência de AOR",
+  pops: "POPs",
+  outros: "Outros",
   indefinido: "Indefinido",
 };
 
@@ -106,7 +110,7 @@ const columnLabels: Record<ColumnId, string> = {
   chassiModelo: "Chassi / Modelo",
   tipoLead: "Tipo de lead",
   horimetro: "Horímetro",
-  importadoEm: "Importado em",
+  importadoEm: "Atualizado em",
   status: "Status",
   acoes: "Ações",
 };
@@ -331,7 +335,8 @@ export function LeadsList({
               ),
               importadoEm: (
                 (() => {
-                  const parts = formatDateParts(lead.importedAt);
+                  const referenceDate = lead.updatedAt ?? lead.importedAt;
+                  const parts = formatDateParts(referenceDate);
                   return (
                     <div className="min-w-0 leading-tight">
                       <span className="block truncate text-xs font-semibold text-slate-700">

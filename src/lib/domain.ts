@@ -13,6 +13,8 @@ export type LeadCategory =
   | "disponibilidade"
   | "reconexao"
   | "transferencia_aor"
+  | "pops"
+  | "outros"
   | "indefinido";
 
 export type Lead = {
@@ -38,7 +40,10 @@ export type Lead = {
   leadDisponibilidade: string | null;
   leadReconexao: string | null;
   leadTransferenciaDeAor: string | null;
+  leadPops: string | null;
+  leadOutros: string | null;
   importedAt: string;
+  updatedAt: string | null;
   tipoLead: LeadCategory;
   tipoLeadList: LeadCategory[];
   ticketId?: string;

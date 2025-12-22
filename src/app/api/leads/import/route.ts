@@ -38,7 +38,7 @@ type LeadInsertRow = {
   lead_disponibilidade: string | null;
   lead_reconexao: string | null;
   lead_transferencia_de_aor: string | null;
-  imported_at: string;
+  // imported_at: string;
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => {
@@ -81,6 +81,8 @@ const leadTypeFlagMap = {
   disponibilidade: "lead_disponibilidade",
   reconexao: "lead_reconexao",
   transferencia_aor: "lead_transferencia_de_aor",
+  pops: "lead_pops",
+  outros: "lead_outros",
 } as const;
 
 const parseLeadTipos = (value: unknown): string[] => {
@@ -105,8 +107,8 @@ const buildLeadFlags = (item: LeadImportItem) => {
     return Object.fromEntries(
       Object.entries(leadTypeFlagMap).map(([key, column]) => [
         column,
-        selected.has(key) ? "SIM" : "NAO",
-      ]),
+        selected.has(key) ? "SIM" : "NÃO",
+      ])
     ) as Pick<
       LeadInsertRow,
       | "lead_preventiva"
@@ -126,13 +128,17 @@ const buildLeadFlags = (item: LeadImportItem) => {
     lead_preventiva: normalizeFlag((item as any).leadPreventiva),
     lead_garantia_basica: normalizeFlag((item as any).leadGarantiaBasica),
     lead_garantia_estendida: normalizeFlag((item as any).leadGarantiaEstendida),
-    lead_reforma_de_componentes: normalizeFlag((item as any).leadReformaDeComponentes),
+    lead_reforma_de_componentes: normalizeFlag(
+      (item as any).leadReformaDeComponentes
+    ),
     lead_lamina: normalizeFlag((item as any).leadLamina),
     lead_dentes: normalizeFlag((item as any).leadDentes),
     lead_rodante: normalizeFlag((item as any).leadRodante),
     lead_disponibilidade: normalizeFlag((item as any).leadDisponibilidade),
     lead_reconexao: normalizeFlag((item as any).leadReconexao),
-    lead_transferencia_de_aor: normalizeFlag((item as any).leadTransferenciaDeAor),
+    lead_transferencia_de_aor: normalizeFlag(
+      (item as any).leadTransferenciaDeAor
+    ),
   };
 
   return flags;
@@ -149,21 +155,24 @@ const hasAnyValue = (item: LeadImportItem) => {
   });
 };
 
-const mapImportItem = (item: LeadImportItem, createdBy: string | null): LeadInsertRow => ({
-    status: "novo",
-    regional: normalizeText(item.regional),
-    estado: normalizeText(item.estado),
-    city: normalizeText(item.city),
-    consultor: normalizeText(item.consultor),
-    created_by: createdBy,
-    chassi: normalizeText(item.chassi),
-    model_name: normalizeText(item.modelName),
-    cliente_base_enriquecida: normalizeText(item.clienteBaseEnriquecida),
-    horimetro_atual_machine_list: normalizeNumber(item.horimetroAtualMachineList),
-    last_called_group: null,
-    ...buildLeadFlags(item),
-    imported_at: new Date().toISOString(),
-  });
+const mapImportItem = (
+  item: LeadImportItem,
+  createdBy: string | null
+): LeadInsertRow => ({
+  status: "novo",
+  regional: normalizeText(item.regional),
+  estado: normalizeText(item.estado),
+  city: normalizeText(item.city),
+  consultor: normalizeText(item.consultor),
+  created_by: createdBy,
+  chassi: normalizeText(item.chassi),
+  model_name: normalizeText(item.modelName),
+  cliente_base_enriquecida: normalizeText(item.clienteBaseEnriquecida),
+  horimetro_atual_machine_list: normalizeNumber(item.horimetroAtualMachineList),
+  last_called_group: null,
+  ...buildLeadFlags(item),
+  // imported_at: new Date().toISOString(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -180,7 +189,7 @@ export async function POST(request: Request) {
     if (!isPlainObject(raw)) {
       return NextResponse.json(
         { message: "Body invalido (esperado JSON object)" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -188,20 +197,22 @@ export async function POST(request: Request) {
     if (!Array.isArray(items)) {
       return NextResponse.json(
         { message: "items invalido (esperado array)" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const createdBy = user.email ?? user.id ?? null;
 
     const mapped = items
-      .filter((item) => isPlainObject(item) && hasAnyValue(item as LeadImportItem))
+      .filter(
+        (item) => isPlainObject(item) && hasAnyValue(item as LeadImportItem)
+      )
       .map((item) => mapImportItem(item as LeadImportItem, createdBy));
 
     if (!mapped.length) {
       return NextResponse.json(
         { message: "Nenhuma linha valida para importar." },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -214,7 +225,7 @@ export async function POST(request: Request) {
       console.error("Supabase lead import error", error);
       return NextResponse.json(
         { message: "Erro ao importar leads", details: error.message },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -226,7 +237,7 @@ export async function POST(request: Request) {
     console.error("Unexpected lead import error", err);
     return NextResponse.json(
       { message: "Erro inesperado ao importar leads" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

@@ -282,6 +282,8 @@ export function CreateLeadModal({
                 <option value="disponibilidade">disponibilidade</option>
                 <option value="reconexao">reconexao</option>
                 <option value="transferencia_aor">transferencia_aor</option>
+                <option value="pops">pops</option>
+                <option value="outros">outros</option>
               </select>
             </label>
 

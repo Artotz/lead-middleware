@@ -40,6 +40,8 @@ const LEAD_TYPE_OPTIONS = [
   "disponibilidade",
   "reconexao",
   "transferencia_aor",
+  "pops",
+  "outros",
 ];
 
 const COLUMNS: ColumnDef[] = [

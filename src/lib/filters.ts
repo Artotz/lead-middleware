@@ -76,6 +76,8 @@ export const LEAD_TYPES = [
   "disponibilidade",
   "reconexao",
   "transferencia_aor",
+  "pops",
+  "outros",
   "indefinido",
 ] as const satisfies LeadCategory[];
 

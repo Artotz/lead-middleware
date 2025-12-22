@@ -26,7 +26,10 @@ const SELECT_COLUMNS = [
   "lead_disponibilidade",
   "lead_reconexao",
   "lead_transferencia_de_aor",
+  "lead_pops",
+  "lead_outros",
   "imported_at",
+  "updated_at",
 ].join(",");
 
 type LeadRow = {
@@ -52,7 +55,10 @@ type LeadRow = {
   lead_disponibilidade: string | null;
   lead_reconexao: string | null;
   lead_transferencia_de_aor: string | null;
+  lead_pops: string | null;
+  lead_outros: string | null;
   imported_at: string;
+  updated_at: string | null;
 };
 
 type LeadTypeColumn =
@@ -65,7 +71,9 @@ type LeadTypeColumn =
   | "lead_rodante"
   | "lead_disponibilidade"
   | "lead_reconexao"
-  | "lead_transferencia_de_aor";
+  | "lead_transferencia_de_aor"
+  | "lead_pops"
+  | "lead_outros";
 
 const leadTypeOrder: { key: LeadTypeColumn; category: LeadCategory; label: string }[] =
   [
@@ -130,7 +138,10 @@ const mapLeadRow = (row: LeadRow): Lead => {
     leadDisponibilidade: row.lead_disponibilidade,
     leadReconexao: row.lead_reconexao,
     leadTransferenciaDeAor: row.lead_transferencia_de_aor,
+    leadPops: row.lead_pops,
+    leadOutros: row.lead_outros,
     importedAt: row.imported_at,
+    updatedAt: row.updated_at ?? row.imported_at,
     tipoLead,
     tipoLeadList,
   };
@@ -286,7 +297,7 @@ export async function GET(request: Request) {
     const orders: { column: string; ascending: boolean }[] = [];
     if (groupByEmpresa) orders.push({ column: "cliente_base_enriquecida", ascending: true });
     if (groupByChassi) orders.push({ column: "chassi", ascending: true });
-    orders.push({ column: "imported_at", ascending });
+    orders.push({ column: "updated_at", ascending });
 
     orders.forEach((orderDef) => {
       query = query.order(orderDef.column, { ascending: orderDef.ascending, nullsFirst: true });
@@ -388,7 +399,10 @@ export async function POST(request: Request) {
       lead_disponibilidade: null,
       lead_reconexao: null,
       lead_transferencia_de_aor: null,
+      lead_pops: null,
+      lead_outros: null,
       imported_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     if (tipoLead && tipoLead !== "indefinido") {

@@ -40,6 +40,8 @@ const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> = 
   disponibilidade: "sky",
   reconexao: "slate",
   transferencia_aor: "slate",
+  pops: "slate",
+  outros: "stone",
   indefinido: "stone",
 };
 
@@ -54,6 +56,8 @@ const leadTypeLabel: Record<LeadCategory, string> = {
   disponibilidade: "Disponibilidade",
   reconexao: "Reconexao",
   transferencia_aor: "Transferencia de AOR",
+  pops: "POPs",
+  outros: "Outros",
   indefinido: "Indefinido",
 };
 
