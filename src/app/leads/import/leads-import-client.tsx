@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, type ChangeEvent } from "react";
 import { importLeads, type LeadImportItem } from "@/lib/api";
+import { LeadTypesMultiSelect } from "@/components/LeadTypesMultiSelect";
 import { PageShell } from "@/components/PageShell";
 import { useToast } from "@/components/ToastProvider";
 
@@ -24,7 +25,7 @@ type LeadImportCellValue = LeadImportRow[ColumnKey];
 type ColumnDef = {
   key: ColumnKey;
   label: string;
-  width: string;
+  widthClass: string;
   type: "text" | "number" | "datetime" | "multi";
 };
 
@@ -42,15 +43,15 @@ const LEAD_TYPE_OPTIONS = [
 ];
 
 const COLUMNS: ColumnDef[] = [
-  { key: "regional", label: "Regional", width: "90px", type: "text" },
-  { key: "estado", label: "Estado", width: "90px", type: "text" },
-  { key: "city", label: "Cidade", width: "160px", type: "text" },
-  { key: "consultor", label: "Consultor", width: "180px", type: "text" },
-  { key: "clienteBaseEnriquecida", label: "Cliente", width: "220px", type: "text" },
-  { key: "chassi", label: "Chassi", width: "160px", type: "text" },
-  { key: "modelName", label: "Modelo", width: "180px", type: "text" },
-  { key: "horimetroAtualMachineList", label: "Horimetro", width: "120px", type: "number" },
-  { key: "leadTipos", label: "Tipos do lead", width: "260px", type: "multi" },
+  { key: "regional", label: "Regional", widthClass: "w-[6%]", type: "text" },
+  { key: "estado", label: "Estado", widthClass: "w-[6%]", type: "text" },
+  { key: "city", label: "Cidade", widthClass: "w-[10%]", type: "text" },
+  { key: "consultor", label: "Consultor", widthClass: "w-[12%]", type: "text" },
+  { key: "clienteBaseEnriquecida", label: "Cliente", widthClass: "w-[16%]", type: "text" },
+  { key: "chassi", label: "Chassi", widthClass: "w-[9%]", type: "text" },
+  { key: "modelName", label: "Modelo", widthClass: "w-[11%]", type: "text" },
+  { key: "horimetroAtualMachineList", label: "Horimetro", widthClass: "w-[7%]", type: "number" },
+  { key: "leadTipos", label: "Tipos do lead", widthClass: "w-[13%]", type: "multi" },
 ];
 
 const makeId = () => {
@@ -227,20 +228,19 @@ export default function LeadsImportClient() {
           </div>
         ) : null}
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[2200px] w-full border-separate border-spacing-0 text-xs">
+        <div className="mt-4 overflow-visible">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
             <thead>
               <tr>
                 {COLUMNS.map((col) => (
                   <th
                     key={col.key}
-                    style={{ width: col.width }}
-                    className="sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600"
+                    className={`sticky top-0 min-w-0 border-b border-slate-200 bg-slate-50 px-2 py-2 text-left font-semibold text-slate-600 ${col.widthClass}`}
                   >
                     {col.label}
                   </th>
                 ))}
-                <th className="sticky top-0 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-600">
+                <th className="sticky top-0 min-w-0 w-[10%] border-b border-slate-200 bg-slate-50 px-2 py-2 text-left font-semibold text-slate-600">
                   Acoes
                 </th>
               </tr>
@@ -256,29 +256,20 @@ export default function LeadsImportClient() {
                       onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
                         handleCellChange(row.id, col.key, event.target.value),
                       className:
-                        "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100",
+                        "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100",
                     };
 
                     return (
-                      <td key={col.key} className="px-3 py-2 align-top">
+                      <td key={col.key} className="min-w-0 px-2 py-2 align-top">
                         {col.type === "multi" ? (
-                          <select
-                            multiple
+                          <LeadTypesMultiSelect
                             value={Array.isArray(value) ? value : []}
-                            onChange={(event) => {
-                              const selected = Array.from(
-                                event.target.selectedOptions,
-                              ).map((option) => option.value);
-                              handleCellChange(row.id, col.key, selected);
-                            }}
-                            className="w-full min-h-[88px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                          >
-                            {LEAD_TYPE_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
+                            options={LEAD_TYPE_OPTIONS}
+                            onChange={(next) =>
+                              handleCellChange(row.id, col.key, next)
+                            }
+                            placeholder="Selecionar tipos"
+                          />
                         ) : col.type === "datetime" ? (
                           <input {...commonProps} type="datetime-local" />
                         ) : (
@@ -287,11 +278,11 @@ export default function LeadsImportClient() {
                       </td>
                     );
                   })}
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     <button
                       type="button"
                       onClick={() => removeRow(row.id)}
-                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                     >
                       Remover
                     </button>
