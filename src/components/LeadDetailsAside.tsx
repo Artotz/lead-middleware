@@ -304,6 +304,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
       { label: "Lead ID", value: String(lead.id) },
       { label: "Status", value: lead.status ?? "Sem status" },
       { label: "Cliente", value: lead.clienteBaseEnriquecida ?? "Sem cliente" },
+      { label: "Consultor", value: lead.consultor ?? "Sem consultor" },
       { label: "Regional", value: lead.regional ?? "Sem regional" },
       { label: "Estado", value: lead.estado ?? "Sem estado" },
       { label: "Cidade", value: lead.city ?? "Sem cidade" },

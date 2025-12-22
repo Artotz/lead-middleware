@@ -9,6 +9,7 @@ const SELECT_COLUMNS = [
   "regional",
   "estado",
   "city",
+  "consultor",
   "chassi",
   "model_name",
   "cliente_base_enriquecida",
@@ -33,6 +34,7 @@ type LeadRow = {
   regional: string | null;
   estado: string | null;
   city: string | null;
+  consultor: string | null;
   chassi: string | null;
   model_name: string | null;
   cliente_base_enriquecida: string | null;
@@ -109,6 +111,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     regional,
     estado,
     city: row.city,
+    consultor: row.consultor,
     chassi: row.chassi,
     modelName: row.model_name,
     clienteBaseEnriquecida: row.cliente_base_enriquecida,
@@ -137,6 +140,7 @@ type CreateLeadBody = {
   regional?: unknown;
   estado?: unknown;
   city?: unknown;
+  consultor?: unknown;
   chassi?: unknown;
   modelName?: unknown;
   clienteBaseEnriquecida?: unknown;
@@ -260,6 +264,7 @@ export async function GET(request: Request) {
           `chassi.ilike.${pattern}`,
           `model_name.ilike.${pattern}`,
           `city.ilike.${pattern}`,
+          `consultor.ilike.${pattern}`,
           `regional.ilike.${pattern}`,
           `estado.ilike.${pattern}`,
           `last_called_group.ilike.${pattern}`,
@@ -334,6 +339,7 @@ export async function POST(request: Request) {
     const regional = normalizeText(body.regional);
     const estado = normalizeText(body.estado);
     const city = normalizeText(body.city);
+    const consultor = normalizeText(body.consultor);
     const chassi = normalizeText(body.chassi);
     const modelName = normalizeText(body.modelName);
     const clienteBaseEnriquecida = normalizeText(body.clienteBaseEnriquecida);
@@ -357,6 +363,7 @@ export async function POST(request: Request) {
       regional,
       estado,
       city,
+      consultor,
       chassi,
       model_name: modelName,
       cliente_base_enriquecida: clienteBaseEnriquecida,

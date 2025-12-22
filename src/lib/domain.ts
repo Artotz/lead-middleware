@@ -21,6 +21,7 @@ export type Lead = {
   regional: string | null;
   estado: string | null;
   city: string | null;
+  consultor: string | null;
   chassi: string | null;
   modelName: string | null;
   clienteBaseEnriquecida: string | null;

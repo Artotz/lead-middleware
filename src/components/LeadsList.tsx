@@ -22,9 +22,9 @@ type LeadsListProps = {
 
 type ColumnId =
   | "regional"
-  | "estado"
-  | "cidade"
+  | "cidadeEstado"
   | "cliente"
+  | "consultor"
   | "chassiModelo"
   | "tipoLead"
   | "status"
@@ -100,9 +100,9 @@ const pickStatusTone = (
 
 const columnLabels: Record<ColumnId, string> = {
   regional: "Região",
-  estado: "Estado",
-  cidade: "Cidade",
+  cidadeEstado: "Cidade / Estado",
   cliente: "Cliente",
+  consultor: "Consultor",
   chassiModelo: "Chassi / Modelo",
   tipoLead: "Tipo de lead",
   horimetro: "Horímetro",
@@ -113,9 +113,9 @@ const columnLabels: Record<ColumnId, string> = {
 
 const columnWidths: Record<ColumnId, string> = {
   regional: "0.9fr",
-  estado: "0.9fr",
-  cidade: "1.3fr",
+  cidadeEstado: "1.5fr",
   cliente: "1.4fr",
+  consultor: "1.1fr",
   chassiModelo: "1.3fr",
   tipoLead: "1.3fr",
   horimetro: "1fr",
@@ -130,9 +130,9 @@ const buildColumnOrder = (
 ): ColumnId[] => {
   const base: ColumnId[] = [
     "regional",
-    "estado",
-    "cidade",
+    "cidadeEstado",
     "cliente",
+    "consultor",
     "chassiModelo",
     "tipoLead",
     "status",
@@ -270,21 +270,24 @@ export function LeadsList({
                   {lead.regional ?? "Sem regional"}
                 </Badge>
               ),
-              estado: (
-                <Badge tone="slate" className="max-w-[90px] truncate">
-                  {lead.estado ?? "Sem estado"}
-                </Badge>
-              ),
-              cidade: (
+              cidadeEstado: (
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-semibold text-slate-900">
                     {lead.city ?? "Cidade não informada"}
+                  </span>
+                  <span className="truncate text-xs text-slate-500">
+                    {lead.estado ?? "Sem estado"}
                   </span>
                 </div>
               ),
               cliente: (
                 <span className="block max-w-[240px] truncate text-slate-800">
                   {lead.clienteBaseEnriquecida ?? "Sem cliente"}
+                </span>
+              ),
+              consultor: (
+                <span className="block max-w-[180px] truncate text-slate-800">
+                  {lead.consultor ?? "Sem consultor"}
                 </span>
               ),
               chassiModelo: (
