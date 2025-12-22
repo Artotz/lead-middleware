@@ -59,6 +59,12 @@ export default function RootLayout({
                   Dashboard
                 </Link>
                 <Link
+                  href="/leads/import"
+                  className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  Insercao de leads
+                </Link>
+                <Link
                   href="/metrics"
                   className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                 >

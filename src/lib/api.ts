@@ -34,6 +34,24 @@ export type CreateLeadResponse = {
   item: Lead;
 };
 
+export type LeadImportItem = {
+  status?: string | null;
+  regional?: string | null;
+  estado?: string | null;
+  city?: string | null;
+  consultor?: string | null;
+  chassi?: string | null;
+  modelName?: string | null;
+  clienteBaseEnriquecida?: string | null;
+  horimetroAtualMachineList?: number | string | null;
+  leadTipos?: string[] | string | null;
+};
+
+export type LeadImportResponse = {
+  success: true;
+  inserted: number;
+};
+
 export type TicketsPageResponse = {
   items: Ticket[];
   total: number;
@@ -117,6 +135,22 @@ export async function createLead(input: CreateLeadInput): Promise<CreateLeadResp
     throw new Error(text || "Falha ao criar lead");
   }
   return (await response.json()) as CreateLeadResponse;
+}
+
+export async function importLeads(
+  items: LeadImportItem[],
+): Promise<LeadImportResponse> {
+  const response = await fetch("/api/leads/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "Falha ao importar leads");
+  }
+  return (await response.json()) as LeadImportResponse;
 }
 
 export async function fetchTickets(
