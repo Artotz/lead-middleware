@@ -211,7 +211,7 @@ export function LeadsList({
         regiaoOptions={regiaoOptions}
         estadoOptions={estadoOptions}
         tipoLeadOptions={tipoLeadOptions.map((id) => id)}
-        searchPlaceholder="Buscar por chassi, modelo, cidade ou cliente"
+        searchPlaceholder="Buscar por chassi, modelo, cidade, consultor ou cliente"
         regiaoLabel="Região"
         estadoLabel="Estado"
         tipoLeadLabel="Tipo de lead"

@@ -190,46 +190,6 @@ function LeadHeader({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   );
 }
 
-function ActionsList() {
-  return (
-    <div className="space-y-2">
-      {LEAD_ACTION_DEFINITIONS.map((action) => {
-        const requirements = [
-          action.requiresReason ? "Motivo" : null,
-          action.requiresAssignee ? "Responsavel" : null,
-          action.requiresChangedFields ? "Campos alterados" : null,
-        ].filter(Boolean) as string[];
-
-        return (
-          <div
-            key={action.id}
-            className="rounded-xl border border-slate-200 bg-white p-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-slate-900">
-                {action.label}
-              </div>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                {action.id}
-              </span>
-            </div>
-            <div className="mt-1 text-xs text-slate-500">{action.description}</div>
-            {requirements.length ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {requirements.map((req) => (
-                  <Badge key={req} tone="amber">
-                    {req}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps) {
   const [eventsState, setEventsState] = useState<EventsState>({ status: "idle" });
   const [eventsReloadNonce, setEventsReloadNonce] = useState(0);
@@ -495,10 +455,6 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
                     </div>
                   )
                 ) : null}
-              </CollapsibleSection>
-
-              <CollapsibleSection title="Acoes disponiveis" defaultOpen>
-                <ActionsList />
               </CollapsibleSection>
 
               <CollapsibleSection title="Sinais do banco" defaultOpen={false}>

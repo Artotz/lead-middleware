@@ -14,7 +14,7 @@ export type LeadsPageResponse = {
 };
 
 export type LeadsQueryParams = Partial<
-  { page: number; pageSize: number } & FiltersState
+  { page: number; pageSize: number; consultor: string } & FiltersState
 >;
 
 export type CreateLeadInput = {
@@ -75,6 +75,7 @@ export async function fetchLeads(
     sort = INITIAL_FILTERS.sort,
     groupByChassi = INITIAL_FILTERS.groupByChassi ?? false,
     groupByEmpresa = INITIAL_FILTERS.groupByEmpresa ?? false,
+    consultor = "",
   } = params ?? {};
 
   const searchParams = new URLSearchParams({
@@ -87,6 +88,7 @@ export async function fetchLeads(
   if (regiao) searchParams.set("regiao", regiao);
   if (estado) searchParams.set("estado", estado);
   if (tipoLead) searchParams.set("tipoLead", tipoLead);
+  if (consultor) searchParams.set("consultor", consultor);
   const groupBy: string[] = [];
   if (groupByEmpresa) groupBy.push("empresa");
   if (groupByChassi) groupBy.push("chassi");

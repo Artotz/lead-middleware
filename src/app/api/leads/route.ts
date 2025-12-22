@@ -187,6 +187,7 @@ export async function GET(request: Request) {
     const search = (searchParams.get("search") ?? "").trim();
     const regiaoParam = searchParams.get("regiao");
     const estadoParam = searchParams.get("estado");
+    const consultorParam = (searchParams.get("consultor") ?? "").trim();
     const tipoLeadParam = searchParams.get("tipoLead") as LeadCategory | null;
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
@@ -245,6 +246,11 @@ export async function GET(request: Request) {
 
     if (estado) {
       query = query.eq("estado", estado);
+    }
+
+    if (consultorParam) {
+      const safe = consultorParam.replace(/,/g, "\\,");
+      query = query.ilike("consultor", `%${safe}%`);
     }
 
     if (tipoLeadParam) {
