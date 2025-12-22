@@ -10,6 +10,7 @@ const SELECT_COLUMNS = [
   "estado",
   "city",
   "consultor",
+  "created_by",
   "chassi",
   "model_name",
   "cliente_base_enriquecida",
@@ -35,6 +36,7 @@ type LeadRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  created_by?: string | null;
   chassi: string | null;
   model_name: string | null;
   cliente_base_enriquecida: string | null;
@@ -112,6 +114,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     estado,
     city: row.city,
     consultor: row.consultor,
+    createdBy: row.created_by ?? null,
     chassi: row.chassi,
     modelName: row.model_name,
     clienteBaseEnriquecida: row.cliente_base_enriquecida,

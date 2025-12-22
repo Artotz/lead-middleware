@@ -22,6 +22,7 @@ type LeadInsertRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  created_by: string | null;
   chassi: string | null;
   model_name: string | null;
   cliente_base_enriquecida: string | null;
@@ -148,12 +149,13 @@ const hasAnyValue = (item: LeadImportItem) => {
   });
 };
 
-const mapImportItem = (item: LeadImportItem): LeadInsertRow => ({
+const mapImportItem = (item: LeadImportItem, createdBy: string | null): LeadInsertRow => ({
     status: "novo",
     regional: normalizeText(item.regional),
     estado: normalizeText(item.estado),
     city: normalizeText(item.city),
     consultor: normalizeText(item.consultor),
+    created_by: createdBy,
     chassi: normalizeText(item.chassi),
     model_name: normalizeText(item.modelName),
     cliente_base_enriquecida: normalizeText(item.clienteBaseEnriquecida),
@@ -190,9 +192,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const createdBy = session.user.email ?? session.user.id ?? null;
+
     const mapped = items
       .filter((item) => isPlainObject(item) && hasAnyValue(item as LeadImportItem))
-      .map((item) => mapImportItem(item as LeadImportItem));
+      .map((item) => mapImportItem(item as LeadImportItem, createdBy));
 
     if (!mapped.length) {
       return NextResponse.json(

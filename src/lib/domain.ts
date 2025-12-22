@@ -22,6 +22,7 @@ export type Lead = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  createdBy: string | null;
   chassi: string | null;
   modelName: string | null;
   clienteBaseEnriquecida: string | null;

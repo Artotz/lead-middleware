@@ -5,10 +5,6 @@ import { importLeads, type LeadImportItem } from "@/lib/api";
 import { PageShell } from "@/components/PageShell";
 import { useToast } from "@/components/ToastProvider";
 
-type LeadsImportClientProps = {
-  defaultConsultor: string | null;
-};
-
 type LeadImportRow = {
   id: string;
   regional: string;
@@ -64,12 +60,12 @@ const makeId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const createEmptyRow = (defaultConsultor: string | null): LeadImportRow => ({
+const createEmptyRow = (): LeadImportRow => ({
   id: makeId(),
   regional: "",
   estado: "",
   city: "",
-  consultor: defaultConsultor ?? "",
+  consultor: "",
   clienteBaseEnriquecida: "",
   chassi: "",
   modelName: "",
@@ -97,16 +93,14 @@ const toPayloadItem = (row: LeadImportRow): LeadImportItem => ({
   leadTipos: row.leadTipos.length ? row.leadTipos : null,
 });
 
-export default function LeadsImportClient({
-  defaultConsultor,
-}: LeadsImportClientProps) {
+export default function LeadsImportClient() {
   const toast = useToast();
   const [rows, setRows] = useState<LeadImportRow[]>([
-    createEmptyRow(defaultConsultor),
-    createEmptyRow(defaultConsultor),
-    createEmptyRow(defaultConsultor),
-    createEmptyRow(defaultConsultor),
-    createEmptyRow(defaultConsultor),
+    createEmptyRow(),
+    createEmptyRow(),
+    createEmptyRow(),
+    createEmptyRow(),
+    createEmptyRow(),
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +122,7 @@ export default function LeadsImportClient({
   const addRows = (count: number) => {
     setRows((prev) => [
       ...prev,
-      ...Array.from({ length: count }, () =>
-        createEmptyRow(defaultConsultor),
-      ),
+      ...Array.from({ length: count }, () => createEmptyRow()),
     ]);
   };
 
@@ -162,11 +154,11 @@ export default function LeadsImportClient({
         message: `Importacao concluida. Leads inseridos: ${response.inserted}.`,
       });
       setRows([
-        createEmptyRow(defaultConsultor),
-        createEmptyRow(defaultConsultor),
-        createEmptyRow(defaultConsultor),
-        createEmptyRow(defaultConsultor),
-        createEmptyRow(defaultConsultor),
+        createEmptyRow(),
+        createEmptyRow(),
+        createEmptyRow(),
+        createEmptyRow(),
+        createEmptyRow(),
       ]);
     } catch (err) {
       const message =

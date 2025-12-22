@@ -11,5 +11,5 @@ export default async function LeadsImportPage() {
     redirect("/login");
   }
 
-  return <LeadsImportClient defaultConsultor={user.name} />;
+  return <LeadsImportClient />;
 }

@@ -263,6 +263,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
     const items: KeyValueItem[] = [
       { label: "Lead ID", value: String(lead.id) },
       { label: "Status", value: lead.status ?? "Sem status" },
+      { label: "Criado por", value: lead.createdBy ?? "Nao informado" },
       { label: "Cliente", value: lead.clienteBaseEnriquecida ?? "Sem cliente" },
       { label: "Consultor", value: lead.consultor ?? "Sem consultor" },
       { label: "Regional", value: lead.regional ?? "Sem regional" },
