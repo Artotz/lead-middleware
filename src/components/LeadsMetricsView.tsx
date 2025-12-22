@@ -26,6 +26,8 @@ const isWithinRange = (dateStr: string, range: TimeRange) => {
       return diff <= 7 * DAY_MS;
     case "month":
       return diff <= 30 * DAY_MS;
+    case "all":
+      return true;
     default:
       return false;
   }

@@ -12,6 +12,7 @@ type LeadImportRow = {
   estado: string;
   city: string;
   consultor: string;
+  telefone: string;
   clienteBaseEnriquecida: string;
   chassi: string;
   modelName: string;
@@ -46,14 +47,15 @@ const LEAD_TYPE_OPTIONS = [
 
 const COLUMNS: ColumnDef[] = [
   { key: "regional", label: "Regional", widthClass: "w-[6%]", type: "text" },
-  { key: "estado", label: "Estado", widthClass: "w-[6%]", type: "text" },
-  { key: "city", label: "Cidade", widthClass: "w-[10%]", type: "text" },
-  { key: "consultor", label: "Consultor", widthClass: "w-[12%]", type: "text" },
-  { key: "clienteBaseEnriquecida", label: "Cliente", widthClass: "w-[16%]", type: "text" },
-  { key: "chassi", label: "Chassi", widthClass: "w-[9%]", type: "text" },
-  { key: "modelName", label: "Modelo", widthClass: "w-[11%]", type: "text" },
+  { key: "estado", label: "Estado", widthClass: "w-[5%]", type: "text" },
+  { key: "city", label: "Cidade", widthClass: "w-[8%]", type: "text" },
+  { key: "consultor", label: "Consultor", widthClass: "w-[10%]", type: "text" },
+  { key: "clienteBaseEnriquecida", label: "Cliente", widthClass: "w-[14%]", type: "text" },
+  { key: "telefone", label: "Telefone", widthClass: "w-[10%]", type: "text" },
+  { key: "chassi", label: "Chassi", widthClass: "w-[7%]", type: "text" },
+  { key: "modelName", label: "Modelo", widthClass: "w-[8%]", type: "text" },
   { key: "horimetroAtualMachineList", label: "Horimetro", widthClass: "w-[7%]", type: "number" },
-  { key: "leadTipos", label: "Tipos do lead", widthClass: "w-[13%]", type: "multi" },
+  { key: "leadTipos", label: "Tipos do lead", widthClass: "w-[15%]", type: "multi" },
 ];
 
 const makeId = () => {
@@ -69,6 +71,7 @@ const createEmptyRow = (): LeadImportRow => ({
   estado: "",
   city: "",
   consultor: "",
+  telefone: "",
   clienteBaseEnriquecida: "",
   chassi: "",
   modelName: "",
@@ -89,6 +92,7 @@ const toPayloadItem = (row: LeadImportRow): LeadImportItem => ({
   estado: row.estado.trim() || null,
   city: row.city.trim() || null,
   consultor: row.consultor.trim() || null,
+  telefone: row.telefone.trim() || null,
   clienteBaseEnriquecida: row.clienteBaseEnriquecida.trim() || null,
   chassi: row.chassi.trim() || null,
   modelName: row.modelName.trim() || null,

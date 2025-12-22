@@ -1,11 +1,16 @@
 import "server-only";
 
-import type { MetricsRange, UserActionMetricsRow } from "@/lib/metrics";
+import type {
+  DailyActionMetricsRow,
+  MetricsRange,
+  UserActionMetricsRow,
+} from "@/lib/metrics";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function rangeToStart(range: MetricsRange): Date {
+export function rangeToStart(range: MetricsRange): Date | null {
   const now = new Date();
+  if (range === "all") return null;
   if (range === "today") {
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
@@ -78,3 +83,39 @@ export function aggregateUserMetrics<ItemId extends string | number>(
     .sort((a, b) => b.total_actions - a.total_actions);
 }
 
+type RawDailyRow = {
+  actor_user_id: string | null;
+  occurred_at: string | null;
+};
+
+export function aggregateDailyMetrics(rows: RawDailyRow[]): DailyActionMetricsRow[] {
+  const byDay = new Map<string, Map<string, number>>();
+
+  rows.forEach((row) => {
+    const actorId = row.actor_user_id?.trim();
+    if (!actorId) return;
+
+    const occurredAt = row.occurred_at;
+    if (!occurredAt) return;
+
+    const date = new Date(occurredAt);
+    if (Number.isNaN(date.getTime())) return;
+    const dayKey = date.toISOString().slice(0, 10);
+
+    const byActor = byDay.get(dayKey) ?? new Map<string, number>();
+    byActor.set(actorId, (byActor.get(actorId) ?? 0) + 1);
+    byDay.set(dayKey, byActor);
+  });
+
+  return Array.from(byDay.entries())
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .flatMap(([date, byActor]) =>
+      Array.from(byActor.entries())
+        .sort(([actorA], [actorB]) => actorA.localeCompare(actorB))
+        .map(([actor_user_id, total_actions]) => ({
+          actor_user_id,
+          date,
+          total_actions,
+        }))
+    );
+}

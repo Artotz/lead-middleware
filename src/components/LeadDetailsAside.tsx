@@ -312,6 +312,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
       { label: "Status", value: lead.status ?? "Sem status" },
       { label: "Criado por", value: lead.createdBy ?? "Nao informado" },
       { label: "Cliente", value: lead.clienteBaseEnriquecida ?? "Sem cliente" },
+      { label: "Telefone", value: lead.telefone ?? "Sem telefone" },
       {
         label: "Consultor",
         value: consultorValue ?? (canAssign ? (

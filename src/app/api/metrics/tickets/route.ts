@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/currentUser";
 import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
-import { aggregateUserMetrics, rangeToStart } from "@/lib/metricsAggregation";
+import {
+  aggregateDailyMetrics,
+  aggregateUserMetrics,
+  rangeToStart,
+} from "@/lib/metricsAggregation";
 import { isMetricsRange, type MetricsRange } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +20,15 @@ export async function GET(request: Request) {
     const start = rangeToStart(range);
 
     const supabase = getSupabaseAdminClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("ticket_events")
-      .select("ticket_id,actor_user_id,actor_email,actor_name,action,occurred_at")
-      .gte("occurred_at", start.toISOString());
+      .select("ticket_id,actor_user_id,actor_email,actor_name,action,occurred_at");
+
+    if (start) {
+      query = query.gte("occurred_at", start.toISOString());
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Supabase ticket metrics error", error);
@@ -35,10 +44,12 @@ export async function GET(request: Request) {
       actor_name: row.actor_name as string | null,
       action: row.action as string | null,
       item_id: row.ticket_id as string | null,
+      occurred_at: row.occurred_at as string | null,
     }));
 
     const metrics = aggregateUserMetrics(rows);
-    return NextResponse.json({ success: true, range, items: metrics });
+    const daily = aggregateDailyMetrics(rows);
+    return NextResponse.json({ success: true, range, items: metrics, daily });
   } catch (err: any) {
     const status = typeof err?.status === "number" ? err.status : 500;
     if (status !== 500) {
@@ -51,4 +62,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

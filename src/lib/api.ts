@@ -4,7 +4,11 @@ import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
 } from "./ticketFilters";
-import type { MetricsRange, UserActionMetricsRow } from "./metrics";
+import type {
+  DailyActionMetricsRow,
+  MetricsRange,
+  UserActionMetricsRow,
+} from "./metrics";
 
 export type LeadsPageResponse = {
   items: Lead[];
@@ -23,6 +27,7 @@ export type CreateLeadInput = {
   estado?: string | null;
   city?: string | null;
   consultor?: string | null;
+  telefone?: string | null;
   chassi?: string | null;
   modelName?: string | null;
   clienteBaseEnriquecida?: string | null;
@@ -40,6 +45,7 @@ export type LeadImportItem = {
   estado?: string | null;
   city?: string | null;
   consultor?: string | null;
+  telefone?: string | null;
   chassi?: string | null;
   modelName?: string | null;
   clienteBaseEnriquecida?: string | null;
@@ -210,6 +216,7 @@ export type MetricsApiResponse = {
   success: true;
   range: MetricsRange;
   items: UserActionMetricsRow[];
+  daily: DailyActionMetricsRow[];
 };
 
 async function fetchMetrics(path: string, range: MetricsRange) {

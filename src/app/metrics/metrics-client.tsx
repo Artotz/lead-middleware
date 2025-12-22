@@ -7,7 +7,7 @@ import { TimeRangeSelector } from "@/components/TimeRangeSelector";
 import { UserActionMetricsView } from "@/components/UserActionMetricsView";
 import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
 import { TimeRange } from "@/lib/domain";
-import type { UserActionMetricsRow } from "@/lib/metrics";
+import type { DailyActionMetricsRow, UserActionMetricsRow } from "@/lib/metrics";
 
 type MetricsTab = "leads" | "tickets";
 
@@ -15,6 +15,7 @@ export default function MetricsClient() {
   const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
+  const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,7 @@ export default function MetricsClient() {
           ? await fetchLeadMetrics(timeRange)
           : await fetchTicketMetrics(timeRange);
       setRows(response.items);
+      setDaily(response.daily);
     } catch (err) {
       console.error(err);
       setError("Não foi possível carregar as métricas.");
@@ -63,7 +65,7 @@ export default function MetricsClient() {
       );
     }
 
-    return <UserActionMetricsView entity={activeTab} rows={rows} />;
+    return <UserActionMetricsView entity={activeTab} rows={rows} daily={daily} />;
   };
 
   return (

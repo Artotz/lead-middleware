@@ -1,6 +1,6 @@
 export type TicketStatus = "aberto" | "fechado" | "desconhecido";
 
-export type TimeRange = "today" | "week" | "month";
+export type TimeRange = "today" | "week" | "month" | "all";
 
 export type LeadCategory =
   | "preventiva"
@@ -25,6 +25,7 @@ export type Lead = {
   city: string | null;
   consultor: string | null;
   createdBy: string | null;
+  telefone: string | null;
   chassi: string | null;
   modelName: string | null;
   clienteBaseEnriquecida: string | null;

@@ -11,6 +11,7 @@ const ranges: { id: TimeRange; label: string }[] = [
   { id: "today", label: "Hoje" },
   { id: "week", label: "Essa semana" },
   { id: "month", label: "Esse mês" },
+  { id: "all", label: "Tudo" },
 ];
 
 export function TimeRangeSelector({

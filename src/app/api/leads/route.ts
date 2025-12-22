@@ -10,6 +10,7 @@ const SELECT_COLUMNS = [
   "estado",
   "city",
   "consultor",
+  "telefone",
   "created_by",
   "chassi",
   "model_name",
@@ -39,6 +40,7 @@ type LeadRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  telefone: string | null;
   created_by?: string | null;
   chassi: string | null;
   model_name: string | null;
@@ -87,6 +89,8 @@ const leadTypeOrder: { key: LeadTypeColumn; category: LeadCategory; label: strin
     { key: "lead_disponibilidade", category: "disponibilidade", label: "Disponibilidade" },
     { key: "lead_reconexao", category: "reconexao", label: "Reconexão" },
     { key: "lead_transferencia_de_aor", category: "transferencia_aor", label: "Transferência de AOR" },
+    { key: "lead_pops", category: "pops", label: "POPs" },
+    { key: "lead_outros", category: "outros", label: "Outros" },
   ];
 
 const isYes = (value: string | null) =>
@@ -122,6 +126,7 @@ const mapLeadRow = (row: LeadRow): Lead => {
     estado,
     city: row.city,
     consultor: row.consultor,
+    telefone: row.telefone,
     createdBy: row.created_by ?? null,
     chassi: row.chassi,
     modelName: row.model_name,
@@ -155,6 +160,7 @@ type CreateLeadBody = {
   estado?: unknown;
   city?: unknown;
   consultor?: unknown;
+  telefone?: unknown;
   chassi?: unknown;
   modelName?: unknown;
   clienteBaseEnriquecida?: unknown;
@@ -360,6 +366,7 @@ export async function POST(request: Request) {
     const estado = normalizeText(body.estado);
     const city = normalizeText(body.city);
     const consultor = normalizeText(body.consultor);
+    const telefone = normalizeText(body.telefone);
     const chassi = normalizeText(body.chassi);
     const modelName = normalizeText(body.modelName);
     const clienteBaseEnriquecida = normalizeText(body.clienteBaseEnriquecida);
@@ -384,6 +391,7 @@ export async function POST(request: Request) {
       estado,
       city,
       consultor,
+      telefone,
       chassi,
       model_name: modelName,
       cliente_base_enriquecida: clienteBaseEnriquecida,

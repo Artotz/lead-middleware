@@ -9,6 +9,7 @@ type LeadImportItem = {
   estado?: unknown;
   city?: unknown;
   consultor?: unknown;
+  telefone?: unknown;
   chassi?: unknown;
   modelName?: unknown;
   clienteBaseEnriquecida?: unknown;
@@ -22,6 +23,7 @@ type LeadInsertRow = {
   estado: string | null;
   city: string | null;
   consultor: string | null;
+  telefone: string | null;
   created_by: string | null;
   chassi: string | null;
   model_name: string | null;
@@ -38,6 +40,8 @@ type LeadInsertRow = {
   lead_disponibilidade: string | null;
   lead_reconexao: string | null;
   lead_transferencia_de_aor: string | null;
+  lead_pops: string | null;
+  lead_outros: string | null;
   // imported_at: string;
 };
 
@@ -107,7 +111,7 @@ const buildLeadFlags = (item: LeadImportItem) => {
     return Object.fromEntries(
       Object.entries(leadTypeFlagMap).map(([key, column]) => [
         column,
-        selected.has(key) ? "SIM" : "NÃO",
+        selected.has(key) ? "SIM" : "NAO",
       ])
     ) as Pick<
       LeadInsertRow,
@@ -121,6 +125,8 @@ const buildLeadFlags = (item: LeadImportItem) => {
       | "lead_disponibilidade"
       | "lead_reconexao"
       | "lead_transferencia_de_aor"
+      | "lead_pops"
+      | "lead_outros"
     >;
   }
 
@@ -139,6 +145,8 @@ const buildLeadFlags = (item: LeadImportItem) => {
     lead_transferencia_de_aor: normalizeFlag(
       (item as any).leadTransferenciaDeAor
     ),
+    lead_pops: normalizeFlag((item as any).leadPops),
+    lead_outros: normalizeFlag((item as any).leadOutros),
   };
 
   return flags;
@@ -164,6 +172,7 @@ const mapImportItem = (
   estado: normalizeText(item.estado),
   city: normalizeText(item.city),
   consultor: normalizeText(item.consultor),
+  telefone: normalizeText(item.telefone),
   created_by: createdBy,
   chassi: normalizeText(item.chassi),
   model_name: normalizeText(item.modelName),
