@@ -21,5 +21,14 @@ export type DailyActionMetricsRow = {
   total_actions: number;
 };
 
+export type ActionEventRow = {
+  actor_user_id: string;
+  actor_email: string;
+  actor_name: string;
+  action: string;
+  item_id: string;
+  occurred_at: string;
+};
+
 export const isMetricsRange = (value: string): value is MetricsRange =>
   value === "today" || value === "week" || value === "month" || value === "all";

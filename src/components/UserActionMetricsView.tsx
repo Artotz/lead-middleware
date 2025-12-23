@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   type TooltipContentProps,
@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import type {
+  ActionEventRow,
   DailyActionMetricsRow,
   UserActionMetricsRow,
   UserIdentity,
@@ -31,6 +32,7 @@ type UserActionMetricsViewProps = {
   rows: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
   users: UserIdentity[];
+  events: ActionEventRow[];
   selectedUserId: string | null;
 };
 
@@ -76,12 +78,6 @@ type ChartDatum = {
   tone: ActionTone;
 };
 
-const truncateLabel = (value: string, maxChars = 28) => {
-  if (value.length <= maxChars) return value;
-  const sliceLen = Math.max(0, maxChars - 3);
-  return `${value.slice(0, sliceLen)}...`;
-};
-
 type DailyChartDatum = {
   date: string;
   total: number;
@@ -92,10 +88,24 @@ const shortDateFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
 });
 
+const longDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 const formatShortDate = (value: string) => {
   const parsed = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return value;
   return shortDateFormatter.format(parsed);
+};
+
+const formatDateTime = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return longDateFormatter.format(parsed);
 };
 
 const getUserLabel = (user: UserIdentity) => {
@@ -104,6 +114,14 @@ const getUserLabel = (user: UserIdentity) => {
   const email = user.email?.trim();
   if (email) return email;
   return user.id;
+};
+
+const getActorLabel = (event: ActionEventRow) => {
+  const name = event.actor_name?.trim();
+  if (name) return name;
+  const email = event.actor_email?.trim();
+  if (email) return email;
+  return event.actor_user_id;
 };
 
 const buildUserOptions = (
@@ -277,6 +295,7 @@ export function UserActionMetricsView({
   rows,
   daily,
   users,
+  events,
   selectedUserId,
 }: UserActionMetricsViewProps) {
   const definitions =
@@ -288,6 +307,8 @@ export function UserActionMetricsView({
     return map;
   }, [definitions]);
 
+  const [actionFilter, setActionFilter] = useState<string>("all");
+
   const userOptions = useMemo(
     () => buildUserOptions(users, rows),
     [rows, users]
@@ -296,6 +317,28 @@ export function UserActionMetricsView({
     () => getSelectedUser(userOptions, selectedUserId),
     [selectedUserId, userOptions]
   );
+
+  const eventsForUser = useMemo(() => {
+    if (!selectedUser) return [];
+    return events.filter((event) => event.actor_user_id === selectedUser.id);
+  }, [events, selectedUser?.id]);
+
+  const actionFilterOptions = useMemo(() => {
+    const unique = new Set<string>();
+    eventsForUser.forEach((event) => {
+      if (event.action) unique.add(event.action);
+    });
+    return Array.from(unique).sort((a, b) =>
+      (labelByAction.get(a) ?? a).localeCompare(labelByAction.get(b) ?? b),
+    );
+  }, [eventsForUser, labelByAction]);
+
+  useEffect(() => {
+    if (actionFilter === "all") return;
+    if (!actionFilterOptions.includes(actionFilter)) {
+      setActionFilter("all");
+    }
+  }, [actionFilter, actionFilterOptions]);
 
   const selectedRow = selectedUser
     ? rows.find((row) => row.actor_user_id === selectedUser.id) ?? null
@@ -309,12 +352,20 @@ export function UserActionMetricsView({
   const distributionEmptyMessage = selectedUser
     ? "Nenhuma acao registrada para esse usuario no periodo."
     : "Nenhuma acao registrada nesse periodo.";
+  const eventsEmptyMessage =
+    actionFilter === "all"
+      ? "Nenhuma acao registrada nesse periodo."
+      : "Nenhuma acao encontrada para esse filtro.";
+  const itemLabel = entity === "tickets" ? "Ticket" : "Lead";
 
-  const chartData: ChartDatum[] = (() => {
+  const actionEntries = useMemo(() => {
     const breakdown = selectedRow?.actions_breakdown ?? {};
-    const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
-    const topEntries = entries.slice(0, 10);
-    const remainingCount = entries
+    return Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+  }, [selectedRow]);
+
+  const chartData: ChartDatum[] = useMemo(() => {
+    const topEntries = actionEntries.slice(0, 10);
+    const remainingCount = actionEntries
       .slice(10)
       .reduce((acc, [, count]) => acc + count, 0);
 
@@ -336,14 +387,9 @@ export function UserActionMetricsView({
           ]
         : []),
     ];
-  })();
+  }, [actionEntries, labelByAction]);
 
-  const chartHeightClass =
-    chartData.length > 9
-      ? "h-[360px]"
-      : chartData.length > 6
-      ? "h-[280px]"
-      : "h-[200px]";
+  const distributionChartHeight = "h-[260px]";
 
   const dailySeries: DailyChartDatum[] = useMemo(() => {
     if (!selectedUser) return [];
@@ -358,6 +404,19 @@ export function UserActionMetricsView({
       .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
       .map(([date, total]) => ({ date, total }));
   }, [daily, selectedUser?.id]);
+
+  const filteredEvents = useMemo(() => {
+    if (actionFilter === "all") return eventsForUser;
+    return eventsForUser.filter((event) => event.action === actionFilter);
+  }, [actionFilter, eventsForUser]);
+
+  const orderedEvents = useMemo(
+    () =>
+      [...filteredEvents].sort((a, b) =>
+        b.occurred_at.localeCompare(a.occurred_at),
+      ),
+    [filteredEvents],
+  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -428,41 +487,84 @@ export function UserActionMetricsView({
         </div>
 
         {chartData.length > 0 ? (
-          <div className={`mt-3 w-full ${chartHeightClass}`}>
+          <div className={`mt-3 w-full ${distributionChartHeight}`}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={chartData}
-                margin={{ top: 8, right: 24, bottom: 8, left: 12 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  tick={{ fontSize: 12, fill: "#64748B" }}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={170}
-                  tick={{ fontSize: 12, fill: "#334155" }}
-                  tickFormatter={(value) => truncateLabel(String(value))}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                  content={<ActionsTooltip />}
-                />
-                <Bar dataKey="count" radius={[6, 6, 6, 6]}>
+              <PieChart>
+                <Tooltip content={<ActionsTooltip />} />
+                <Pie
+                  data={chartData}
+                  dataKey="count"
+                  nameKey="label"
+                  innerRadius="45%"
+                  outerRadius="80%"
+                  strokeWidth={1}
+                  paddingAngle={2}
+                >
                   {chartData.map((item) => (
                     <Cell key={item.action} fill={TONE_FILL[item.tone]} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+              </PieChart>
             </ResponsiveContainer>
           </div>
         ) : (
           <div className="mt-3 text-sm text-slate-500">
             {distributionEmptyMessage}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Lista de acoes do periodo
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <span>Filtrar acao</span>
+            <select
+              value={actionFilter}
+              onChange={(event) => setActionFilter(event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+            >
+              <option value="all">Todas</option>
+              {actionFilterOptions.map((actionId) => (
+                <option key={actionId} value={actionId}>
+                  {labelByAction.get(actionId) ?? actionId}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {orderedEvents.length > 0 ? (
+          <div className="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+            {orderedEvents.map((event) => (
+              <div
+                key={`${event.occurred_at}-${event.actor_user_id}-${event.action}-${event.item_id}`}
+                className="flex flex-col gap-1 px-3 py-2 text-sm text-slate-700"
+              >
+                <div className="text-xs text-slate-500">
+                  {formatDateTime(event.occurred_at)}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-900">
+                    {getActorLabel(event)}
+                  </span>
+                  <span className="text-slate-400">•</span>
+                  <span className="font-semibold text-slate-900">
+                    {labelByAction.get(event.action) ?? event.action}
+                  </span>
+                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-500">
+                    {itemLabel} {event.item_id}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400">{event.action}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 text-sm text-slate-500">
+            {eventsEmptyMessage}
           </div>
         )}
       </div>

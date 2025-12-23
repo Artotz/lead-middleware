@@ -5,6 +5,7 @@ import {
   TicketFiltersState,
 } from "./ticketFilters";
 import type {
+  ActionEventRow,
   DailyActionMetricsRow,
   MetricsRange,
   UserActionMetricsRow,
@@ -218,6 +219,7 @@ export type MetricsApiResponse = {
   range: MetricsRange;
   items: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
+  events: ActionEventRow[];
 };
 
 async function fetchMetrics(path: string, range: MetricsRange) {

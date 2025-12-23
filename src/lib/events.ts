@@ -6,9 +6,13 @@ export type LeadEventAction =
 export type TicketEventAction =
   | "view"
   | "add_note"
+  | "register_contact"
   | "add_tags"
   | "remove_tags"
+  | "discard"
   | "close"
+  | "close_without_os"
+  | "close_with_os"
   | "reopen"
   | "assign"
   | "external_update_detected";
@@ -20,6 +24,8 @@ export type EventPayload = {
   assignee?: string;
   method?: string;
   changed_fields?: Record<string, string>;
+  os_number?: string;
+  os_value?: number;
   [key: string]: unknown;
 };
 
@@ -32,7 +38,11 @@ export type ActionDefinition<Action extends string> = {
   requiresTags?: boolean;
   requiresAssignee?: boolean;
   requiresChangedFields?: boolean;
+  requiresOs?: boolean;
+  requiresValue?: boolean;
   payloadDefaults?: Partial<EventPayload>;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
@@ -47,6 +57,8 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Converter em ticket",
     description: "Registra intencao de converter esse lead em ticket.",
     payloadDefaults: { method: "manual" },
+    disabled: true,
+    disabledReason: "Conversao temporariamente indisponivel.",
   },
   {
     id: "discard",
@@ -69,6 +81,12 @@ export const TICKET_ACTION_DEFINITIONS: ActionDefinition<TicketEventAction>[] =
       description: "Registra uma observaǧǜo interna.",
     },
     {
+      id: "register_contact",
+      label: "Registrar tentativa de contato",
+      description: "Registra uma tentativa de contato (descricao obrigatoria).",
+      requiresNote: true,
+    },
+    {
       id: "add_tags",
       label: "Adicionar tags",
       description: "Adiciona tags ao ticket (exige pelo menos 1 tag).",
@@ -81,9 +99,27 @@ export const TICKET_ACTION_DEFINITIONS: ActionDefinition<TicketEventAction>[] =
       requiresTags: true,
     },
     {
+      id: "discard",
+      label: "Descartar",
+      description: "Descarta o ticket.",
+    },
+    {
       id: "close",
       label: "Fechar",
       description: "Registra fechamento do ticket.",
+    },
+    {
+      id: "close_without_os",
+      label: "Fechar (sem OS)",
+      description: "Fecha o ticket sem OS (exige motivo).",
+      requiresReason: true,
+    },
+    {
+      id: "close_with_os",
+      label: "Fechar (com OS)",
+      description: "Fecha o ticket com OS e valor.",
+      requiresOs: true,
+      requiresValue: true,
     },
     {
       id: "reopen",
@@ -155,6 +191,19 @@ const normalizeTags = (value: unknown): string[] | undefined => {
   return tags.length ? tags : undefined;
 };
 
+const normalizeNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return undefined;
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
 const normalizeChangedFields = (
   value: unknown,
 ): Record<string, string> | undefined => {
@@ -188,6 +237,8 @@ const validatePayloadCommon = (payload: EventPayload): ValidationResult<EventPay
 
   const tags = normalizeTags(payload.tags);
   const changed_fields = normalizeChangedFields(payload.changed_fields);
+  const os_number = normalizeText(payload.os_number);
+  const os_value = normalizeNumber(payload.os_value);
 
   const next: EventPayload = {
     ...payload,
@@ -195,6 +246,8 @@ const validatePayloadCommon = (payload: EventPayload): ValidationResult<EventPay
     reason,
     tags,
     changed_fields,
+    os_number,
+    os_value,
   };
 
   return { ok: true, value: next };
@@ -297,17 +350,34 @@ export function validateTicketEventInput(
   if (!common.ok) return common;
 
   const def = TICKET_ACTION_DEFINITIONS.find((d) => d.id === action)!;
+  if (def.requiresNote && !common.value.note) {
+    return {
+      ok: false,
+      error: "Descricao do contato (payload.note) e obrigatoria para essa acao.",
+    };
+  }
+  if (def.requiresReason && !common.value.reason) {
+    return { ok: false, error: "Motivo (payload.reason) e obrigatorio para essa acao." };
+  }
   if (def.requiresTags && !normalizeTags(common.value.tags)) {
     return { ok: false, error: "Tags (payload.tags) ǻ obrigatǭrio para essa aǧǜo." };
   }
   if (def.requiresAssignee && !normalizeText(common.value.assignee)) {
     return { ok: false, error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign." };
   }
+  if (def.requiresOs && !normalizeText(common.value.os_number)) {
+    return { ok: false, error: "OS (payload.os_number) e obrigatoria para essa acao." };
+  }
+  if (def.requiresValue && !normalizeNumber(common.value.os_value)) {
+    return { ok: false, error: "Valor (payload.os_value) e obrigatorio para essa acao." };
+  }
 
   const normalized: EventPayload = {
     ...common.value,
     tags: normalizeTags(common.value.tags),
     assignee: normalizeText(common.value.assignee),
+    os_number: normalizeText(common.value.os_number),
+    os_value: normalizeNumber(common.value.os_value),
   };
 
   return {

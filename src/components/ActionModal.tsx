@@ -39,12 +39,24 @@ export function ActionModal<Action extends string>({
   loading = false,
   error = null,
 }: ActionModalProps<Action>) {
-  const firstAction = actions[0]?.id;
+  const resolvedActions = useMemo<ActionDefinition<Action>[]>(() => {
+    if (actions.length) return actions;
+    return (entity === "lead"
+      ? LEAD_ACTION_DEFINITIONS
+      : TICKET_ACTION_DEFINITIONS) as ActionDefinition<Action>[];
+  }, [actions, entity]);
+
+  const firstAction = useMemo(
+    () => resolvedActions.find((item) => !item.disabled)?.id,
+    [resolvedActions],
+  );
   const [action, setAction] = useState<Action | undefined>(firstAction);
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [assignee, setAssignee] = useState("");
   const [tags, setTags] = useState("");
+  const [osNumber, setOsNumber] = useState("");
+  const [osValue, setOsValue] = useState("");
   const [method, setMethod] = useState("manual");
   const [changedFields, setChangedFields] = useState<ChangedFieldRow[]>([
     { key: "", value: "" },
@@ -53,8 +65,8 @@ export function ActionModal<Action extends string>({
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const activeDef = useMemo(
-    () => actions.find((item) => item.id === action) ?? null,
-    [action, actions],
+    () => resolvedActions.find((item) => item.id === action) ?? null,
+    [action, resolvedActions],
   );
 
   useEffect(() => {
@@ -65,6 +77,8 @@ export function ActionModal<Action extends string>({
     setReason("");
     setAssignee("");
     setTags("");
+    setOsNumber("");
+    setOsValue("");
     setMethod("manual");
     setChangedFields([{ key: "", value: "" }]);
 
@@ -86,10 +100,16 @@ export function ActionModal<Action extends string>({
 
   const canConfirm = useMemo(() => {
     if (!activeDef || !action) return false;
+    if (activeDef.disabled) return false;
     if (loading) return false;
     if (activeDef.requiresNote && !note.trim()) return false;
     if (activeDef.requiresReason && !reason.trim()) return false;
     if (activeDef.requiresAssignee && !assignee.trim()) return false;
+    if (activeDef.requiresOs && !osNumber.trim()) return false;
+    if (activeDef.requiresValue) {
+      const normalized = osValue.trim().replace(",", ".");
+      if (!normalized || Number.isNaN(Number(normalized))) return false;
+    }
     if (activeDef.requiresTags && parseTags(tags).length === 0) return false;
     if (activeDef.requiresChangedFields) {
       const hasOne = changedFields.some(
@@ -98,10 +118,22 @@ export function ActionModal<Action extends string>({
       if (!hasOne) return false;
     }
     return true;
-  }, [action, activeDef, assignee, changedFields, loading, note, reason, tags]);
+  }, [
+    action,
+    activeDef,
+    assignee,
+    changedFields,
+    loading,
+    note,
+    osNumber,
+    osValue,
+    reason,
+    tags,
+  ]);
 
   const handleConfirm = async () => {
     if (!action || !activeDef) return;
+    if (activeDef.disabled) return;
 
     const payload: EventPayload = {};
 
@@ -122,6 +154,17 @@ export function ActionModal<Action extends string>({
     if (activeDef.requiresTags || tags.trim()) {
       const list = parseTags(tags);
       if (list.length) payload.tags = list;
+    }
+
+    const normalizedOsNumber = osNumber.trim();
+    if (activeDef.requiresOs || normalizedOsNumber) {
+      if (normalizedOsNumber) payload.os_number = normalizedOsNumber;
+    }
+
+    const normalizedOsValue = osValue.trim().replace(",", ".");
+    if (activeDef.requiresValue || normalizedOsValue) {
+      const parsedValue = Number(normalizedOsValue);
+      if (Number.isFinite(parsedValue)) payload.os_value = parsedValue;
     }
 
     if (entity === "lead" && action === ("convert_to_ticket" as Action)) {
@@ -148,6 +191,8 @@ export function ActionModal<Action extends string>({
     entity === "ticket" &&
     (action === ("add_tags" as Action) || action === ("remove_tags" as Action));
   const showAssignee = Boolean(activeDef?.requiresAssignee);
+  const showOsNumber = Boolean(activeDef?.requiresOs);
+  const showOsValue = Boolean(activeDef?.requiresValue);
   const noteRequired = Boolean(activeDef?.requiresNote);
   const noteLabel = noteRequired ? "Descricao do contato" : "Observacao (opcional)";
   const notePlaceholder = noteRequired
@@ -195,18 +240,22 @@ export function ActionModal<Action extends string>({
               AÃºÃ£o
             </p>
             <div className="space-y-2">
-              {actions.map((item) => {
+              {resolvedActions.map((item) => {
                 const active = item.id === action;
+                const isDisabled = Boolean(item.disabled);
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setAction(item.id)}
+                    disabled={isDisabled}
+                    onClick={() => {
+                      if (!isDisabled) setAction(item.id);
+                    }}
                     className={`w-full rounded-xl border p-3 text-left transition ${
                       active
                         ? "border-sky-300 bg-sky-50"
                         : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+                    } ${isDisabled ? "cursor-not-allowed opacity-60" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -215,6 +264,7 @@ export function ActionModal<Action extends string>({
                         </div>
                         <div className="text-xs text-slate-500">
                           {item.description}
+                          {item.disabledReason ? ` (${item.disabledReason})` : ""}
                         </div>
                       </div>
                       <div
@@ -268,6 +318,35 @@ export function ActionModal<Action extends string>({
                   onChange={(e) => setAssignee(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   placeholder="Email ou nome"
+                />
+              </label>
+            )}
+
+            {showOsNumber && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  OS <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={osNumber}
+                  onChange={(e) => setOsNumber(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Informe a OS"
+                />
+              </label>
+            )}
+
+            {showOsValue && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Valor <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={osValue}
+                  onChange={(e) => setOsValue(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="0,00"
                 />
               </label>
             )}

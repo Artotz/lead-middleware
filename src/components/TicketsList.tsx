@@ -51,13 +51,23 @@ const ticketStatusTone: Record<
   Parameters<typeof Badge>[0]["tone"]
 > = {
   aberto: "amber",
+  atribuido: "sky",
+  "contato realizado": "emerald",
+  descartado: "rose",
   fechado: "emerald",
+  "fechado (sem OS)": "emerald",
+  "fechado (com OS)": "emerald",
   desconhecido: "slate",
 };
 
 const ticketStatusLabel: Record<TicketStatus, string> = {
   aberto: "Aberto",
+  atribuido: "Atribuido",
+  "contato realizado": "Contato realizado",
+  descartado: "Descartado",
   fechado: "Fechado",
+  "fechado (sem OS)": "Fechado (sem OS)",
+  "fechado (com OS)": "Fechado (com OS)",
   desconhecido: "Desconhecido",
 };
 
@@ -208,7 +218,12 @@ export function TicketsList({
             >
               <option value="">Todos</option>
               <option value="aberto">Aberto</option>
+              <option value="atribuido">Atribuido</option>
+              <option value="contato realizado">Contato realizado</option>
+              <option value="descartado">Descartado</option>
               <option value="fechado">Fechado</option>
+              <option value="fechado (sem OS)">Fechado (sem OS)</option>
+              <option value="fechado (com OS)">Fechado (com OS)</option>
             </select>
           </label>
 
