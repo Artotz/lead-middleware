@@ -1,5 +1,11 @@
 export type MetricsRange = "today" | "week" | "month" | "all";
 
+export type UserIdentity = {
+  id: string;
+  name?: string;
+  email?: string;
+};
+
 export type UserActionMetricsRow = {
   actor_user_id: string;
   actor_email: string;

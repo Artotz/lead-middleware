@@ -4,18 +4,52 @@ import { useCallback, useEffect, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { MetricsTabs } from "@/components/MetricsTabs";
 import { TimeRangeSelector } from "@/components/TimeRangeSelector";
-import { UserActionMetricsView } from "@/components/UserActionMetricsView";
+import {
+  UserActionMetricsHeader,
+  UserActionMetricsView,
+} from "@/components/UserActionMetricsView";
 import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
 import { TimeRange } from "@/lib/domain";
-import type { DailyActionMetricsRow, UserActionMetricsRow } from "@/lib/metrics";
+import type {
+  DailyActionMetricsRow,
+  UserActionMetricsRow,
+  UserIdentity,
+} from "@/lib/metrics";
 
 type MetricsTab = "leads" | "tickets";
+
+const mergeUserCatalog = (
+  current: UserIdentity[],
+  items: UserActionMetricsRow[],
+): UserIdentity[] => {
+  const map = new Map<string, UserIdentity>();
+  current.forEach((user) => map.set(user.id, user));
+  items.forEach((row) => {
+    const existing = map.get(row.actor_user_id);
+    map.set(row.actor_user_id, {
+      id: row.actor_user_id,
+      name: row.actor_name || existing?.name,
+      email: row.actor_email || existing?.email,
+    });
+  });
+  return Array.from(map.values());
+};
 
 export default function MetricsClient() {
   const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
+  const [usersByTab, setUsersByTab] = useState<Record<MetricsTab, UserIdentity[]>>({
+    leads: [],
+    tickets: [],
+  });
+  const [selectedUserByTab, setSelectedUserByTab] = useState<
+    Record<MetricsTab, string | null>
+  >({
+    leads: null,
+    tickets: null,
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,6 +63,10 @@ export default function MetricsClient() {
           : await fetchTicketMetrics(timeRange);
       setRows(response.items);
       setDaily(response.daily);
+      setUsersByTab((prev) => ({
+        ...prev,
+        [activeTab]: mergeUserCatalog(prev[activeTab] ?? [], response.items),
+      }));
     } catch (err) {
       console.error(err);
       setError("Não foi possível carregar as métricas.");
@@ -40,6 +78,16 @@ export default function MetricsClient() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const handleSelectedUserChange = useCallback(
+    (id: string | null) => {
+      setSelectedUserByTab((prev) => ({
+        ...prev,
+        [activeTab]: id,
+      }));
+    },
+    [activeTab],
+  );
 
   const renderContent = () => {
     if (loading) {
@@ -65,7 +113,15 @@ export default function MetricsClient() {
       );
     }
 
-    return <UserActionMetricsView entity={activeTab} rows={rows} daily={daily} />;
+    return (
+      <UserActionMetricsView
+        entity={activeTab}
+        rows={rows}
+        daily={daily}
+        users={usersByTab[activeTab] ?? []}
+        selectedUserId={selectedUserByTab[activeTab] ?? null}
+      />
+    );
   };
 
   return (
@@ -94,6 +150,12 @@ export default function MetricsClient() {
         <p className="text-xs text-slate-500">
           Filtrando dados do período selecionado.
         </p>
+        <UserActionMetricsHeader
+          rows={rows}
+          users={usersByTab[activeTab] ?? []}
+          selectedUserId={selectedUserByTab[activeTab] ?? null}
+          onSelectedUserIdChange={handleSelectedUserChange}
+        />
         {renderContent()}
       </div>
     </PageShell>

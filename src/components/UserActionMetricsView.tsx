@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -14,8 +14,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DailyActionMetricsRow, UserActionMetricsRow } from "@/lib/metrics";
-import { LEAD_ACTION_DEFINITIONS, TICKET_ACTION_DEFINITIONS } from "@/lib/events";
+import type {
+  DailyActionMetricsRow,
+  UserActionMetricsRow,
+  UserIdentity,
+} from "@/lib/metrics";
+import {
+  LEAD_ACTION_DEFINITIONS,
+  TICKET_ACTION_DEFINITIONS,
+} from "@/lib/events";
 
 type EntityKind = "leads" | "tickets";
 
@@ -23,6 +30,8 @@ type UserActionMetricsViewProps = {
   entity: EntityKind;
   rows: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
+  users: UserIdentity[];
+  selectedUserId: string | null;
 };
 
 type ActionTone =
@@ -89,6 +98,142 @@ const formatShortDate = (value: string) => {
   return shortDateFormatter.format(parsed);
 };
 
+const getUserLabel = (user: UserIdentity) => {
+  const name = user.name?.trim();
+  if (name) return name;
+  const email = user.email?.trim();
+  if (email) return email;
+  return user.id;
+};
+
+const buildUserOptions = (
+  users: UserIdentity[],
+  rows: UserActionMetricsRow[]
+) => {
+  const map = new Map<string, UserIdentity>();
+  users.forEach((user) => map.set(user.id, user));
+  rows.forEach((row) => {
+    const existing = map.get(row.actor_user_id);
+    map.set(row.actor_user_id, {
+      id: row.actor_user_id,
+      name: row.actor_name || existing?.name,
+      email: row.actor_email || existing?.email,
+    });
+  });
+  return Array.from(map.values());
+};
+
+const getSelectedUser = (
+  userOptions: UserIdentity[],
+  selectedUserId: string | null
+) => {
+  if (!userOptions.length) return null;
+  if (!selectedUserId) return userOptions[0];
+  return (
+    userOptions.find((user) => user.id === selectedUserId) ?? userOptions[0]
+  );
+};
+
+type UserActionMetricsHeaderProps = {
+  rows: UserActionMetricsRow[];
+  users: UserIdentity[];
+  selectedUserId: string | null;
+  onSelectedUserIdChange: (id: string | null) => void;
+};
+
+export function UserActionMetricsHeader({
+  rows,
+  users,
+  selectedUserId,
+  onSelectedUserIdChange,
+}: UserActionMetricsHeaderProps) {
+  const userOptions = useMemo(
+    () => buildUserOptions(users, rows),
+    [rows, users]
+  );
+  const selectedUser = useMemo(
+    () => getSelectedUser(userOptions, selectedUserId),
+    [selectedUserId, userOptions]
+  );
+
+  useEffect(() => {
+    if (!userOptions.length) {
+      if (selectedUserId !== null) {
+        onSelectedUserIdChange(null);
+      }
+      return;
+    }
+
+    if (
+      selectedUserId &&
+      userOptions.some((user) => user.id === selectedUserId)
+    ) {
+      return;
+    }
+
+    onSelectedUserIdChange(userOptions[0].id);
+  }, [onSelectedUserIdChange, selectedUserId, userOptions]);
+
+  const selectedRow = selectedUser
+    ? rows.find((row) => row.actor_user_id === selectedUser.id) ?? null
+    : null;
+
+  const selectedDisplayName =
+    selectedRow?.actor_name ||
+    selectedRow?.actor_email ||
+    (selectedUser ? getUserLabel(selectedUser) : "Nenhum usuario");
+  const selectedEmail = selectedRow?.actor_email || selectedUser?.email || "";
+  const periodMessage =
+    rows.length === 0
+      ? "Nenhuma acao registrada nesse periodo."
+      : !selectedRow
+      ? "Nenhuma acao registrada para esse usuario no periodo."
+      : null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Usuario
+          </div>
+          <div className="mt-1 truncate text-sm font-semibold text-slate-900">
+            {selectedDisplayName}
+          </div>
+          {selectedEmail ? (
+            <div className="truncate text-xs text-slate-500">
+              {selectedEmail}
+            </div>
+          ) : null}
+          {/* {periodMessage ? (
+            <div className="mt-2 text-xs text-slate-500">{periodMessage}</div>
+          ) : null} */}
+        </div>
+
+        <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 md:w-64">
+          <span>Selecionar pessoa</span>
+          <select
+            value={selectedUser?.id ?? ""}
+            onChange={(event) => onSelectedUserIdChange(event.target.value)}
+            disabled={!userOptions.length}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            {userOptions.length ? (
+              userOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {getUserLabel(option)}
+                </option>
+              ))
+            ) : (
+              <option value="">Nenhum usuario</option>
+            )}
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function ActionsTooltip({
   active,
   payload,
@@ -117,7 +262,9 @@ function DailyActionsTooltip({
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
-      <div className="font-semibold text-slate-900">{formatShortDate(datum.date)}</div>
+      <div className="font-semibold text-slate-900">
+        {formatShortDate(datum.date)}
+      </div>
       <div className="mt-1 text-slate-600">
         {datum.total} {datum.total === 1 ? "acao" : "acoes"}
       </div>
@@ -129,8 +276,11 @@ export function UserActionMetricsView({
   entity,
   rows,
   daily,
+  users,
+  selectedUserId,
 }: UserActionMetricsViewProps) {
-  const definitions = entity === "leads" ? LEAD_ACTION_DEFINITIONS : TICKET_ACTION_DEFINITIONS;
+  const definitions =
+    entity === "leads" ? LEAD_ACTION_DEFINITIONS : TICKET_ACTION_DEFINITIONS;
 
   const labelByAction = useMemo(() => {
     const map = new Map<string, string>();
@@ -138,46 +288,35 @@ export function UserActionMetricsView({
     return map;
   }, [definitions]);
 
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const userOptions = useMemo(
+    () => buildUserOptions(users, rows),
+    [rows, users]
+  );
+  const selectedUser = useMemo(
+    () => getSelectedUser(userOptions, selectedUserId),
+    [selectedUserId, userOptions]
+  );
 
-  useEffect(() => {
-    if (!rows.length) {
-      setSelectedUserId(null);
-      return;
-    }
+  const selectedRow = selectedUser
+    ? rows.find((row) => row.actor_user_id === selectedUser.id) ?? null
+    : null;
 
-    if (selectedUserId && rows.some((row) => row.actor_user_id === selectedUserId)) {
-      return;
-    }
-
-    setSelectedUserId(rows[0].actor_user_id);
-  }, [rows, selectedUserId]);
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-        Nenhuma acao registrada nesse periodo.
-      </div>
-    );
-  }
-
-  const selectedRow =
-    rows.find((row) => row.actor_user_id === selectedUserId) ?? rows[0];
-
-  const userOptions = rows.map((row) => ({
-    id: row.actor_user_id,
-    label: row.actor_name || row.actor_email || row.actor_user_id,
-  }));
+  const totalActions = selectedRow?.total_actions ?? 0;
+  const uniqueItems = selectedRow?.unique_items ?? 0;
+  const dailyEmptyMessage = selectedUser
+    ? "Sem dados diarios para esse usuario no periodo."
+    : "Sem dados diarios para esse periodo.";
+  const distributionEmptyMessage = selectedUser
+    ? "Nenhuma acao registrada para esse usuario no periodo."
+    : "Nenhuma acao registrada nesse periodo.";
 
   const chartData: ChartDatum[] = (() => {
-    const entries = Object.entries(selectedRow.actions_breakdown).sort(
-      (a, b) => b[1] - a[1],
-    );
+    const breakdown = selectedRow?.actions_breakdown ?? {};
+    const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
     const topEntries = entries.slice(0, 10);
-    const remainingCount = entries.slice(10).reduce(
-      (acc, [, count]) => acc + count,
-      0,
-    );
+    const remainingCount = entries
+      .slice(10)
+      .reduce((acc, [, count]) => acc + count, 0);
 
     return [
       ...topEntries.map(([action, count]) => ({
@@ -203,13 +342,14 @@ export function UserActionMetricsView({
     chartData.length > 9
       ? "h-[360px]"
       : chartData.length > 6
-        ? "h-[280px]"
-        : "h-[200px]";
+      ? "h-[280px]"
+      : "h-[200px]";
 
   const dailySeries: DailyChartDatum[] = useMemo(() => {
+    if (!selectedUser) return [];
     const byDate = new Map<string, number>();
     daily
-      .filter((row) => row.actor_user_id === selectedRow.actor_user_id)
+      .filter((row) => row.actor_user_id === selectedUser.id)
       .forEach((row) => {
         byDate.set(row.date, (byDate.get(row.date) ?? 0) + row.total_actions);
       });
@@ -217,49 +357,18 @@ export function UserActionMetricsView({
     return Array.from(byDate.entries())
       .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
       .map(([date, total]) => ({ date, total }));
-  }, [daily, selectedRow.actor_user_id]);
+  }, [daily, selectedUser?.id]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Usuario
-            </div>
-            <div className="mt-1 truncate text-sm font-semibold text-slate-900">
-              {selectedRow.actor_name || selectedRow.actor_email || selectedRow.actor_user_id}
-            </div>
-            {selectedRow.actor_email ? (
-              <div className="truncate text-xs text-slate-500">
-                {selectedRow.actor_email}
-              </div>
-            ) : null}
-          </div>
-
-          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 md:w-64">
-            <span>Selecionar pessoa</span>
-            <select
-              value={selectedRow.actor_user_id}
-              onChange={(event) => setSelectedUserId(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-            >
-              {userOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
+        {/* <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Total de acoes
             </div>
             <div className="mt-1 text-2xl font-semibold text-slate-900">
-              {selectedRow.total_actions}
+              {totalActions}
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
@@ -267,10 +376,10 @@ export function UserActionMetricsView({
               Itens unicos
             </div>
             <div className="mt-1 text-2xl font-semibold text-slate-900">
-              {selectedRow.unique_items}
+              {uniqueItems}
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <div className="border-b border-slate-200 px-5 py-4">
@@ -280,14 +389,20 @@ export function UserActionMetricsView({
         {dailySeries.length > 0 ? (
           <div className="mt-3 h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dailySeries} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+              <LineChart
+                data={dailySeries}
+                margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 12, fill: "#64748B" }}
                   tickFormatter={(value) => formatShortDate(String(value))}
                 />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748B" }} />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 12, fill: "#64748B" }}
+                />
                 <Tooltip
                   cursor={{ stroke: "#E2E8F0", strokeWidth: 1 }}
                   content={<DailyActionsTooltip />}
@@ -303,9 +418,7 @@ export function UserActionMetricsView({
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="mt-3 text-sm text-slate-500">
-            Sem dados diarios para esse usuario.
-          </div>
+          <div className="mt-3 text-sm text-slate-500">{dailyEmptyMessage}</div>
         )}
       </div>
 
@@ -349,7 +462,7 @@ export function UserActionMetricsView({
           </div>
         ) : (
           <div className="mt-3 text-sm text-slate-500">
-            Nenhuma acao registrada para esse usuario.
+            {distributionEmptyMessage}
           </div>
         )}
       </div>
