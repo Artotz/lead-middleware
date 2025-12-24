@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   type TooltipContentProps,
@@ -17,6 +18,7 @@ import {
 import type {
   DailyActionMetricsRow,
   MetricsRange,
+  UserActionEventRow,
   UserActionMetricsRow,
   UserIdentity,
 } from "@/lib/metrics";
@@ -32,6 +34,7 @@ type UserActionMetricsViewProps = {
   entity: EntityKind;
   rows: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
+  events: UserActionEventRow[];
   users: UserIdentity[];
   selectedUserId: string | null;
   range: MetricsRange;
@@ -279,6 +282,7 @@ export function UserActionMetricsView({
   entity,
   rows,
   daily,
+  events,
   users,
   selectedUserId,
   range,
@@ -364,6 +368,41 @@ export function UserActionMetricsView({
     }));
   }, [daily, range, selectedUser?.id]);
 
+  const [actionFilter, setActionFilter] = useState<string>("all");
+  useEffect(() => {
+    setActionFilter("all");
+  }, [selectedUser?.id]);
+  const actionFilterOptions = useMemo(() => {
+    const breakdown = selectedRow?.actions_breakdown ?? {};
+    return Object.entries(breakdown)
+      .sort((a, b) => b[1] - a[1])
+      .map(([action]) => ({
+        action,
+        label: labelByAction.get(action) ?? action,
+      }));
+  }, [labelByAction, selectedRow?.actions_breakdown]);
+
+  const actionEvents = useMemo(() => {
+    if (!selectedUser) return [];
+    return events
+      .filter((event) => event.actor_user_id === selectedUser.id)
+      .filter(
+        (event) => actionFilter === "all" || event.action === actionFilter
+      )
+      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+  }, [actionFilter, events, selectedUser?.id]);
+
+  const hasAnyEventsForUser = useMemo(() => {
+    if (!selectedUser) return false;
+    return events.some((event) => event.actor_user_id === selectedUser.id);
+  }, [events, selectedUser?.id]);
+
+  const formatEventDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString("pt-BR");
+  };
+
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
@@ -435,38 +474,87 @@ export function UserActionMetricsView({
         {chartData.length > 0 ? (
           <div className={`mt-3 w-full ${chartHeightClass}`}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={chartData}
-                margin={{ top: 8, right: 24, bottom: 8, left: 12 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  type="number"
-                  allowDecimals={false}
-                  tick={{ fontSize: 12, fill: "#64748B" }}
+              <PieChart style={{ height: "300px" }}>
+                <Tooltip content={<ActionsTooltip />} />
+                <Legend
+                  formatter={(value) => truncateLabel(String(value), 24)}
+                  wrapperStyle={{
+                    fontSize: "12px",
+                    color: "#475569",
+                    bottom: "0px",
+                  }}
                 />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={170}
-                  tick={{ fontSize: 12, fill: "#334155" }}
-                  tickFormatter={(value) => truncateLabel(String(value))}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                  content={<ActionsTooltip />}
-                />
-                <Bar dataKey="count" radius={[6, 6, 6, 6]}>
+                <Pie
+                  data={chartData}
+                  dataKey="count"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  style={{ marginBottom: 16 }}
+                >
                   {chartData.map((item) => (
                     <Cell key={item.action} fill={TONE_FILL[item.tone]} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+              </PieChart>
             </ResponsiveContainer>
           </div>
         ) : (
           <div className="mt-3 text-sm text-slate-500">
+            {distributionEmptyMessage}
+          </div>
+        )}
+
+        {hasAnyEventsForUser ? (
+          <div className="mt-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Lista de acoes no periodo
+            </div>
+            <div className="mt-2">
+              <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <span>Filtrar por acao</span>
+                <select
+                  value={actionFilter}
+                  onChange={(event) => setActionFilter(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                >
+                  <option value="all">Todas as acoes</option>
+                  {actionFilterOptions.map((option) => (
+                    <option key={option.action} value={option.action}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              {actionEvents.length > 0 ? (
+                actionEvents.map((event, index) => (
+                  <div
+                    key={`${event.action}-${event.item_id}-${event.occurred_at}-${index}`}
+                    className="border-b border-slate-200 py-2 last:border-b-0"
+                  >
+                    <div className="font-semibold text-slate-900">
+                      {labelByAction.get(event.action) ?? event.action}
+                    </div>
+                    <div className="text-slate-600">
+                      {entity === "tickets" ? "Ticket" : "Lead"} {event.item_id}{" "}
+                      · {formatEventDate(event.occurred_at)}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-3 text-center text-slate-500">
+                  Nenhuma acao para o filtro selecionado.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 text-sm text-slate-500">
             {distributionEmptyMessage}
           </div>
         )}

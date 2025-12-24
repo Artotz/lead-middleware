@@ -17,6 +17,13 @@ export type UserActionMetricsRow = {
   actions_breakdown: Record<string, number>;
 };
 
+export type UserActionEventRow = {
+  actor_user_id: string;
+  action: string;
+  item_id: string;
+  occurred_at: string;
+};
+
 export type DailyActionMetricsRow = {
   actor_user_id: string;
   date: string;

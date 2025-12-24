@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageShell } from "@/components/PageShell";
 import { MetricsTabs } from "@/components/MetricsTabs";
 import { TimeRangeSelector } from "@/components/TimeRangeSelector";
@@ -12,6 +12,7 @@ import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
 import { TimeRange } from "@/lib/domain";
 import type {
   DailyActionMetricsRow,
+  UserActionEventRow,
   UserActionMetricsRow,
   UserIdentity,
 } from "@/lib/metrics";
@@ -23,10 +24,12 @@ export default function MetricsClient() {
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
+  const [events, setEvents] = useState<UserActionEventRow[]>([]);
   const [usersByTab, setUsersByTab] = useState<Record<MetricsTab, UserIdentity[]>>({
     leads: [],
     tickets: [],
   });
+  const usersByTabRef = useRef(usersByTab);
   const [selectedUserByTab, setSelectedUserByTab] = useState<
     Record<MetricsTab, string | null>
   >({
@@ -36,20 +39,27 @@ export default function MetricsClient() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    usersByTabRef.current = usersByTab;
+  }, [usersByTab]);
+
+  const loadData = useCallback(async (includeUsers: boolean) => {
     setLoading(true);
     setError(null);
     try {
       const response =
         activeTab === "leads"
-          ? await fetchLeadMetrics(timeRange)
-          : await fetchTicketMetrics(timeRange);
+          ? await fetchLeadMetrics(timeRange, { includeUsers })
+          : await fetchTicketMetrics(timeRange, { includeUsers });
       setRows(response.items);
       setDaily(response.daily);
-      setUsersByTab((prev) => ({
-        ...prev,
-        [activeTab]: response.users,
-      }));
+      setEvents(response.events);
+      if (includeUsers) {
+        setUsersByTab((prev) => ({
+          ...prev,
+          [activeTab]: response.users,
+        }));
+      }
     } catch (err) {
       console.error(err);
       setError("Não foi possível carregar as métricas.");
@@ -59,8 +69,10 @@ export default function MetricsClient() {
   }, [activeTab, timeRange]);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    const includeUsers =
+      (usersByTabRef.current[activeTab] ?? []).length === 0;
+    void loadData(includeUsers);
+  }, [activeTab, loadData, timeRange]);
 
   const handleSelectedUserChange = useCallback(
     (id: string | null) => {
@@ -87,7 +99,11 @@ export default function MetricsClient() {
           <span>{error}</span>
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => {
+              const includeUsers =
+                (usersByTabRef.current[activeTab] ?? []).length === 0;
+              void loadData(includeUsers);
+            }}
             className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
           >
             Tentar novamente
@@ -101,6 +117,7 @@ export default function MetricsClient() {
         entity={activeTab}
         rows={rows}
         daily={daily}
+        events={events}
         users={usersByTab[activeTab] ?? []}
         selectedUserId={selectedUserByTab[activeTab] ?? null}
         range={timeRange}

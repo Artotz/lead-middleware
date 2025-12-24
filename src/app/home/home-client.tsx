@@ -64,17 +64,30 @@ export default function HomeClient({ consultor }: HomeClientProps) {
   }, [leads]);
 
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
+    const updatedAt = new Date().toISOString();
     setLeads((prev) =>
       prev.map((lead) =>
         lead.id === leadId
-          ? { ...lead, consultor: assignee, status: "atribuido" }
+          ? { ...lead, consultor: assignee, status: "atribuido", updatedAt }
           : lead,
       ),
     );
     setSelectedLead((prev) =>
       prev && prev.id === leadId
-        ? { ...prev, consultor: assignee, status: "atribuido" }
+        ? { ...prev, consultor: assignee, status: "atribuido", updatedAt }
         : prev,
+    );
+  }, []);
+
+  const handleLeadStatusChange = useCallback((leadId: number, status: string) => {
+    const updatedAt = new Date().toISOString();
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === leadId ? { ...lead, status, updatedAt } : lead,
+      ),
+    );
+    setSelectedLead((prev) =>
+      prev && prev.id === leadId ? { ...prev, status, updatedAt } : prev,
     );
   }, []);
 
@@ -130,6 +143,7 @@ export default function HomeClient({ consultor }: HomeClientProps) {
               onFiltersChange={setFilters}
               currentUserName={consultor}
               onLeadAssigned={handleLeadAssigned}
+              onLeadStatusChange={handleLeadStatusChange}
               onLeadSelect={(lead) => {
                 setSelectedLead(lead);
                 setLeadDetailsOpen(true);

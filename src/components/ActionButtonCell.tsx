@@ -10,6 +10,7 @@ import { useToast } from "@/components/ToastProvider";
 type LeadProps = {
   entity: "lead";
   leadId: number;
+  onLeadStatusChange?: (leadId: number, status: string) => void;
 };
 
 type TicketProps = {
@@ -50,6 +51,17 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
           action: action as LeadEventAction,
           payload,
         });
+        const statusByAction: Partial<Record<LeadEventAction, string>> = {
+          assign: "atribuido",
+          register_contact: "contato realizado",
+          discard: "descartado",
+          close_without_os: "fechado (sem OS)",
+          close_with_os: "fechado (com OS)",
+        };
+        const nextStatus = statusByAction[action as LeadEventAction];
+        if (nextStatus) {
+          props.onLeadStatusChange?.(props.leadId, nextStatus);
+        }
       } else {
         if (!props.ticketId) {
           throw new Error("Ticket sem id vǭlido.");

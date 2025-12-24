@@ -20,6 +20,7 @@ type LeadsListProps = {
   onLeadSelect?: (lead: Lead) => void;
   currentUserName?: string | null;
   onLeadAssigned?: (leadId: number, assignee: string) => void;
+  onLeadStatusChange?: (leadId: number, status: string) => void;
   loading?: boolean;
 };
 
@@ -160,6 +161,7 @@ export function LeadsList({
   onLeadSelect,
   currentUserName,
   onLeadAssigned,
+  onLeadStatusChange,
   loading = false,
 }: LeadsListProps) {
   const regiaoOptions = useMemo(
@@ -369,6 +371,7 @@ export function LeadsList({
                 <ActionButtonCell
                   entity="lead"
                   leadId={lead.id}
+                  onLeadStatusChange={onLeadStatusChange}
                 />
               ),
             };

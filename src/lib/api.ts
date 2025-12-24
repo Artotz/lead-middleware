@@ -7,6 +7,7 @@ import {
 import type {
   DailyActionMetricsRow,
   MetricsRange,
+  UserActionEventRow,
   UserActionMetricsRow,
   UserIdentity,
 } from "./metrics";
@@ -220,10 +221,24 @@ export type MetricsApiResponse = {
   items: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
   users: UserIdentity[];
+  events: UserActionEventRow[];
 };
 
-async function fetchMetrics(path: string, range: MetricsRange) {
-  const response = await fetch(`${path}?range=${encodeURIComponent(range)}`, {
+type FetchMetricsOptions = {
+  includeUsers?: boolean;
+};
+
+async function fetchMetrics(
+  path: string,
+  range: MetricsRange,
+  options?: FetchMetricsOptions,
+) {
+  const includeUsers = options?.includeUsers ?? true;
+  const searchParams = new URLSearchParams({
+    range: String(range),
+    includeUsers: includeUsers ? "1" : "0",
+  });
+  const response = await fetch(`${path}?${searchParams.toString()}`, {
     cache: "no-store",
   });
   ensureAuthenticated(response);
@@ -233,10 +248,16 @@ async function fetchMetrics(path: string, range: MetricsRange) {
   return (await response.json()) as MetricsApiResponse;
 }
 
-export async function fetchLeadMetrics(range: MetricsRange) {
-  return fetchMetrics("/api/metrics/leads", range);
+export async function fetchLeadMetrics(
+  range: MetricsRange,
+  options?: FetchMetricsOptions,
+) {
+  return fetchMetrics("/api/metrics/leads", range, options);
 }
 
-export async function fetchTicketMetrics(range: MetricsRange) {
-  return fetchMetrics("/api/metrics/tickets", range);
+export async function fetchTicketMetrics(
+  range: MetricsRange,
+  options?: FetchMetricsOptions,
+) {
+  return fetchMetrics("/api/metrics/tickets", range, options);
 }
