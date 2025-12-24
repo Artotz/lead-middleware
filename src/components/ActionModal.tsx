@@ -185,6 +185,9 @@ export function ActionModal<Action extends string>({
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+      }}
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
