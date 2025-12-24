@@ -17,7 +17,11 @@ import {
 
 type DashboardTab = "leads" | "tickets";
 
-export default function DashboardClient() {
+type DashboardClientProps = {
+  currentUserName: string;
+};
+
+export default function DashboardClient({ currentUserName }: DashboardClientProps) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
 
   // Leads
@@ -178,6 +182,17 @@ export default function DashboardClient() {
     void loadTickets(1, next);
   };
 
+  const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === leadId ? { ...lead, consultor: assignee } : lead,
+      ),
+    );
+    setSelectedLead((prev) =>
+      prev && prev.id === leadId ? { ...prev, consultor: assignee } : prev,
+    );
+  }, []);
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -210,6 +225,8 @@ export default function DashboardClient() {
             filters={leadFilters}
             onFiltersChange={handleLeadFiltersChange}
             loading={leadsLoading}
+            currentUserName={currentUserName}
+            onLeadAssigned={handleLeadAssigned}
             onLeadSelect={(lead) => {
               setSelectedLead(lead);
               setLeadDetailsOpen(true);
@@ -252,6 +269,8 @@ export default function DashboardClient() {
               lead={selectedLead}
               open={leadDetailsOpen}
               onClose={() => setLeadDetailsOpen(false)}
+              currentUserName={currentUserName}
+              onLeadAssigned={handleLeadAssigned}
             />
           ) : null}
         </div>

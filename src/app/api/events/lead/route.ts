@@ -22,6 +22,9 @@ export async function POST(request: Request) {
     const updatePayload: Record<string, string> = {
       updated_at: new Date().toISOString(),
     };
+    if (parsed.value.action === "assign" && parsed.value.payload.assignee) {
+      updatePayload.consultor = parsed.value.payload.assignee;
+    }
 
     const { error: updateError } = await supabase
       .from("leads")

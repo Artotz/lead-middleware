@@ -63,6 +63,17 @@ export default function HomeClient({ consultor }: HomeClientProps) {
     return { novos, semStatus };
   }, [leads]);
 
+  const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === leadId ? { ...lead, consultor: assignee } : lead,
+      ),
+    );
+    setSelectedLead((prev) =>
+      prev && prev.id === leadId ? { ...prev, consultor: assignee } : prev,
+    );
+  }, []);
+
   return (
     <PageShell
       title="Home"
@@ -113,6 +124,8 @@ export default function HomeClient({ consultor }: HomeClientProps) {
               leads={leads}
               filters={filters}
               onFiltersChange={setFilters}
+              currentUserName={consultor}
+              onLeadAssigned={handleLeadAssigned}
               onLeadSelect={(lead) => {
                 setSelectedLead(lead);
                 setLeadDetailsOpen(true);
@@ -127,6 +140,8 @@ export default function HomeClient({ consultor }: HomeClientProps) {
           lead={selectedLead}
           open={leadDetailsOpen}
           onClose={() => setLeadDetailsOpen(false)}
+          currentUserName={consultor}
+          onLeadAssigned={handleLeadAssigned}
         />
       ) : null}
     </PageShell>

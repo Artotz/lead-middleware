@@ -1,5 +1,6 @@
 export type LeadEventAction =
   | "register_contact"
+  | "assign"
   | "discard"
   | "convert_to_ticket";
 
@@ -41,6 +42,12 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Registrar contato",
     description: "Registra o contato realizado com descricao obrigatoria.",
     requiresNote: true,
+  },
+  {
+    id: "assign",
+    label: "Atribuir",
+    description: "Atribui o lead a um responsavel.",
+    requiresAssignee: true,
   },
   {
     id: "convert_to_ticket",

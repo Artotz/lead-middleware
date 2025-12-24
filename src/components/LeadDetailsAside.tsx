@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Lead, LeadCategory } from "@/lib/domain";
 import { LEAD_ACTION_DEFINITIONS, type EventPayload } from "@/lib/events";
 import { Badge } from "@/components/Badge";
+import { AssignLeadButton } from "@/components/AssignLeadButton";
 import { CollapsibleSection } from "@/components/ticket-details/CollapsibleSection";
 import { KeyValueGrid, type KeyValueItem } from "@/components/ticket-details/KeyValueGrid";
 
@@ -11,6 +12,8 @@ type LeadDetailsAsideProps = {
   lead: Lead | null;
   open: boolean;
   onClose: () => void;
+  currentUserName?: string | null;
+  onLeadAssigned?: (leadId: number, assignee: string) => void;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
@@ -198,7 +201,13 @@ function LeadHeader({ lead, onClose }: { lead: Lead; onClose: () => void }) {
   );
 }
 
-export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps) {
+export function LeadDetailsAside({
+  lead,
+  open,
+  onClose,
+  currentUserName,
+  onLeadAssigned,
+}: LeadDetailsAsideProps) {
   const [eventsState, setEventsState] = useState<EventsState>({ status: "idle" });
   const [eventsReloadNonce, setEventsReloadNonce] = useState(0);
   const leadId = lead?.id ?? null;
@@ -269,6 +278,18 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
     if (!lead) return [];
     const importedParts = formatDateParts(lead.importedAt);
     const consultorValue = lead.consultor ?? null;
+    const canAssignLead =
+      !consultorValue?.trim() && Boolean(currentUserName?.trim());
+    const consultorDisplay = canAssignLead ? (
+      <AssignLeadButton
+        leadId={lead.id}
+        assigneeName={currentUserName}
+        onAssigned={(assignee) => onLeadAssigned?.(lead.id, assignee)}
+        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+      />
+    ) : (
+      consultorValue ?? "Sem consultor"
+    );
     const items: KeyValueItem[] = [
       { label: "Lead ID", value: String(lead.id) },
       { label: "Status", value: lead.status ?? "Sem status" },
@@ -278,7 +299,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
       { label: "Telefone", value: lead.telefone ?? "Sem telefone" },
       {
         label: "Consultor",
-        value: consultorValue ?? "Sem consultor",
+        value: consultorDisplay,
       },
       { label: "Regional", value: lead.regional ?? "Sem regional" },
       { label: "Estado", value: lead.estado ?? "Sem estado" },
@@ -287,7 +308,7 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
       { label: "Importado em", value: `${importedParts.date} ${importedParts.time}` },
     ];
     return items;
-  }, [lead]);
+  }, [currentUserName, lead, onLeadAssigned]);
 
   const equipmentItems = useMemo<KeyValueItem[]>(() => {
     if (!lead) return [];
@@ -345,7 +366,10 @@ export function LeadDetailsAside({ lead, open, onClose }: LeadDetailsAsideProps)
         onClick={(e) => e.stopPropagation()}
       >
         {lead ? (
-          <LeadHeader lead={lead} onClose={onClose} />
+          <LeadHeader
+            lead={lead}
+            onClose={onClose}
+          />
         ) : (
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-5 py-4 backdrop-blur">
             <div className="flex items-center justify-between">

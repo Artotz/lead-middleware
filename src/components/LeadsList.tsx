@@ -9,6 +9,7 @@ import {
   REGIOES,
 } from "@/lib/filters";
 import { Badge } from "./Badge";
+import { AssignLeadButton } from "./AssignLeadButton";
 import { ActionButtonCell } from "./ActionButtonCell";
 import { FiltersBar } from "./FiltersBar";
 
@@ -17,6 +18,8 @@ type LeadsListProps = {
   filters: FiltersState;
   onFiltersChange: (filters: FiltersState) => void;
   onLeadSelect?: (lead: Lead) => void;
+  currentUserName?: string | null;
+  onLeadAssigned?: (leadId: number, assignee: string) => void;
   loading?: boolean;
 };
 
@@ -155,6 +158,8 @@ export function LeadsList({
   filters,
   onFiltersChange,
   onLeadSelect,
+  currentUserName,
+  onLeadAssigned,
   loading = false,
 }: LeadsListProps) {
   const regiaoOptions = useMemo(
@@ -267,6 +272,8 @@ export function LeadsList({
             const isStriped = filters.groupByEmpresa || filters.groupByChassi;
             const backgroundClass =
               isStriped && groupIndex % 2 === 1 ? "bg-slate-50" : "bg-white";
+            const hasConsultor = Boolean(lead.consultor?.trim());
+            const canShowAssign = !hasConsultor && Boolean(currentUserName?.trim());
 
             const cells: Record<ColumnId, React.ReactNode> = {
               regional: (
@@ -289,7 +296,16 @@ export function LeadsList({
                   {lead.clienteBaseEnriquecida ?? "Sem cliente"}
                 </span>
               ),
-              consultor: (
+              consultor: canShowAssign ? (
+                <AssignLeadButton
+                  leadId={lead.id}
+                  assigneeName={currentUserName}
+                  onAssigned={(assignee) =>
+                    onLeadAssigned?.(lead.id, assignee)
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              ) : (
                 <span className="block max-w-[180px] truncate text-slate-800">
                   {lead.consultor ?? "Sem consultor"}
                 </span>
