@@ -8,6 +8,7 @@ import type {
   DailyActionMetricsRow,
   MetricsRange,
   UserActionMetricsRow,
+  UserIdentity,
 } from "./metrics";
 
 export type LeadsPageResponse = {
@@ -218,6 +219,7 @@ export type MetricsApiResponse = {
   range: MetricsRange;
   items: UserActionMetricsRow[];
   daily: DailyActionMetricsRow[];
+  users: UserIdentity[];
 };
 
 async function fetchMetrics(path: string, range: MetricsRange) {

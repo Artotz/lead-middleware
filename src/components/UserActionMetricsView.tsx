@@ -16,9 +16,11 @@ import {
 } from "recharts";
 import type {
   DailyActionMetricsRow,
+  MetricsRange,
   UserActionMetricsRow,
   UserIdentity,
 } from "@/lib/metrics";
+import { listMetricsRangeDays } from "@/lib/metrics";
 import {
   LEAD_ACTION_DEFINITIONS,
   TICKET_ACTION_DEFINITIONS,
@@ -32,6 +34,7 @@ type UserActionMetricsViewProps = {
   daily: DailyActionMetricsRow[];
   users: UserIdentity[];
   selectedUserId: string | null;
+  range: MetricsRange;
 };
 
 type ActionTone =
@@ -278,6 +281,7 @@ export function UserActionMetricsView({
   daily,
   users,
   selectedUserId,
+  range,
 }: UserActionMetricsViewProps) {
   const definitions =
     entity === "leads" ? LEAD_ACTION_DEFINITIONS : TICKET_ACTION_DEFINITIONS;
@@ -354,10 +358,11 @@ export function UserActionMetricsView({
         byDate.set(row.date, (byDate.get(row.date) ?? 0) + row.total_actions);
       });
 
-    return Array.from(byDate.entries())
-      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-      .map(([date, total]) => ({ date, total }));
-  }, [daily, selectedUser?.id]);
+    return listMetricsRangeDays(range).map((date) => ({
+      date,
+      total: byDate.get(date) ?? 0,
+    }));
+  }, [daily, range, selectedUser?.id]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

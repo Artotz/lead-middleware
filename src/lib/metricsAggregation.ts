@@ -5,19 +5,10 @@ import type {
   MetricsRange,
   UserActionMetricsRow,
 } from "@/lib/metrics";
+import { getMetricsRangeStart } from "@/lib/metrics";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function rangeToStart(range: MetricsRange): Date | null {
-  const now = new Date();
-  if (range === "all") return null;
-  if (range === "today") {
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    return start;
-  }
-  if (range === "week") return new Date(now.getTime() - 7 * DAY_MS);
-  return new Date(now.getTime() - 30 * DAY_MS);
+export function rangeToStart(range: MetricsRange): Date {
+  return getMetricsRangeStart(range);
 }
 
 type RawEventRow<ItemId extends string | number> = {

@@ -1,6 +1,8 @@
 export type LeadEventAction =
   | "register_contact"
   | "assign"
+  | "close_without_os"
+  | "close_with_os"
   | "discard"
   | "convert_to_ticket";
 
@@ -20,6 +22,8 @@ export type EventPayload = {
   tags?: string[];
   assignee?: string;
   method?: string;
+  os?: string;
+  valor?: string;
   changed_fields?: Record<string, string>;
   [key: string]: unknown;
 };
@@ -32,8 +36,11 @@ export type ActionDefinition<Action extends string> = {
   requiresReason?: boolean;
   requiresTags?: boolean;
   requiresAssignee?: boolean;
+  requiresOs?: boolean;
+  requiresValor?: boolean;
   requiresChangedFields?: boolean;
   payloadDefaults?: Partial<EventPayload>;
+  disabled?: boolean;
 };
 
 export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
@@ -50,16 +57,30 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     requiresAssignee: true,
   },
   {
-    id: "convert_to_ticket",
-    label: "Converter em ticket",
-    description: "Registra intencao de converter esse lead em ticket.",
-    payloadDefaults: { method: "manual" },
-  },
-  {
     id: "discard",
     label: "Descartar",
     description: "Descarta o lead (exige motivo).",
     requiresReason: true,
+  },
+  {
+    id: "close_without_os",
+    label: "Fechar (sem OS)",
+    description: "Fecha o lead sem OS (exige motivo).",
+    requiresReason: true,
+  },
+  {
+    id: "close_with_os",
+    label: "Fechar (com OS)",
+    description: "Fecha o lead com OS e valor.",
+    requiresOs: true,
+    requiresValor: true,
+  },
+  {
+    id: "convert_to_ticket",
+    label: "Converter em ticket",
+    description: "Registra intencao de converter esse lead em ticket.",
+    payloadDefaults: { method: "manual" },
+    disabled: true,
   },
 ];
 
@@ -248,6 +269,12 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
   if (def.requiresAssignee && !normalizeText(common.value.assignee)) {
     return { ok: false, error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign." };
   }
+  if (def.requiresOs && !normalizeText(common.value.os)) {
+    return { ok: false, error: "OS (payload.os) e obrigatoria para essa acao." };
+  }
+  if (def.requiresValor && !normalizeText(common.value.valor)) {
+    return { ok: false, error: "Valor (payload.valor) e obrigatorio para essa acao." };
+  }
   if (def.requiresChangedFields && !normalizeChangedFields(common.value.changed_fields)) {
     return {
       ok: false,
@@ -259,6 +286,8 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
     ...common.value,
     assignee: normalizeText(common.value.assignee),
     method: normalizeText(common.value.method),
+    os: normalizeText(common.value.os),
+    valor: normalizeText(common.value.valor),
     changed_fields: normalizeChangedFields(common.value.changed_fields),
   };
 

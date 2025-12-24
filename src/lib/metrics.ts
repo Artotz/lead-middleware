@@ -1,4 +1,6 @@
-export type MetricsRange = "today" | "week" | "month" | "all";
+import type { TimeRange } from "@/lib/domain";
+
+export type MetricsRange = TimeRange;
 
 export type UserIdentity = {
   id: string;
@@ -22,4 +24,42 @@ export type DailyActionMetricsRow = {
 };
 
 export const isMetricsRange = (value: string): value is MetricsRange =>
-  value === "today" || value === "week" || value === "month" || value === "all";
+  value === "today" || value === "week" || value === "month" || value === "year";
+
+const getUtcStartOfDay = (date: Date) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+
+export const getMetricsRangeStart = (
+  range: MetricsRange,
+  now: Date = new Date(),
+): Date => {
+  const start = getUtcStartOfDay(now);
+  if (range === "today") return start;
+  if (range === "week") {
+    start.setUTCDate(start.getUTCDate() - 6);
+    return start;
+  }
+  if (range === "month") {
+    start.setUTCDate(start.getUTCDate() - 29);
+    return start;
+  }
+  return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+};
+
+export const getMetricsRangeEnd = (now: Date = new Date()): Date =>
+  getUtcStartOfDay(now);
+
+export const listMetricsRangeDays = (
+  range: MetricsRange,
+  now: Date = new Date(),
+): string[] => {
+  const start = getMetricsRangeStart(range, now);
+  const end = getMetricsRangeEnd(now);
+  const days: string[] = [];
+
+  for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    days.push(cursor.toISOString().slice(0, 10));
+  }
+
+  return days;
+};

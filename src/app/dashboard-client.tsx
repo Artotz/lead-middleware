@@ -185,11 +185,15 @@ export default function DashboardClient({ currentUserName }: DashboardClientProp
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     setLeads((prev) =>
       prev.map((lead) =>
-        lead.id === leadId ? { ...lead, consultor: assignee } : lead,
+        lead.id === leadId
+          ? { ...lead, consultor: assignee, status: "atribuido" }
+          : lead,
       ),
     );
     setSelectedLead((prev) =>
-      prev && prev.id === leadId ? { ...prev, consultor: assignee } : prev,
+      prev && prev.id === leadId
+        ? { ...prev, consultor: assignee, status: "atribuido" }
+        : prev,
     );
   }, []);
 

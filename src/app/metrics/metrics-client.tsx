@@ -18,23 +18,6 @@ import type {
 
 type MetricsTab = "leads" | "tickets";
 
-const mergeUserCatalog = (
-  current: UserIdentity[],
-  items: UserActionMetricsRow[],
-): UserIdentity[] => {
-  const map = new Map<string, UserIdentity>();
-  current.forEach((user) => map.set(user.id, user));
-  items.forEach((row) => {
-    const existing = map.get(row.actor_user_id);
-    map.set(row.actor_user_id, {
-      id: row.actor_user_id,
-      name: row.actor_name || existing?.name,
-      email: row.actor_email || existing?.email,
-    });
-  });
-  return Array.from(map.values());
-};
-
 export default function MetricsClient() {
   const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
@@ -65,7 +48,7 @@ export default function MetricsClient() {
       setDaily(response.daily);
       setUsersByTab((prev) => ({
         ...prev,
-        [activeTab]: mergeUserCatalog(prev[activeTab] ?? [], response.items),
+        [activeTab]: response.users,
       }));
     } catch (err) {
       console.error(err);
@@ -120,6 +103,7 @@ export default function MetricsClient() {
         daily={daily}
         users={usersByTab[activeTab] ?? []}
         selectedUserId={selectedUserByTab[activeTab] ?? null}
+        range={timeRange}
       />
     );
   };

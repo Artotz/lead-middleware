@@ -19,11 +19,58 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdminClient();
+    const { data: leadRow, error: leadError } = await supabase
+      .from("leads")
+      .select("consultor")
+      .eq("id", parsed.value.leadId)
+      .single();
+
+    if (leadError) {
+      console.error("Supabase lead fetch error", leadError);
+      return NextResponse.json(
+        { success: false, message: "Erro ao carregar lead." },
+        { status: 500 },
+      );
+    }
+
+    const leadConsultor = (leadRow?.consultor ?? "").trim().toLowerCase();
+    const currentUserName = (user.name ?? "").trim().toLowerCase();
+
+    if (parsed.value.action === "register_contact") {
+      if (!leadConsultor || leadConsultor !== currentUserName) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Voce so pode registrar contato em leads atribuidos a voce.",
+          },
+          { status: 403 },
+        );
+      }
+    }
+
     const updatePayload: Record<string, string> = {
       updated_at: new Date().toISOString(),
     };
+
     if (parsed.value.action === "assign" && parsed.value.payload.assignee) {
       updatePayload.consultor = parsed.value.payload.assignee;
+      updatePayload.status = "atribuido";
+    }
+
+    if (parsed.value.action === "discard") {
+      updatePayload.status = "descartado";
+    }
+
+    if (parsed.value.action === "register_contact") {
+      updatePayload.status = "contato realizado";
+    }
+
+    if (parsed.value.action === "close_without_os") {
+      updatePayload.status = "fechado (sem OS)";
+    }
+
+    if (parsed.value.action === "close_with_os") {
+      updatePayload.status = "fechado (com OS)";
     }
 
     const { error: updateError } = await supabase

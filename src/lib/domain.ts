@@ -1,6 +1,6 @@
 export type TicketStatus = "aberto" | "fechado" | "desconhecido";
 
-export type TimeRange = "today" | "week" | "month" | "all";
+export type TimeRange = "today" | "week" | "month" | "year";
 
 export type LeadCategory =
   | "preventiva"

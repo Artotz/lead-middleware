@@ -39,11 +39,13 @@ export function ActionModal<Action extends string>({
   loading = false,
   error = null,
 }: ActionModalProps<Action>) {
-  const firstAction = actions[0]?.id;
+  const firstAction = actions.find((item) => !item.disabled)?.id ?? actions[0]?.id;
   const [action, setAction] = useState<Action | undefined>(firstAction);
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [os, setOs] = useState("");
+  const [valor, setValor] = useState("");
   const [tags, setTags] = useState("");
   const [method, setMethod] = useState("manual");
   const [changedFields, setChangedFields] = useState<ChangedFieldRow[]>([
@@ -64,6 +66,8 @@ export function ActionModal<Action extends string>({
     setNote("");
     setReason("");
     setAssignee("");
+    setOs("");
+    setValor("");
     setTags("");
     setMethod("manual");
     setChangedFields([{ key: "", value: "" }]);
@@ -87,9 +91,12 @@ export function ActionModal<Action extends string>({
   const canConfirm = useMemo(() => {
     if (!activeDef || !action) return false;
     if (loading) return false;
+    if (activeDef.disabled) return false;
     if (activeDef.requiresNote && !note.trim()) return false;
     if (activeDef.requiresReason && !reason.trim()) return false;
     if (activeDef.requiresAssignee && !assignee.trim()) return false;
+    if (activeDef.requiresOs && !os.trim()) return false;
+    if (activeDef.requiresValor && !valor.trim()) return false;
     if (activeDef.requiresTags && parseTags(tags).length === 0) return false;
     if (activeDef.requiresChangedFields) {
       const hasOne = changedFields.some(
@@ -98,7 +105,7 @@ export function ActionModal<Action extends string>({
       if (!hasOne) return false;
     }
     return true;
-  }, [action, activeDef, assignee, changedFields, loading, note, reason, tags]);
+  }, [action, activeDef, assignee, changedFields, loading, note, os, reason, tags, valor]);
 
   const handleConfirm = async () => {
     if (!action || !activeDef) return;
@@ -117,6 +124,18 @@ export function ActionModal<Action extends string>({
       payload.assignee = assignee.trim();
     } else if (assignee.trim()) {
       payload.assignee = assignee.trim();
+    }
+
+    if (activeDef.requiresOs) {
+      payload.os = os.trim();
+    } else if (os.trim()) {
+      payload.os = os.trim();
+    }
+
+    if (activeDef.requiresValor) {
+      payload.valor = valor.trim();
+    } else if (valor.trim()) {
+      payload.valor = valor.trim();
     }
 
     if (activeDef.requiresTags || tags.trim()) {
@@ -148,6 +167,8 @@ export function ActionModal<Action extends string>({
     entity === "ticket" &&
     (action === ("add_tags" as Action) || action === ("remove_tags" as Action));
   const showAssignee = Boolean(activeDef?.requiresAssignee);
+  const showOs = Boolean(activeDef?.requiresOs);
+  const showValor = Boolean(activeDef?.requiresValor);
   const noteRequired = Boolean(activeDef?.requiresNote);
   const noteLabel = noteRequired ? "Descricao do contato" : "Observacao (opcional)";
   const notePlaceholder = noteRequired
@@ -197,16 +218,20 @@ export function ActionModal<Action extends string>({
             <div className="space-y-2">
               {actions.map((item) => {
                 const active = item.id === action;
+                const isDisabled = Boolean(item.disabled);
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setAction(item.id)}
+                    onClick={() => {
+                      if (!isDisabled) setAction(item.id);
+                    }}
+                    disabled={isDisabled}
                     className={`w-full rounded-xl border p-3 text-left transition ${
                       active
                         ? "border-sky-300 bg-sky-50"
                         : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+                    } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -268,6 +293,34 @@ export function ActionModal<Action extends string>({
                   onChange={(e) => setAssignee(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   placeholder="Email ou nome"
+                />
+              </label>
+            )}
+
+            {showOs && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  OS <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={os}
+                  onChange={(e) => setOs(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Numero da OS"
+                />
+              </label>
+            )}
+
+            {showValor && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Valor <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={valor}
+                  onChange={(e) => setValor(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Ex.: 2500"
                 />
               </label>
             )}

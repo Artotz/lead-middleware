@@ -146,6 +146,13 @@ const summarizePayload = (
     typeof payload.reason === "string" ? payload.reason.trim() : "";
   if (reason) parts.push(`Motivo: ${truncateText(reason, 90)}`);
 
+  const osValue = typeof payload.os === "string" ? payload.os.trim() : "";
+  if (osValue) parts.push(`OS: ${osValue}`);
+
+  const valorValue =
+    typeof payload.valor === "string" ? payload.valor.trim() : "";
+  if (valorValue) parts.push(`Valor: ${valorValue}`);
+
   const method =
     typeof payload.method === "string" ? payload.method.trim() : "";
   if (method) parts.push(`Metodo: ${method}`);
