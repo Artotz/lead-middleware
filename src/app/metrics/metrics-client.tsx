@@ -11,7 +11,6 @@ import {
 import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
 import { TimeRange } from "@/lib/domain";
 import type {
-  ActionEventRow,
   DailyActionMetricsRow,
   UserActionMetricsRow,
   UserIdentity,
@@ -41,7 +40,6 @@ export default function MetricsClient() {
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
-  const [events, setEvents] = useState<ActionEventRow[]>([]);
   const [usersByTab, setUsersByTab] = useState<Record<MetricsTab, UserIdentity[]>>({
     leads: [],
     tickets: [],
@@ -65,7 +63,6 @@ export default function MetricsClient() {
           : await fetchTicketMetrics(timeRange);
       setRows(response.items);
       setDaily(response.daily);
-      setEvents(response.events ?? []);
       setUsersByTab((prev) => ({
         ...prev,
         [activeTab]: mergeUserCatalog(prev[activeTab] ?? [], response.items),
@@ -121,7 +118,6 @@ export default function MetricsClient() {
         entity={activeTab}
         rows={rows}
         daily={daily}
-        events={events}
         users={usersByTab[activeTab] ?? []}
         selectedUserId={selectedUserByTab[activeTab] ?? null}
       />

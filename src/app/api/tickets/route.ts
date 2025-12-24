@@ -7,7 +7,7 @@ type TicketRow = {
   ticket_id: string | null;
   number: string | null;
   title: string | null;
-  status: number | string | null;
+  status: number | null;
   serial_number: string | null;
   advisor_first_name: string | null;
   advisor_last_name: string | null;
@@ -34,47 +34,9 @@ const buildName = (first: string | null, last: string | null) => {
   return firstClean ?? lastClean;
 };
 
-const normalizeStatusText = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-
-const statusByText: Record<string, TicketStatus> = {
-  aberto: "aberto",
-  fechado: "fechado",
-  descartado: "descartado",
-  atribuido: "atribuido",
-  "contato realizado": "contato realizado",
-  "fechado (sem os)": "fechado (sem OS)",
-  "fechado sem os": "fechado (sem OS)",
-  "fechado (com os)": "fechado (com OS)",
-  "fechado com os": "fechado (com OS)",
-};
-
-const statusByCode: Record<number, TicketStatus> = {
-  1: "aberto",
-  2: "fechado",
-  3: "descartado",
-  4: "atribuido",
-  5: "contato realizado",
-  6: "fechado (sem OS)",
-  7: "fechado (com OS)",
-};
-
-const mapStatus = (value: number | string | null): TicketStatus => {
-  if (typeof value === "number") return statusByCode[value] ?? "desconhecido";
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return "desconhecido";
-    if (/^\d+$/.test(trimmed)) {
-      const code = Number(trimmed);
-      return statusByCode[code] ?? "desconhecido";
-    }
-    return statusByText[normalizeStatusText(trimmed)] ?? "desconhecido";
-  }
+const mapStatus = (code: number | null): TicketStatus => {
+  if (code === 1) return "aberto";
+  if (code === 2) return "fechado";
   return "desconhecido";
 };
 
@@ -82,9 +44,9 @@ const mapTicketRow = (row: TicketRow): Ticket => {
   const statusCode =
     typeof row.status === "number"
       ? row.status
-      : typeof row.status === "string" && /^\d+$/.test(row.status.trim())
-      ? Number(row.status)
-      : null;
+      : row.status === null
+      ? null
+      : Number(row.status);
 
   const number = clean(row.number) ?? "Sem número";
   const title = clean(row.title) ?? "Sem título";
@@ -101,7 +63,7 @@ const mapTicketRow = (row: TicketRow): Ticket => {
     id: clean(row.ticket_id) ?? number,
     number,
     title,
-    status: mapStatus(row.status),
+    status: mapStatus(statusCode),
     statusCode,
     serialNumber: clean(row.serial_number),
     advisorName:
@@ -117,14 +79,9 @@ const mapTicketRow = (row: TicketRow): Ticket => {
   };
 };
 
-const statusToCode: Partial<Record<TicketStatus, number | null>> = {
+const statusToCode: Record<TicketStatus, number | null> = {
   aberto: 1,
   fechado: 2,
-  descartado: 3,
-  atribuido: 4,
-  "contato realizado": 5,
-  "fechado (sem OS)": 6,
-  "fechado (com OS)": 7,
   desconhecido: null,
 };
 
@@ -221,15 +178,8 @@ export async function GET(request: Request) {
 
     if (statusParam) {
       const statusCode = statusToCode[statusParam];
-      const statusText = /[\\s()]/.test(statusParam)
-        ? `"${statusParam.replace(/"/g, '""')}"`
-        : statusParam;
-      if (statusCode === undefined) {
-        query = query.eq("status", statusParam);
-      } else if (statusCode === null) {
-        query = query.or(`status.is.null,status.eq.${statusText}`);
-      } else {
-        query = query.or(`status.eq.${statusCode},status.eq.${statusText}`);
+      if (statusCode !== null) {
+        query = query.eq("status", statusCode);
       }
     }
 

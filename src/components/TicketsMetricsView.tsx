@@ -46,10 +46,7 @@ export function TicketsMetricsView({
     (ticket) => ticket.status === "aberto",
   );
   const closedTickets = ticketsInRange.filter(
-    (ticket) =>
-      ticket.status === "fechado" ||
-      ticket.status === "fechado (sem OS)" ||
-      ticket.status === "fechado (com OS)",
+    (ticket) => ticket.status === "fechado",
   );
 
   return (

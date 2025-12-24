@@ -1,12 +1,4 @@
-export type TicketStatus =
-  | "aberto"
-  | "atribuido"
-  | "contato realizado"
-  | "descartado"
-  | "fechado"
-  | "fechado (sem OS)"
-  | "fechado (com OS)"
-  | "desconhecido";
+export type TicketStatus = "aberto" | "fechado" | "desconhecido";
 
 export type TimeRange = "today" | "week" | "month" | "all";
 

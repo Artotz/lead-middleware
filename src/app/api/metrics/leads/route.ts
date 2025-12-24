@@ -49,34 +49,7 @@ export async function GET(request: Request) {
 
     const metrics = aggregateUserMetrics(rows);
     const daily = aggregateDailyMetrics(rows);
-    const events = rows
-      .filter(
-        (row): row is {
-          actor_user_id: string;
-          actor_email: string | null;
-          actor_name: string | null;
-          action: string;
-          item_id: number;
-          occurred_at: string;
-        } =>
-          Boolean(
-            row.actor_user_id &&
-              row.action &&
-              row.item_id !== null &&
-              row.item_id !== undefined &&
-              row.occurred_at,
-          ),
-      )
-      .map((row) => ({
-        actor_user_id: row.actor_user_id,
-        actor_email: row.actor_email ?? "",
-        actor_name: row.actor_name ?? "",
-        action: row.action,
-        item_id: String(row.item_id),
-        occurred_at: row.occurred_at,
-      }))
-      .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-    return NextResponse.json({ success: true, range, items: metrics, daily, events });
+    return NextResponse.json({ success: true, range, items: metrics, daily });
   } catch (err: any) {
     const status = typeof err?.status === "number" ? err.status : 500;
     if (status !== 500) {
