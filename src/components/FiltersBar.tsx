@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FiltersState, SortOrder } from "@/lib/filters";
 
@@ -7,12 +7,14 @@ type FiltersBarProps = {
   regiaoOptions?: string[];
   estadoOptions?: string[];
   tipoLeadOptions?: string[];
+  statusOptions?: string[];
   sortOptions?: { id: SortOrder; label: string }[];
   searchPlaceholder?: string;
   searchLabel?: string;
   regiaoLabel?: string;
   estadoLabel?: string;
   tipoLeadLabel?: string;
+  statusLabel?: string;
   onFiltersChange: (filters: FiltersState) => void;
 };
 
@@ -26,12 +28,14 @@ export function FiltersBar({
   regiaoOptions,
   estadoOptions,
   tipoLeadOptions = [],
+  statusOptions,
   sortOptions = defaultSortOptions,
   searchPlaceholder = "Buscar...",
   searchLabel = "Busca",
-  regiaoLabel = "Região",
+  regiaoLabel = "Regiao",
   estadoLabel = "Estado",
   tipoLeadLabel = "Tipo de lead",
+  statusLabel = "Status",
   onFiltersChange,
 }: FiltersBarProps) {
   const handleChange = <K extends keyof FiltersState>(
@@ -43,7 +47,7 @@ export function FiltersBar({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
           {searchLabel}
           <input
@@ -55,6 +59,43 @@ export function FiltersBar({
           />
         </label>
 
+        {statusOptions !== undefined && (
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {statusLabel}
+            <select
+              value={value.status}
+              onChange={(e) =>
+                handleChange("status", e.target.value as FiltersState["status"])
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            >
+              <option value="">Todos</option>
+              {statusOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Ordenacao
+          <select
+            value={value.sort}
+            onChange={(e) => handleChange("sort", e.target.value as SortOrder)}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+          >
+            {sortOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
         {regiaoOptions !== undefined && (
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {regiaoLabel}
@@ -108,21 +149,6 @@ export function FiltersBar({
             {tipoLeadOptions.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Ordenação
-          <select
-            value={value.sort}
-            onChange={(e) => handleChange("sort", e.target.value as SortOrder)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          >
-            {sortOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
               </option>
             ))}
           </select>

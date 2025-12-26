@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo } from "react";
 import { Lead, LeadCategory } from "@/lib/domain";
@@ -16,6 +16,7 @@ type LeadsListProps = {
   currentUserName?: string | null;
   onLeadAssigned?: (leadId: number, assignee: string) => void;
   onLeadStatusChange?: (leadId: number, status: string) => void;
+  statusOptions?: string[];
   loading?: boolean;
 };
 
@@ -63,15 +64,15 @@ const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> =
 
 const leadTypeLabel: Record<LeadCategory, string> = {
   preventiva: "Preventiva",
-  garantia_basica: "Garantia básica",
+  garantia_basica: "Garantia bÃ¡sica",
   garantia_estendida: "Garantia estendida",
   reforma_componentes: "Reforma de componentes",
-  lamina: "Lâmina",
+  lamina: "LÃ¢mina",
   dentes: "Dentes",
   rodante: "Rodante",
   disponibilidade: "Disponibilidade",
-  reconexao: "Reconexão",
-  transferencia_aor: "Transferência de AOR",
+  reconexao: "ReconexÃ£o",
+  transferencia_aor: "TransferÃªncia de AOR",
   pops: "POPs",
   outros: "Outros",
   indefinido: "Indefinido",
@@ -102,16 +103,16 @@ const pickStatusTone = (
 };
 
 const columnLabels: Record<ColumnId, string> = {
-  regional: "Região",
+  regional: "RegiÃ£o",
   cidadeEstado: "Cidade / Estado",
   cliente: "Cliente",
   consultor: "Consultor",
   chassiModelo: "Chassi",
   tipoLead: "Tipo de lead",
-  horimetro: "Horímetro",
+  horimetro: "HorÃ­metro",
   importadoEm: "Atualizado em",
   status: "Status",
-  acoes: "Ações",
+  acoes: "AÃ§Ãµes",
 };
 
 const columnWidths: Record<ColumnId, string> = {
@@ -157,6 +158,7 @@ export function LeadsList({
   currentUserName,
   onLeadAssigned,
   onLeadStatusChange,
+  statusOptions,
   loading = false,
 }: LeadsListProps) {
   const regiaoOptions = useMemo(() => REGIOES.slice(), []);
@@ -165,6 +167,29 @@ export function LeadsList({
 
   const tipoLeadOptions = useMemo(() => LEAD_TYPES.slice(), []);
 
+  const derivedStatusOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    leads.forEach((lead) => {
+      const status = lead.status?.trim();
+      if (!status) return;
+      const key = status.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, status);
+      }
+    });
+    const current = filters.status?.trim();
+    if (current && !map.has(current.toLowerCase())) {
+      map.set(current.toLowerCase(), current);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.localeCompare(b, "pt-BR")
+    );
+  }, [filters.status, leads]);
+
+  const resolvedStatusOptions = useMemo(
+    () => statusOptions ?? derivedStatusOptions,
+    [derivedStatusOptions, statusOptions],
+  );
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
     [filters.groupByChassi, filters.groupByEmpresa]
@@ -214,8 +239,9 @@ export function LeadsList({
         regiaoOptions={regiaoOptions}
         estadoOptions={estadoOptions}
         tipoLeadOptions={tipoLeadOptions.map((id) => id)}
+        statusOptions={resolvedStatusOptions}
         searchPlaceholder="Buscar por chassi, modelo, cidade, consultor ou cliente"
-        regiaoLabel="Região"
+        regiaoLabel="Regiao"
         estadoLabel="Estado"
         tipoLeadLabel="Tipo de lead"
         onFiltersChange={onFiltersChange}
@@ -279,7 +305,7 @@ export function LeadsList({
               cidadeEstado: (
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-semibold text-slate-900">
-                    {lead.city ?? "Cidade não informada"}
+                    {lead.city ?? "Cidade nÃ£o informada"}
                   </span>
                   <span className="truncate text-xs text-slate-500">
                     {lead.estado ?? "Sem estado"}

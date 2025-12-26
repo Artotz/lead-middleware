@@ -62,6 +62,7 @@ export async function GET(request: Request) {
     const estadoParam = searchParams.get("estado");
     const consultorParam = (searchParams.get("consultor") ?? "").trim();
     const tipoLeadParam = searchParams.get("tipoLead") as LeadCategory | null;
+    const statusParam = (searchParams.get("status") ?? "").trim();
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
     const groupByRaw = (searchParams.get("groupBy") ?? "")
@@ -95,6 +96,67 @@ export async function GET(request: Request) {
         ? (estadoParam as (typeof ESTADOS)[number])
         : null;
 
+    const applyFilters = (
+      baseQuery: any,
+      options: { includeStatus?: boolean } = {},
+    ) => {
+      let filtered = baseQuery;
+      if (groupByChassi) {
+        filtered = filtered.not("chassi", "is", null).neq("chassi", "");
+      }
+
+      if (groupByEmpresa) {
+        filtered = filtered
+          .not("cliente_base_enriquecida", "is", null)
+          .neq("cliente_base_enriquecida", "");
+      }
+
+      if (regiao) {
+        filtered = filtered.eq("regional", regiao);
+      }
+
+      if (estado) {
+        filtered = filtered.eq("estado", estado);
+      }
+
+      if (consultorParam) {
+        const safe = consultorParam.replace(/,/g, "\\,");
+        filtered = filtered.ilike("consultor", `%${safe}%`);
+      }
+
+      if (tipoLeadParam) {
+        const tipoLeadDef = leadTypeOrder.find(
+          (entry) => entry.category === tipoLeadParam,
+        );
+        if (tipoLeadDef) {
+          filtered = filtered.ilike(tipoLeadDef.key, "%sim%");
+        }
+      }
+
+      if (options.includeStatus !== false && statusParam) {
+        const safe = statusParam.replace(/,/g, "\\,");
+        filtered = filtered.ilike("status", `%${safe}%`);
+      }
+
+      if (search) {
+        const safeTerm = search.replace(/,/g, "\\,");
+        const pattern = `%${safeTerm}%`;
+        filtered = filtered.or(
+          [
+            `chassi.ilike.${pattern}`,
+            `model_name.ilike.${pattern}`,
+            `city.ilike.${pattern}`,
+            `consultor.ilike.${pattern}`,
+            `regional.ilike.${pattern}`,
+            `estado.ilike.${pattern}`,
+            `last_called_group.ilike.${pattern}`,
+          ].join(","),
+        );
+      }
+
+      return filtered;
+    };
+
     let query = supabase
       .from("leads")
       .select(
@@ -103,53 +165,7 @@ export async function GET(request: Request) {
       )
       .not("regional", "ilike", "filtros aplicados:%");
 
-    if (groupByChassi) {
-      query = query.not("chassi", "is", null).neq("chassi", "");
-    }
-
-    if (groupByEmpresa) {
-      query = query
-        .not("cliente_base_enriquecida", "is", null)
-        .neq("cliente_base_enriquecida", "");
-    }
-
-    if (regiao) {
-      query = query.eq("regional", regiao);
-    }
-
-    if (estado) {
-      query = query.eq("estado", estado);
-    }
-
-    if (consultorParam) {
-      const safe = consultorParam.replace(/,/g, "\\,");
-      query = query.ilike("consultor", `%${safe}%`);
-    }
-
-    if (tipoLeadParam) {
-      const tipoLeadDef = leadTypeOrder.find(
-        (entry) => entry.category === tipoLeadParam,
-      );
-      if (tipoLeadDef) {
-        query = query.ilike(tipoLeadDef.key, "%sim%");
-      }
-    }
-
-    if (search) {
-      const safeTerm = search.replace(/,/g, "\\,");
-      const pattern = `%${safeTerm}%`;
-      query = query.or(
-        [
-          `chassi.ilike.${pattern}`,
-          `model_name.ilike.${pattern}`,
-          `city.ilike.${pattern}`,
-          `consultor.ilike.${pattern}`,
-          `regional.ilike.${pattern}`,
-          `estado.ilike.${pattern}`,
-          `last_called_group.ilike.${pattern}`,
-        ].join(","),
-      );
-    }
+    query = applyFilters(query);
 
     const ascending = sort === "antigos";
 
@@ -162,12 +178,27 @@ export async function GET(request: Request) {
       query = query.order(orderDef.column, { ascending: orderDef.ascending, nullsFirst: true });
     });
 
-    const { data, error, count } = await query.range(from, to);
+    const [listResult, statusResult] = await Promise.all([
+      query.range(from, to),
+      applyFilters(
+        supabase
+          .from("leads")
+          .select("status")
+          .not("regional", "ilike", "filtros aplicados:%"),
+        { includeStatus: false },
+      ),
+    ]);
 
-    if (error) {
-      console.error("Supabase leads error", error);
+    const { data, error, count } = listResult;
+    const { data: statusRows, error: statusError } = statusResult;
+
+    if (error || statusError) {
+      console.error("Supabase leads error", error ?? statusError);
       return NextResponse.json(
-        { message: "Erro ao buscar leads", details: error.message },
+        {
+          message: "Erro ao buscar leads",
+          details: (error ?? statusError)?.message,
+        },
         { status: 500 },
       );
     }
@@ -178,12 +209,20 @@ export async function GET(request: Request) {
     });
 
     const leads = cleanedRows.map(mapLeadRow);
+    const statusOptions = Array.from(
+      new Set(
+        (statusRows ?? [])
+          .map((row) => row.status?.trim())
+          .filter((status): status is string => Boolean(status)),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
     return NextResponse.json({
       items: leads,
       total: count ?? leads.length,
       page,
       pageSize,
+      statusOptions,
     });
   } catch (err) {
     console.error("Unexpected error", err);

@@ -18,6 +18,7 @@ export default function HomeClient() {
   const [filters, setFilters] = useState<FiltersState>(INITIAL_FILTERS);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadStatusOptions, setLeadStatusOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -38,6 +39,7 @@ export default function HomeClient() {
         });
         setLeads(response.items);
         setLeadsTotal(response.total);
+        setLeadStatusOptions(response.statusOptions ?? []);
       } catch (err) {
         console.error(err);
         setError("Nao foi possivel carregar os leads.");
@@ -141,6 +143,7 @@ export default function HomeClient() {
               filters={filters}
               onFiltersChange={setFilters}
               currentUserName={consultor}
+              statusOptions={leadStatusOptions}
               onLeadAssigned={handleLeadAssigned}
               onLeadStatusChange={handleLeadStatusChange}
               onLeadSelect={(lead) => {

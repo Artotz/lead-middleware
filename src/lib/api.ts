@@ -17,6 +17,7 @@ export type LeadsPageResponse = {
   total: number;
   page: number;
   pageSize: number;
+  statusOptions?: string[];
 };
 
 export type LeadsQueryParams = Partial<
@@ -104,6 +105,7 @@ export async function fetchLeads(
     regiao = INITIAL_FILTERS.regiao,
     estado = INITIAL_FILTERS.estado,
     tipoLead = INITIAL_FILTERS.tipoLead,
+    status = INITIAL_FILTERS.status,
     sort = INITIAL_FILTERS.sort,
     groupByChassi = INITIAL_FILTERS.groupByChassi ?? false,
     groupByEmpresa = INITIAL_FILTERS.groupByEmpresa ?? false,
@@ -120,6 +122,7 @@ export async function fetchLeads(
   if (regiao) searchParams.set("regiao", regiao);
   if (estado) searchParams.set("estado", estado);
   if (tipoLead) searchParams.set("tipoLead", tipoLead);
+  if (status) searchParams.set("status", status);
   if (consultor) searchParams.set("consultor", consultor);
   const groupBy: string[] = [];
   if (groupByEmpresa) groupBy.push("empresa");
