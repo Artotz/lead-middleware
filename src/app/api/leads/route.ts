@@ -218,9 +218,10 @@ export async function GET(request: Request) {
     });
 
     const leads = cleanedRows.map(mapLeadRow);
+    const statusList = (statusRows ?? []) as Array<{ status: string | null }>;
     const statusOptions = Array.from(
       new Set(
-        (statusRows ?? [])
+        statusList
           .map((row) => row.status?.trim())
           .filter((status): status is string => Boolean(status)),
       ),

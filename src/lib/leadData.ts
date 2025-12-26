@@ -79,7 +79,7 @@ export type LeadTypeColumn =
 export const leadTypeOrder: { key: LeadTypeColumn; category: LeadCategory; label: string }[] =
   [
     { key: "lead_preventiva", category: "preventiva", label: "Preventiva" },
-    { key: "lead_garantia_basica", category: "garantia_basica", label: "Garantia b sica" },
+    { key: "lead_garantia_basica", category: "garantia_basica", label: "Garantia básica" },
     {
       key: "lead_garantia_estendida",
       category: "garantia_estendida",
@@ -90,15 +90,15 @@ export const leadTypeOrder: { key: LeadTypeColumn; category: LeadCategory; label
       category: "reforma_componentes",
       label: "Reforma de componentes",
     },
-    { key: "lead_lamina", category: "lamina", label: "Lƒmina" },
+    { key: "lead_lamina", category: "lamina", label: "Lâmina" },
     { key: "lead_dentes", category: "dentes", label: "Dentes" },
     { key: "lead_rodante", category: "rodante", label: "Rodante" },
     { key: "lead_disponibilidade", category: "disponibilidade", label: "Disponibilidade" },
-    { key: "lead_reconexao", category: "reconexao", label: "ReconexÆo" },
+    { key: "lead_reconexao", category: "reconexao", label: "Reconexão" },
     {
       key: "lead_transferencia_de_aor",
       category: "transferencia_aor",
-      label: "Transferˆncia de AOR",
+      label: "Transferência de AOR",
     },
     { key: "lead_pops", category: "pops", label: "POPs" },
     { key: "lead_outros", category: "outros", label: "Outros" },

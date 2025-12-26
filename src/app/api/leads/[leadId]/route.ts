@@ -37,9 +37,16 @@ export async function GET(
       );
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { success: false, message: "Lead não encontrado." },
+        { status: 404 },
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      item: mapLeadRow(data as LeadRow),
+      item: mapLeadRow(data as unknown as LeadRow),
     });
   } catch (err: any) {
     const status = typeof err?.status === "number" ? err.status : 500;
