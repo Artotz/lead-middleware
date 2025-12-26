@@ -191,16 +191,16 @@ export function ActionModal<Action extends string>({
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
-      aria-label="Registrar aÃºÃ£o"
+      aria-label="Registrar ação"
     >
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-slate-900">
-              Registrar aÃºÃ£o
+              Registrar ação
             </h2>
             <p className="text-xs text-slate-500">
-              Escolha a aÃºÃ£o e preencha detalhes (se necessÃ¡rio).
+              Escolha a ação e preencha detalhes (se necessário).
             </p>
           </div>
           <button
@@ -216,7 +216,7 @@ export function ActionModal<Action extends string>({
         <div className="grid gap-4 p-5 md:grid-cols-[1.1fr_1fr]">
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              AÃºÃ£o
+              Ação
             </p>
             <div className="space-y-2">
               {actions.map((item) => {
@@ -289,7 +289,7 @@ export function ActionModal<Action extends string>({
             {showAssignee && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
-                  ResponsÃ¡vel <span className="text-rose-600">*</span>
+                  Responsável <span className="text-rose-600">*</span>
                 </span>
                 <input
                   value={assignee}
@@ -340,14 +340,14 @@ export function ActionModal<Action extends string>({
                   placeholder="Ex.: urgente, callback, vip"
                 />
                 <p className="text-xs text-slate-500">
-                  Separe por vÃ¡rgula.
+                  Separe por vírgula.
                 </p>
               </label>
             )}
 
             {showMethod && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
-                <span>MÃ©todo</span>
+                <span>Método</span>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}

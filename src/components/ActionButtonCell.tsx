@@ -42,7 +42,10 @@ const isRoleAllowed = (def: ActionDefinition<string>, role: ActionRole) => {
   return def.allowedRoles.includes(role);
 };
 
-const isStatusAllowed = (def: ActionDefinition<string>, status?: string | null) => {
+const isStatusAllowed = (
+  def: ActionDefinition<string>,
+  status?: string | null
+) => {
   if (!def.allowedStatuses) return true;
   if (def.allowedStatuses.length === 0) return false;
   if (def.allowedStatuses.includes("*")) return true;
@@ -79,10 +82,10 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
 
   const disabledReason =
     props.entity === "ticket" && (!props.ticketId || !isUuid(props.ticketId))
-      ? "Ticket sem UUID vǭlido"
+      ? "Ticket sem UUID válido"
       : null;
 
-  const buttonLabel = "Aǧǜes";
+  const buttonLabel = "Ações";
 
   const onConfirm = async (
     action: LeadEventAction | TicketEventAction,

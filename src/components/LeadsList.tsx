@@ -64,15 +64,15 @@ const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> =
 
 const leadTypeLabel: Record<LeadCategory, string> = {
   preventiva: "Preventiva",
-  garantia_basica: "Garantia bÃ¡sica",
+  garantia_basica: "Garantia básica",
   garantia_estendida: "Garantia estendida",
   reforma_componentes: "Reforma de componentes",
-  lamina: "LÃ¢mina",
+  lamina: "Lâmina",
   dentes: "Dentes",
   rodante: "Rodante",
   disponibilidade: "Disponibilidade",
-  reconexao: "ReconexÃ£o",
-  transferencia_aor: "TransferÃªncia de AOR",
+  reconexao: "Reconexão",
+  transferencia_aor: "Transferência de AOR",
   pops: "POPs",
   outros: "Outros",
   indefinido: "Indefinido",
@@ -103,16 +103,16 @@ const pickStatusTone = (
 };
 
 const columnLabels: Record<ColumnId, string> = {
-  regional: "RegiÃ£o",
+  regional: "Região",
   cidadeEstado: "Cidade / Estado",
   cliente: "Cliente",
   consultor: "Consultor",
   chassiModelo: "Chassi",
   tipoLead: "Tipo de lead",
-  horimetro: "HorÃ­metro",
+  horimetro: "Horímetro",
   importadoEm: "Atualizado em",
   status: "Status",
-  acoes: "AÃ§Ãµes",
+  acoes: "Ações",
 };
 
 const columnWidths: Record<ColumnId, string> = {
@@ -322,7 +322,7 @@ export function LeadsList({
               cidadeEstado: (
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-semibold text-slate-900">
-                    {lead.city ?? "Cidade nÃ£o informada"}
+                    {lead.city ?? "Cidade não informada"}
                   </span>
                   <span className="truncate text-xs text-slate-500">
                     {lead.estado ?? "Sem estado"}
