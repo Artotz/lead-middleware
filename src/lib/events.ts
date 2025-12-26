@@ -16,6 +16,8 @@ export type TicketEventAction =
   | "assign"
   | "external_update_detected";
 
+export type ActionRole = "user" | "admin";
+
 export type EventPayload = {
   reason?: string;
   note?: string;
@@ -40,6 +42,8 @@ export type ActionDefinition<Action extends string> = {
   requiresValor?: boolean;
   requiresChangedFields?: boolean;
   payloadDefaults?: Partial<EventPayload>;
+  allowedStatuses?: string[];
+  allowedRoles?: ActionRole[];
   disabled?: boolean;
 };
 
@@ -49,24 +53,32 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Registrar contato",
     description: "Registra o contato realizado com descricao obrigatoria.",
     requiresNote: true,
+    allowedStatuses: ["atribuido", "em contato"],
+    allowedRoles: ["user", "admin"],
   },
   {
     id: "assign",
     label: "Atribuir",
     description: "Atribui o lead a um responsavel.",
     requiresAssignee: true,
+    allowedStatuses: ["*"],
+    allowedRoles: ["user", "admin"],
   },
   {
     id: "discard",
     label: "Descartar",
     description: "Descarta o lead (exige motivo).",
     requiresReason: true,
+    allowedStatuses: ["*"],
+    allowedRoles: ["user", "admin"],
   },
   {
     id: "close_without_os",
     label: "Fechar (sem OS)",
     description: "Fecha o lead sem OS (exige motivo).",
     requiresReason: true,
+    allowedStatuses: ["atribuido", "em contato"],
+    allowedRoles: ["user", "admin"],
   },
   {
     id: "close_with_os",
@@ -74,13 +86,16 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     description: "Fecha o lead com OS e valor.",
     requiresOs: true,
     requiresValor: true,
+    allowedStatuses: ["atribuido", "em contato"],
+    allowedRoles: ["user", "admin"],
   },
   {
     id: "convert_to_ticket",
     label: "Converter em ticket",
     description: "Registra intencao de converter esse lead em ticket.",
     payloadDefaults: { method: "manual" },
-    disabled: true,
+    allowedStatuses: ["*"],
+    allowedRoles: [],
   },
 ];
 
@@ -90,44 +105,60 @@ export const TICKET_ACTION_DEFINITIONS: ActionDefinition<TicketEventAction>[] =
       id: "view",
       label: "Visualizar",
       description: "Marca que vocǻ visualizou/avaliou o ticket.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
     },
     {
       id: "add_note",
       label: "Adicionar nota",
       description: "Registra uma observaǧǜo interna.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
     },
     {
       id: "add_tags",
       label: "Adicionar tags",
       description: "Adiciona tags ao ticket (exige pelo menos 1 tag).",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
       requiresTags: true,
     },
     {
       id: "remove_tags",
       label: "Remover tags",
       description: "Remove tags do ticket (exige pelo menos 1 tag).",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
       requiresTags: true,
     },
     {
       id: "close",
       label: "Fechar",
       description: "Registra fechamento do ticket.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
     },
     {
       id: "reopen",
       label: "Reabrir",
       description: "Registra reabertura do ticket.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
     },
     {
       id: "assign",
       label: "Atribuir",
       description: "Atribui o ticket a um responsǭvel.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
       requiresAssignee: true,
     },
     {
       id: "external_update_detected",
       label: "Atualizaǧǜo externa detectada",
       description: "Marca que houve mudanǧa fora do middleware.",
+      allowedStatuses: ["*"],
+      allowedRoles: ["user", "admin"],
     },
   ];
 
@@ -164,7 +195,7 @@ const coercePayload = (value: unknown): EventPayload => {
 
 export const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value.trim(),
+    value.trim()
   );
 
 const normalizeText = (value: unknown): string | undefined => {
@@ -184,11 +215,17 @@ const normalizeTags = (value: unknown): string[] | undefined => {
 };
 
 const normalizeChangedFields = (
-  value: unknown,
+  value: unknown
 ): Record<string, string> | undefined => {
   if (!isPlainObject(value)) return undefined;
   const entries = Object.entries(value)
-    .map(([k, v]) => [String(k).trim(), typeof v === "string" ? v.trim() : String(v)] as const)
+    .map(
+      ([k, v]) =>
+        [
+          String(k).trim(),
+          typeof v === "string" ? v.trim() : String(v),
+        ] as const
+    )
     .filter(([k, v]) => Boolean(k) && Boolean(v));
   if (!entries.length) return undefined;
   return Object.fromEntries(entries);
@@ -197,21 +234,29 @@ const normalizeChangedFields = (
 const applyActionDefaults = <A extends string>(
   defs: ActionDefinition<A>[],
   action: A,
-  payload: EventPayload,
+  payload: EventPayload
 ): EventPayload => {
   const def = defs.find((item) => item.id === action);
   if (!def?.payloadDefaults) return payload;
   return { ...def.payloadDefaults, ...payload };
 };
 
-const validatePayloadCommon = (payload: EventPayload): ValidationResult<EventPayload> => {
+const validatePayloadCommon = (
+  payload: EventPayload
+): ValidationResult<EventPayload> => {
   const note = normalizeText(payload.note);
   if (note && note.length > MAX_NOTE_CHARS) {
-    return { ok: false, error: `Campo note deve ter atǻ ${MAX_NOTE_CHARS} caracteres.` };
+    return {
+      ok: false,
+      error: `Campo note deve ter atǻ ${MAX_NOTE_CHARS} caracteres.`,
+    };
   }
   const reason = normalizeText(payload.reason);
   if (reason && reason.length > MAX_REASON_CHARS) {
-    return { ok: false, error: `Campo reason deve ter atǻ ${MAX_REASON_CHARS} caracteres.` };
+    return {
+      ok: false,
+      error: `Campo reason deve ter atǻ ${MAX_REASON_CHARS} caracteres.`,
+    };
   }
 
   const tags = normalizeTags(payload.tags);
@@ -228,7 +273,9 @@ const validatePayloadCommon = (payload: EventPayload): ValidationResult<EventPay
   return { ok: true, value: next };
 };
 
-export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEventInput> {
+export function validateLeadEventInput(
+  raw: unknown
+): ValidationResult<LeadEventInput> {
   if (!isPlainObject(raw)) {
     return { ok: false, error: "Body invǭlido (esperado objeto JSON)." };
   }
@@ -238,12 +285,15 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
   const payload = applyActionDefaults(
     LEAD_ACTION_DEFINITIONS,
     actionRaw as LeadEventAction,
-    coercePayload((raw as any).payload),
+    coercePayload((raw as any).payload)
   );
 
   const leadId = typeof leadIdRaw === "number" ? leadIdRaw : Number(leadIdRaw);
   if (!Number.isFinite(leadId) || !Number.isInteger(leadId) || leadId <= 0) {
-    return { ok: false, error: "leadId invǭlido (esperado bigint/id numǻrico)." };
+    return {
+      ok: false,
+      error: "leadId invǭlido (esperado bigint/id numǻrico).",
+    };
   }
 
   const action = normalizeText(actionRaw);
@@ -260,25 +310,42 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
   if (def.requiresNote && !common.value.note) {
     return {
       ok: false,
-      error: "Descricao do contato (payload.note) e obrigatoria para register_contact.",
+      error:
+        "Descricao do contato (payload.note) e obrigatoria para register_contact.",
     };
   }
   if (def.requiresReason && !common.value.reason) {
-    return { ok: false, error: "Motivo (payload.reason) ǻ obrigatǭrio para discard." };
-  }
-  if (def.requiresAssignee && !normalizeText(common.value.assignee)) {
-    return { ok: false, error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign." };
-  }
-  if (def.requiresOs && !normalizeText(common.value.os)) {
-    return { ok: false, error: "OS (payload.os) e obrigatoria para essa acao." };
-  }
-  if (def.requiresValor && !normalizeText(common.value.valor)) {
-    return { ok: false, error: "Valor (payload.valor) e obrigatorio para essa acao." };
-  }
-  if (def.requiresChangedFields && !normalizeChangedFields(common.value.changed_fields)) {
     return {
       ok: false,
-      error: "Campos alterados (payload.changed_fields) ǻ obrigatǭrio para update_field.",
+      error: "Motivo (payload.reason) ǻ obrigatǭrio para discard.",
+    };
+  }
+  if (def.requiresAssignee && !normalizeText(common.value.assignee)) {
+    return {
+      ok: false,
+      error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign.",
+    };
+  }
+  if (def.requiresOs && !normalizeText(common.value.os)) {
+    return {
+      ok: false,
+      error: "OS (payload.os) e obrigatoria para essa acao.",
+    };
+  }
+  if (def.requiresValor && !normalizeText(common.value.valor)) {
+    return {
+      ok: false,
+      error: "Valor (payload.valor) e obrigatorio para essa acao.",
+    };
+  }
+  if (
+    def.requiresChangedFields &&
+    !normalizeChangedFields(common.value.changed_fields)
+  ) {
+    return {
+      ok: false,
+      error:
+        "Campos alterados (payload.changed_fields) ǻ obrigatǭrio para update_field.",
     };
   }
 
@@ -302,7 +369,7 @@ export function validateLeadEventInput(raw: unknown): ValidationResult<LeadEvent
 }
 
 export function validateTicketEventInput(
-  raw: unknown,
+  raw: unknown
 ): ValidationResult<TicketEventInput> {
   if (!isPlainObject(raw)) {
     return { ok: false, error: "Body invǭlido (esperado objeto JSON)." };
@@ -313,7 +380,7 @@ export function validateTicketEventInput(
   const payload = applyActionDefaults(
     TICKET_ACTION_DEFINITIONS,
     actionRaw as TicketEventAction,
-    coercePayload((raw as any).payload),
+    coercePayload((raw as any).payload)
   );
 
   const ticketId = normalizeText(ticketIdRaw);
@@ -334,10 +401,16 @@ export function validateTicketEventInput(
 
   const def = TICKET_ACTION_DEFINITIONS.find((d) => d.id === action)!;
   if (def.requiresTags && !normalizeTags(common.value.tags)) {
-    return { ok: false, error: "Tags (payload.tags) ǻ obrigatǭrio para essa aǧǜo." };
+    return {
+      ok: false,
+      error: "Tags (payload.tags) ǻ obrigatǭrio para essa aǧǜo.",
+    };
   }
   if (def.requiresAssignee && !normalizeText(common.value.assignee)) {
-    return { ok: false, error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign." };
+    return {
+      ok: false,
+      error: "Responsǭvel (payload.assignee) ǻ obrigatǭrio para assign.",
+    };
   }
 
   const normalized: EventPayload = {

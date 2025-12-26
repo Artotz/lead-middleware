@@ -398,6 +398,7 @@ export function LeadsList({
                 <ActionButtonCell
                   entity="lead"
                   leadId={lead.id}
+                  leadStatus={lead.status}
                   onLeadStatusChange={onLeadStatusChange}
                 />
               ),

@@ -420,6 +420,7 @@ export function TicketsList({
                 <ActionButtonCell
                   entity="ticket"
                   ticketId={ticket.id}
+                  ticketStatus={ticket.status}
                 />
               ),
             };
