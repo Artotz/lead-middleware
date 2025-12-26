@@ -165,7 +165,6 @@ export default function DashboardClient() {
   const handleLeadFiltersChange = (next: FiltersState) => {
     setLeadFilters(next);
     setLeadsPage(1);
-    void loadLeads(1, next);
   };
 
   const handleTicketPageChange = (direction: -1 | 1) => {
@@ -181,8 +180,21 @@ export default function DashboardClient() {
   const handleTicketFiltersChange = (next: TicketFiltersState) => {
     setTicketFilters(next);
     setTicketsPage(1);
-    void loadTickets(1, next);
   };
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadLeads(1, leadFilters);
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [leadFilters, loadLeads]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadTickets(1, ticketFilters);
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadTickets, ticketFilters]);
 
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     const updatedAt = new Date().toISOString();

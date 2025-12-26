@@ -18,6 +18,10 @@ export default function HomeClient() {
   const [filters, setFilters] = useState<FiltersState>(INITIAL_FILTERS);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadMetrics, setLeadMetrics] = useState({
+    assigned: 0,
+    emContato: 0,
+  });
   const [leadStatusOptions, setLeadStatusOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +35,32 @@ export default function HomeClient() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetchLeads({
+        const baseParams = {
           page: 1,
           pageSize: PAGE_SIZE,
           consultor: consultorFilter,
           ...nextFilters,
-        });
+        };
+        const [response, assignedResp, emContatoResp] = await Promise.all([
+          fetchLeads(baseParams),
+          fetchLeads({
+            ...baseParams,
+            pageSize: 1,
+            status: ["atribuido"],
+          }),
+          fetchLeads({
+            ...baseParams,
+            pageSize: 1,
+            status: ["em contato"],
+          }),
+        ]);
         setLeads(response.items);
         setLeadsTotal(response.total);
         setLeadStatusOptions(response.statusOptions ?? []);
+        setLeadMetrics({
+          assigned: assignedResp.total,
+          emContato: emContatoResp.total,
+        });
       } catch (err) {
         console.error(err);
         setError("Nao foi possivel carregar os leads.");
@@ -51,18 +72,11 @@ export default function HomeClient() {
   );
 
   useEffect(() => {
-    void loadLeads(filters);
+    const timeoutId = window.setTimeout(() => {
+      void loadLeads(filters);
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
   }, [filters, loadLeads]);
-
-  const metrics = useMemo(() => {
-    const novos = leads.filter((lead) =>
-      (lead.status ?? "").trim().toLowerCase().includes("novo"),
-    ).length;
-    const semStatus = leads.filter(
-      (lead) => !(lead.status ?? "").trim(),
-    ).length;
-    return { novos, semStatus };
-  }, [leads]);
 
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     const updatedAt = new Date().toISOString();
@@ -103,8 +117,16 @@ export default function HomeClient() {
           value={leadsTotal}
           subtitle={consultorFilter ? `Consultor: ${consultorFilter}` : undefined}
         />
-        <MetricCard label="Leads novos" value={metrics.novos} subtitle="na lista atual" />
-        <MetricCard label="Sem status" value={metrics.semStatus} subtitle="na lista atual" />
+        <MetricCard
+          label="Leads atribuidos"
+          value={leadMetrics.assigned}
+          subtitle="no total do consultor"
+        />
+        <MetricCard
+          label="Leads em contato"
+          value={leadMetrics.emContato}
+          subtitle="no total do consultor"
+        />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -117,14 +139,8 @@ export default function HomeClient() {
           </span>
         </div>
 
-        <div className="mt-4">
-          {loading ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Carregando leads...
-            </div>
-          ) : null}
-
-          {!loading && error ? (
+        <div className="mt-4 space-y-3">
+          {error ? (
             <div className="flex flex-col gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
               <span>{error}</span>
               <button
@@ -137,21 +153,19 @@ export default function HomeClient() {
             </div>
           ) : null}
 
-          {!loading && !error ? (
-            <LeadsList
-              leads={leads}
-              filters={filters}
-              onFiltersChange={setFilters}
-              currentUserName={consultor}
-              statusOptions={leadStatusOptions}
-              onLeadAssigned={handleLeadAssigned}
-              onLeadStatusChange={handleLeadStatusChange}
-              onLeadSelect={(lead) => {
-                setSelectedLead(lead);
-                setLeadDetailsOpen(true);
-              }}
-            />
-          ) : null}
+          <LeadsList
+            leads={leads}
+            filters={filters}
+            onFiltersChange={setFilters}
+            currentUserName={consultor}
+            statusOptions={leadStatusOptions}
+            onLeadAssigned={handleLeadAssigned}
+            onLeadStatusChange={handleLeadStatusChange}
+            onLeadSelect={(lead) => {
+              setSelectedLead(lead);
+              setLeadDetailsOpen(true);
+            }}
+          />
         </div>
       </div>
 
