@@ -8,8 +8,9 @@ import {
   UserActionMetricsHeader,
   UserActionMetricsView,
 } from "@/components/UserActionMetricsView";
-import { fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
-import { TimeRange } from "@/lib/domain";
+import { LeadDetailsAside } from "@/components/LeadDetailsAside";
+import { fetchLeadById, fetchLeadMetrics, fetchTicketMetrics } from "@/lib/api";
+import { Lead, TimeRange } from "@/lib/domain";
 import type {
   DailyActionMetricsRow,
   UserActionEventRow,
@@ -25,6 +26,8 @@ export default function MetricsClient() {
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
   const [events, setEvents] = useState<UserActionEventRow[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadDetailsOpen, setLeadDetailsOpen] = useState(false);
   const [usersByTab, setUsersByTab] = useState<Record<MetricsTab, UserIdentity[]>>({
     leads: [],
     tickets: [],
@@ -84,6 +87,37 @@ export default function MetricsClient() {
     [activeTab],
   );
 
+  const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
+    setSelectedLead((prev) =>
+      prev && prev.id === leadId
+        ? { ...prev, consultor: assignee, status: "atribuido" }
+        : prev,
+    );
+  }, []);
+
+  const handleActionEventClick = useCallback(
+    async (event: UserActionEventRow) => {
+      if (activeTab !== "leads") return;
+      const leadId = Number(event.item_id);
+      if (!Number.isFinite(leadId) || leadId <= 0) return;
+
+      if (selectedLead?.id === leadId) {
+        setLeadDetailsOpen(true);
+        return;
+      }
+
+      try {
+        const lead = await fetchLeadById(leadId);
+        setSelectedLead(lead);
+        setLeadDetailsOpen(true);
+      } catch (err) {
+        console.error(err);
+      } finally {
+      }
+    },
+    [activeTab, selectedLead?.id],
+  );
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -121,6 +155,7 @@ export default function MetricsClient() {
         users={usersByTab[activeTab] ?? []}
         selectedUserId={selectedUserByTab[activeTab] ?? null}
         range={timeRange}
+        onActionEventClick={activeTab === "leads" ? handleActionEventClick : undefined}
       />
     );
   };
@@ -159,6 +194,15 @@ export default function MetricsClient() {
         />
         {renderContent()}
       </div>
+
+      {selectedLead ? (
+        <LeadDetailsAside
+          lead={selectedLead}
+          open={leadDetailsOpen}
+          onClose={() => setLeadDetailsOpen(false)}
+          onLeadAssigned={handleLeadAssigned}
+        />
+      ) : null}
     </PageShell>
   );
 }

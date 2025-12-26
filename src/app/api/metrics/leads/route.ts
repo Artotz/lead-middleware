@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const supabase = getSupabaseAdminClient();
     let query = supabase
       .from("lead_events")
-      .select("lead_id,actor_user_id,actor_email,actor_name,action,occurred_at");
+      .select("lead_id,actor_user_id,actor_email,actor_name,action,occurred_at,payload");
 
     query = query.gte("occurred_at", start.toISOString());
 
@@ -45,6 +45,7 @@ export async function GET(request: Request) {
       action: row.action as string | null,
       item_id: row.lead_id as number | null,
       occurred_at: row.occurred_at as string | null,
+      payload: row.payload as Record<string, unknown> | null,
     }));
 
     const events = rows
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
         action: row.action as string,
         item_id: String(row.item_id as number),
         occurred_at: row.occurred_at as string,
+        payload: (row.payload as Record<string, unknown> | null) ?? null,
       }));
 
     const usersMap = new Map<string, { id: string; name?: string; email?: string }>();

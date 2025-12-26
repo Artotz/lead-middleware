@@ -2,12 +2,7 @@
 
 import { useMemo } from "react";
 import { Lead, LeadCategory } from "@/lib/domain";
-import {
-  ESTADOS,
-  FiltersState,
-  LEAD_TYPES,
-  REGIOES,
-} from "@/lib/filters";
+import { ESTADOS, FiltersState, LEAD_TYPES, REGIOES } from "@/lib/filters";
 import { Badge } from "./Badge";
 import { AssignLeadButton } from "./AssignLeadButton";
 import { ActionButtonCell } from "./ActionButtonCell";
@@ -94,7 +89,7 @@ const formatDateParts = (iso: string) => {
 };
 
 const pickStatusTone = (
-  status: string | null,
+  status: string | null
 ): Parameters<typeof Badge>[0]["tone"] => {
   const normalized = status?.trim().toLowerCase();
   if (!normalized) return "stone";
@@ -111,7 +106,7 @@ const columnLabels: Record<ColumnId, string> = {
   cidadeEstado: "Cidade / Estado",
   cliente: "Cliente",
   consultor: "Consultor",
-  chassiModelo: "Chassi / Modelo",
+  chassiModelo: "Chassi",
   tipoLead: "Tipo de lead",
   horimetro: "Horímetro",
   importadoEm: "Atualizado em",
@@ -134,7 +129,7 @@ const columnWidths: Record<ColumnId, string> = {
 
 const buildColumnOrder = (
   groupByEmpresa?: boolean,
-  groupByChassi?: boolean,
+  groupByChassi?: boolean
 ): ColumnId[] => {
   const base: ColumnId[] = [
     "regional",
@@ -164,21 +159,15 @@ export function LeadsList({
   onLeadStatusChange,
   loading = false,
 }: LeadsListProps) {
-  const regiaoOptions = useMemo(
-    () => REGIOES.slice(),
-    [],
-  );
+  const regiaoOptions = useMemo(() => REGIOES.slice(), []);
 
-  const estadoOptions = useMemo(
-    () => ESTADOS.slice(),
-    [],
-  );
+  const estadoOptions = useMemo(() => ESTADOS.slice(), []);
 
   const tipoLeadOptions = useMemo(() => LEAD_TYPES.slice(), []);
 
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
-    [filters.groupByChassi, filters.groupByEmpresa],
+    [filters.groupByChassi, filters.groupByEmpresa]
   );
 
   const gridTemplateColumns = columnOrder
@@ -199,16 +188,19 @@ export function LeadsList({
   }, [filters.groupByChassi, filters.groupByEmpresa]);
 
   const groupedLeads = useMemo(() => {
-    return leads.reduce<
-      { lead: Lead; groupKey: string; groupIndex: number }[]
-    >((acc, lead) => {
-      const groupKey = makeGroupKey(lead);
-      const last = acc[acc.length - 1];
-      const groupIndex =
-        last && last.groupKey === groupKey ? last.groupIndex : (last?.groupIndex ?? -1) + 1;
-      acc.push({ lead, groupKey, groupIndex });
-      return acc;
-    }, []);
+    return leads.reduce<{ lead: Lead; groupKey: string; groupIndex: number }[]>(
+      (acc, lead) => {
+        const groupKey = makeGroupKey(lead);
+        const last = acc[acc.length - 1];
+        const groupIndex =
+          last && last.groupKey === groupKey
+            ? last.groupIndex
+            : (last?.groupIndex ?? -1) + 1;
+        acc.push({ lead, groupKey, groupIndex });
+        return acc;
+      },
+      []
+    );
   }, [leads, makeGroupKey]);
 
   const handleToggle = (key: "groupByEmpresa" | "groupByChassi") => {
@@ -275,7 +267,8 @@ export function LeadsList({
             const backgroundClass =
               isStriped && groupIndex % 2 === 1 ? "bg-slate-50" : "bg-white";
             const hasConsultor = Boolean(lead.consultor?.trim());
-            const canShowAssign = !hasConsultor && Boolean(currentUserName?.trim());
+            const canShowAssign =
+              !hasConsultor && Boolean(currentUserName?.trim());
 
             const cells: Record<ColumnId, React.ReactNode> = {
               regional: (
@@ -302,9 +295,7 @@ export function LeadsList({
                 <AssignLeadButton
                   leadId={lead.id}
                   assigneeName={currentUserName}
-                  onAssigned={(assignee) =>
-                    onLeadAssigned?.(lead.id, assignee)
-                  }
+                  onAssigned={(assignee) => onLeadAssigned?.(lead.id, assignee)}
                   className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               ) : (
@@ -313,14 +304,9 @@ export function LeadsList({
                 </span>
               ),
               chassiModelo: (
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone="emerald" className="max-w-[170px] truncate">
-                    {lead.chassi ?? "Sem chassi"}
-                  </Badge>
-                  <Badge tone="violet" className="max-w-[170px] truncate">
-                    {lead.modelName ?? "Modelo não informado"}
-                  </Badge>
-                </div>
+                <Badge tone="emerald" className="max-w-[170px] truncate">
+                  {lead.chassi ?? "Sem chassi"}
+                </Badge>
               ),
               tipoLead: (
                 <div className="flex flex-wrap gap-2">
@@ -346,27 +332,25 @@ export function LeadsList({
                 <span className="truncate text-slate-800">
                   {lead.horimetroAtualMachineList !== null
                     ? `${numberFormatter.format(
-                        lead.horimetroAtualMachineList,
+                        lead.horimetroAtualMachineList
                       )} h`
                     : "N/A"}
                 </span>
               ),
-              importadoEm: (
-                (() => {
-                  const referenceDate = lead.updatedAt ?? lead.importedAt;
-                  const parts = formatDateParts(referenceDate);
-                  return (
-                    <div className="min-w-0 leading-tight">
-                      <span className="block truncate text-xs font-semibold text-slate-700">
-                        {parts.time}
-                      </span>
-                      <span className="block truncate text-xs text-slate-500">
-                        {parts.date}
-                      </span>
-                    </div>
-                  );
-                })()
-              ),
+              importadoEm: (() => {
+                const referenceDate = lead.updatedAt ?? lead.importedAt;
+                const parts = formatDateParts(referenceDate);
+                return (
+                  <div className="min-w-0 leading-tight">
+                    <span className="block truncate text-xs font-semibold text-slate-700">
+                      {parts.time}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      {parts.date}
+                    </span>
+                  </div>
+                );
+              })(),
               acoes: (
                 <ActionButtonCell
                   entity="lead"

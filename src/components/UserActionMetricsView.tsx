@@ -1,10 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Cell,
-  Legend,
   Line,
   LineChart,
   Pie,
@@ -22,6 +21,7 @@ import type {
   UserActionMetricsRow,
   UserIdentity,
 } from "@/lib/metrics";
+import type { EventPayload } from "@/lib/events";
 import { listMetricsRangeDays } from "@/lib/metrics";
 import {
   LEAD_ACTION_DEFINITIONS,
@@ -38,6 +38,7 @@ type UserActionMetricsViewProps = {
   users: UserIdentity[];
   selectedUserId: string | null;
   range: MetricsRange;
+  onActionEventClick?: (event: UserActionEventRow) => void;
 };
 
 type ActionTone =
@@ -286,6 +287,7 @@ export function UserActionMetricsView({
   users,
   selectedUserId,
   range,
+  onActionEventClick,
 }: UserActionMetricsViewProps) {
   const definitions =
     entity === "leads" ? LEAD_ACTION_DEFINITIONS : TICKET_ACTION_DEFINITIONS;
@@ -346,13 +348,6 @@ export function UserActionMetricsView({
     ];
   })();
 
-  const chartHeightClass =
-    chartData.length > 9
-      ? "h-[360px]"
-      : chartData.length > 6
-      ? "h-[280px]"
-      : "h-[200px]";
-
   const dailySeries: DailyChartDatum[] = useMemo(() => {
     if (!selectedUser) return [];
     const byDate = new Map<string, number>();
@@ -402,6 +397,49 @@ export function UserActionMetricsView({
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString("pt-BR");
   };
+
+  const formatPayloadDetails = (event: UserActionEventRow) => {
+    const payload = (event.payload ?? {}) as EventPayload;
+    const details: { label: string; value: string }[] = [];
+
+    if (payload.note) {
+      details.push({ label: "Nota", value: String(payload.note) });
+    }
+    if (payload.reason) {
+      details.push({ label: "Motivo", value: String(payload.reason) });
+    }
+    if (payload.assignee) {
+      details.push({ label: "Responsavel", value: String(payload.assignee) });
+    }
+    if (payload.os) {
+      details.push({ label: "OS", value: String(payload.os) });
+    }
+    if (payload.valor) {
+      details.push({ label: "Valor", value: String(payload.valor) });
+    }
+    if (payload.method) {
+      details.push({ label: "Metodo", value: String(payload.method) });
+    }
+    if (Array.isArray(payload.tags) && payload.tags.length) {
+      details.push({ label: "Tags", value: payload.tags.join(", ") });
+    }
+    if (
+      payload.changed_fields &&
+      typeof payload.changed_fields === "object" &&
+      !Array.isArray(payload.changed_fields)
+    ) {
+      const entries = Object.entries(payload.changed_fields as Record<string, string>)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(", ");
+      if (entries) {
+        details.push({ label: "Campos alterados", value: entries });
+      }
+    }
+
+    return details;
+  };
+
+  const isEventClickable = Boolean(onActionEventClick);
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -472,38 +510,59 @@ export function UserActionMetricsView({
         </div>
 
         {chartData.length > 0 ? (
-          <div className={`mt-3 w-full ${chartHeightClass}`}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart style={{ height: "300px" }}>
-                <Tooltip content={<ActionsTooltip />} />
-                <Legend
-                  formatter={(value) => truncateLabel(String(value), 24)}
-                  wrapperStyle={{
-                    fontSize: "12px",
-                    color: "#475569",
-                    bottom: "0px",
-                  }}
-                />
-                <Pie
-                  data={chartData}
-                  dataKey="count"
-                  nameKey="label"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  style={{ marginBottom: 16 }}
-                >
+          <div className={`mt-3 w-full`}>
+            <div className="flex flex-col gap-4 md:flex-row">
+              <div className="h-64 w-full md:w-2/3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip content={<ActionsTooltip />} />
+                    <Pie
+                      data={chartData}
+                      dataKey="count"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={2}
+                    >
+                      {chartData.map((item) => (
+                        <Cell key={item.action} fill={TONE_FILL[item.tone]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="w-full md:w-1/3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Legenda
+                </div>
+                <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                   {chartData.map((item) => (
-                    <Cell key={item.action} fill={TONE_FILL[item.tone]} />
+                    <div
+                      key={`legend-${item.action}`}
+                      className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
+                    >
+                      <span
+                        className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: TONE_FILL[item.tone] }}
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-900">
+                          {truncateLabel(item.label, 28)}
+                        </div>
+                        <div className="text-slate-600">
+                          {item.count} {item.count === 1 ? "acao" : "acoes"}
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="mt-3 text-sm text-slate-500">
+          <div className="my-3 text-sm text-slate-500">
             {distributionEmptyMessage}
           </div>
         )}
@@ -533,18 +592,46 @@ export function UserActionMetricsView({
             <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
               {actionEvents.length > 0 ? (
                 actionEvents.map((event, index) => (
-                  <div
+                  <button
                     key={`${event.action}-${event.item_id}-${event.occurred_at}-${index}`}
-                    className="border-b border-slate-200 py-2 last:border-b-0"
+                    type="button"
+                    disabled={!isEventClickable}
+                    onClick={() => onActionEventClick?.(event)}
+                    className={`w-full border-b border-slate-200 py-2 text-left last:border-b-0 ${
+                      isEventClickable
+                        ? "cursor-pointer transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                        : "disabled:opacity-100"
+                    }`}
                   >
-                    <div className="font-semibold text-slate-900">
-                      {labelByAction.get(event.action) ?? event.action}
-                    </div>
-                    <div className="text-slate-600">
-                      {entity === "tickets" ? "Ticket" : "Lead"} {event.item_id}{" "}
-                      · {formatEventDate(event.occurred_at)}
-                    </div>
-                  </div>
+                    {(() => {
+                      const details = formatPayloadDetails(event);
+                      return (
+                        <>
+                          <div className="font-semibold text-slate-900">
+                            {labelByAction.get(event.action) ?? event.action}
+                          </div>
+                          <div className="text-slate-600">
+                            {entity === "tickets" ? "Ticket" : "Lead"} {event.item_id}{" "}
+                            - {formatEventDate(event.occurred_at)}
+                          </div>
+                          {details.length ? (
+                            <div className="mt-2 space-y-1 text-slate-600">
+                              {details.map((detail) => (
+                                <div
+                                  key={`${event.action}-${event.item_id}-${event.occurred_at}-${detail.label}`}
+                                >
+                                  <span className="font-semibold text-slate-700">
+                                    {detail.label}:
+                                  </span>{" "}
+                                  {detail.value}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </button>
                 ))
               ) : (
                 <div className="py-3 text-center text-slate-500">
@@ -562,3 +649,4 @@ export function UserActionMetricsView({
     </div>
   );
 }
+

@@ -42,6 +42,11 @@ export type CreateLeadResponse = {
   item: Lead;
 };
 
+export type LeadResponse = {
+  success: true;
+  item: Lead;
+};
+
 export type LeadImportItem = {
   status?: string | null;
   regional?: string | null;
@@ -253,6 +258,18 @@ export async function fetchLeadMetrics(
   options?: FetchMetricsOptions,
 ) {
   return fetchMetrics("/api/metrics/leads", range, options);
+}
+
+export async function fetchLeadById(leadId: number): Promise<Lead> {
+  const response = await fetch(`/api/leads/${encodeURIComponent(String(leadId))}`, {
+    cache: "no-store",
+  });
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    throw new Error("Falha ao buscar lead");
+  }
+  const data = (await response.json()) as LeadResponse;
+  return data.item;
 }
 
 export async function fetchTicketMetrics(

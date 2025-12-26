@@ -1,4 +1,5 @@
 import type { TimeRange } from "@/lib/domain";
+import type { EventPayload } from "@/lib/events";
 
 export type MetricsRange = TimeRange;
 
@@ -22,6 +23,7 @@ export type UserActionEventRow = {
   action: string;
   item_id: string;
   occurred_at: string;
+  payload: EventPayload | null;
 };
 
 export type DailyActionMetricsRow = {

@@ -6,7 +6,10 @@ import { LEAD_ACTION_DEFINITIONS, type EventPayload } from "@/lib/events";
 import { Badge } from "@/components/Badge";
 import { AssignLeadButton } from "@/components/AssignLeadButton";
 import { CollapsibleSection } from "@/components/ticket-details/CollapsibleSection";
-import { KeyValueGrid, type KeyValueItem } from "@/components/ticket-details/KeyValueGrid";
+import {
+  KeyValueGrid,
+  type KeyValueItem,
+} from "@/components/ticket-details/KeyValueGrid";
 
 type LeadDetailsAsideProps = {
   lead: Lead | null;
@@ -29,21 +32,22 @@ const dateOnlyFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 const numberFormatter = new Intl.NumberFormat("pt-BR");
 
-const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> = {
-  preventiva: "sky",
-  garantia_basica: "amber",
-  garantia_estendida: "amber",
-  reforma_componentes: "violet",
-  lamina: "emerald",
-  dentes: "emerald",
-  rodante: "emerald",
-  disponibilidade: "sky",
-  reconexao: "slate",
-  transferencia_aor: "slate",
-  pops: "slate",
-  outros: "stone",
-  indefinido: "stone",
-};
+const leadTypeTone: Record<LeadCategory, Parameters<typeof Badge>[0]["tone"]> =
+  {
+    preventiva: "sky",
+    garantia_basica: "amber",
+    garantia_estendida: "amber",
+    reforma_componentes: "violet",
+    lamina: "emerald",
+    dentes: "emerald",
+    rodante: "emerald",
+    disponibilidade: "sky",
+    reconexao: "slate",
+    transferencia_aor: "slate",
+    pops: "slate",
+    outros: "stone",
+    indefinido: "stone",
+  };
 
 const leadTypeLabel: Record<LeadCategory, string> = {
   preventiva: "Preventiva",
@@ -62,11 +66,12 @@ const leadTypeLabel: Record<LeadCategory, string> = {
 };
 
 const pickStatusTone = (
-  status: string | null,
+  status: string | null
 ): Parameters<typeof Badge>[0]["tone"] => {
   const normalized = status?.trim().toLowerCase();
   if (!normalized) return "stone";
-  if (normalized.includes("fech") || normalized.includes("conclu")) return "emerald";
+  if (normalized.includes("fech") || normalized.includes("conclu"))
+    return "emerald";
   if (normalized.includes("cancel")) return "rose";
   if (normalized.includes("novo")) return "sky";
   if (normalized.includes("pend")) return "amber";
@@ -106,7 +111,7 @@ const leadActionMeta = new Map<string, { label: string; description: string }>(
   LEAD_ACTION_DEFINITIONS.map((def) => [
     def.id,
     { label: def.label, description: def.description },
-  ]),
+  ])
 );
 
 const formatEventDate = (iso: string | null) => {
@@ -123,7 +128,7 @@ const truncateText = (value: string, max = 120) => {
 
 const summarizePayload = (
   payload: EventPayload | null,
-  action?: string | null,
+  action?: string | null
 ): string[] => {
   if (!payload) return [];
   const parts: string[] = [];
@@ -169,8 +174,10 @@ const summarizePayload = (
 };
 
 function LeadHeader({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  const leadTypes = lead.tipoLeadList?.length ? lead.tipoLeadList : [lead.tipoLead];
-  const headerSubtitle = [lead.chassi ?? "Sem chassi", lead.modelName ?? "Modelo nao informado"]
+  const leadTypes = lead.tipoLeadList?.length
+    ? lead.tipoLeadList
+    : [lead.tipoLead];
+  const headerSubtitle = [lead.chassi ?? "Sem chassi", lead.modelName ?? "N/A"]
     .filter(Boolean)
     .join(" - ");
 
@@ -215,7 +222,9 @@ export function LeadDetailsAside({
   currentUserName,
   onLeadAssigned,
 }: LeadDetailsAsideProps) {
-  const [eventsState, setEventsState] = useState<EventsState>({ status: "idle" });
+  const [eventsState, setEventsState] = useState<EventsState>({
+    status: "idle",
+  });
   const [eventsReloadNonce, setEventsReloadNonce] = useState(0);
   const leadId = lead?.id ?? null;
   const hasLeadId = typeof leadId === "number" && Number.isFinite(leadId);
@@ -256,7 +265,7 @@ export function LeadDetailsAside({
       try {
         const response = await fetch(
           `/api/leads/${encodeURIComponent(String(leadId))}/events`,
-          { signal: controller.signal, cache: "no-store" },
+          { signal: controller.signal, cache: "no-store" }
         );
         if (!response.ok) {
           const payload = await response.json().catch(() => null);
@@ -312,7 +321,10 @@ export function LeadDetailsAside({
       { label: "Estado", value: lead.estado ?? "Sem estado" },
       { label: "Cidade", value: lead.city ?? "Sem cidade" },
       { label: "Grupo chamado", value: lead.lastCalledGroup ?? "Sem grupo" },
-      { label: "Importado em", value: `${importedParts.date} ${importedParts.time}` },
+      {
+        label: "Importado em",
+        value: `${importedParts.date} ${importedParts.time}`,
+      },
     ];
     return items;
   }, [currentUserName, lead, onLeadAssigned]);
@@ -321,7 +333,7 @@ export function LeadDetailsAside({
     if (!lead) return [];
     return [
       { label: "Chassi", value: lead.chassi ?? "Sem chassi" },
-      { label: "Modelo", value: lead.modelName ?? "Modelo nao informado" },
+      { label: "Modelo", value: lead.modelName ?? "N/A" },
       {
         label: "Horimetro atual",
         value:
@@ -337,7 +349,10 @@ export function LeadDetailsAside({
     return [
       { label: "Preventiva", value: flagValue(lead.leadPreventiva) },
       { label: "Garantia basica", value: flagValue(lead.leadGarantiaBasica) },
-      { label: "Garantia estendida", value: flagValue(lead.leadGarantiaEstendida) },
+      {
+        label: "Garantia estendida",
+        value: flagValue(lead.leadGarantiaEstendida),
+      },
       {
         label: "Reforma de componentes",
         value: flagValue(lead.leadReformaDeComponentes),
@@ -373,10 +388,7 @@ export function LeadDetailsAside({
         onClick={(e) => e.stopPropagation()}
       >
         {lead ? (
-          <LeadHeader
-            lead={lead}
-            onClose={onClose}
-          />
+          <LeadHeader lead={lead} onClose={onClose} />
         ) : (
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-5 py-4 backdrop-blur">
             <div className="flex items-center justify-between">
@@ -434,7 +446,9 @@ export function LeadDetailsAside({
 
                 {hasLeadId && eventsState.status === "error" ? (
                   <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                    <div className="font-semibold">Erro ao carregar eventos</div>
+                    <div className="font-semibold">
+                      Erro ao carregar eventos
+                    </div>
                     <div className="mt-1">{eventsState.message}</div>
                     <button
                       type="button"
@@ -457,10 +471,11 @@ export function LeadDetailsAside({
                         const description = meta?.description ?? null;
                         const when = formatEventDate(event.occurredAt);
                         const actor =
-                          event.actorName ||
-                          event.actorEmail ||
-                          "Sistema";
-                        const payloadLines = summarizePayload(event.payload, event.action);
+                          event.actorName || event.actorEmail || "Sistema";
+                        const payloadLines = summarizePayload(
+                          event.payload,
+                          event.action
+                        );
 
                         return (
                           <div

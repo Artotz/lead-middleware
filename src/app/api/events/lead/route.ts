@@ -13,8 +13,12 @@ export async function POST(request: Request) {
 
     if (!parsed.ok) {
       return NextResponse.json(
-        { success: false, message: parsed.error, details: parsed.details ?? null },
-        { status: 400 },
+        {
+          success: false,
+          message: parsed.error,
+          details: parsed.details ?? null,
+        },
+        { status: 400 }
       );
     }
 
@@ -29,7 +33,7 @@ export async function POST(request: Request) {
       console.error("Supabase lead fetch error", leadError);
       return NextResponse.json(
         { success: false, message: "Erro ao carregar lead." },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -41,9 +45,10 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             success: false,
-            message: "Voce so pode registrar contato em leads atribuidos a voce.",
+            message:
+              "Voce so pode registrar contato em leads atribuidos a voce.",
           },
-          { status: 403 },
+          { status: 403 }
         );
       }
     }
@@ -62,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     if (parsed.value.action === "register_contact") {
-      updatePayload.status = "contato realizado";
+      updatePayload.status = "em contato";
     }
 
     if (parsed.value.action === "close_without_os") {
@@ -81,7 +86,7 @@ export async function POST(request: Request) {
       console.error("Supabase lead update error", updateError);
       return NextResponse.json(
         { success: false, message: "Erro ao atualizar lead." },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -102,8 +107,12 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Supabase lead_events insert error", error);
       return NextResponse.json(
-        { success: false, message: "Erro ao registrar aǧǜo no lead.", details: error.message },
-        { status: 500 },
+        {
+          success: false,
+          message: "Erro ao registrar aǧǜo no lead.",
+          details: error.message,
+        },
+        { status: 500 }
       );
     }
 
@@ -113,13 +122,13 @@ export async function POST(request: Request) {
     if (status !== 500) {
       return NextResponse.json(
         { success: false, message: "Nǜo autenticado." },
-        { status },
+        { status }
       );
     }
     console.error("Unexpected lead event error", err);
     return NextResponse.json(
       { success: false, message: "Erro inesperado ao registrar aǧǜo." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

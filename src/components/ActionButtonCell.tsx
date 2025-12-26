@@ -1,8 +1,16 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import type { EventPayload, LeadEventAction, TicketEventAction } from "@/lib/events";
-import { LEAD_ACTION_DEFINITIONS, TICKET_ACTION_DEFINITIONS, isUuid } from "@/lib/events";
+import type {
+  EventPayload,
+  LeadEventAction,
+  TicketEventAction,
+} from "@/lib/events";
+import {
+  LEAD_ACTION_DEFINITIONS,
+  TICKET_ACTION_DEFINITIONS,
+  isUuid,
+} from "@/lib/events";
 import { useCreateEvent } from "@/hooks/useCreateEvent";
 import { ActionModal } from "@/components/ActionModal";
 import { useToast } from "@/components/ToastProvider";
@@ -41,7 +49,7 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
 
   const onConfirm = async (
     action: LeadEventAction | TicketEventAction,
-    payload: EventPayload,
+    payload: EventPayload
   ) => {
     setError(null);
     try {
@@ -53,7 +61,7 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
         });
         const statusByAction: Partial<Record<LeadEventAction, string>> = {
           assign: "atribuido",
-          register_contact: "contato realizado",
+          register_contact: "em contato",
           discard: "descartado",
           close_without_os: "fechado (sem OS)",
           close_with_os: "fechado (com OS)",
@@ -73,7 +81,10 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
         });
       }
 
-      toast.push({ variant: "success", message: "Aǧǜo registrada com sucesso." });
+      toast.push({
+        variant: "success",
+        message: "Aǧǜo registrada com sucesso.",
+      });
       setOpen(false);
     } catch (err: any) {
       const message =
