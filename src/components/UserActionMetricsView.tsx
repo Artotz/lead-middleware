@@ -38,6 +38,7 @@ type UserActionMetricsViewProps = {
   users: UserIdentity[];
   selectedUserId: string | null;
   range: MetricsRange;
+  viewMode: "actions" | "billing";
   onActionEventClick?: (event: UserActionEventRow) => void;
 };
 
@@ -97,6 +98,11 @@ type DailyChartDatum = {
 const shortDateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
+});
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
 });
 
 const formatShortDate = (value: string) => {
@@ -279,6 +285,26 @@ function DailyActionsTooltip({
   );
 }
 
+function BillingTooltip({
+  active,
+  payload,
+}: Partial<TooltipContentProps<number, string>>) {
+  if (!active || !payload?.length) return null;
+  const datum = (payload[0] as { payload?: DailyChartDatum }).payload;
+  if (!datum) return null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <div className="font-semibold text-slate-900">
+        {formatShortDate(datum.date)}
+      </div>
+      <div className="mt-1 text-slate-600">
+        {currencyFormatter.format(datum.total)}
+      </div>
+    </div>
+  );
+}
+
 export function UserActionMetricsView({
   entity,
   rows,
@@ -287,6 +313,7 @@ export function UserActionMetricsView({
   users,
   selectedUserId,
   range,
+  viewMode,
   onActionEventClick,
 }: UserActionMetricsViewProps) {
   const definitions =
@@ -319,9 +346,33 @@ export function UserActionMetricsView({
   const distributionEmptyMessage = selectedUser
     ? "Nenhuma acao registrada para esse usuario no periodo."
     : "Nenhuma acao registrada nesse periodo.";
+  const billingEmptyMessage = selectedUser
+    ? "Sem faturamento para esse usuario no periodo."
+    : "Sem faturamento nesse periodo.";
+  const lineTitle = viewMode === "billing" ? "Faturamento por dia" : "Acoes por dia";
+  const lineEmptyMessage = viewMode === "billing" ? billingEmptyMessage : dailyEmptyMessage;
+  const distributionTitle =
+    viewMode === "billing" ? "Distribuicao de fechamentos" : "Distribuicao de acoes";
+  const listTitle =
+    viewMode === "billing" ? "Lista de fechamentos no periodo" : "Lista de acoes no periodo";
+
+  const billingActionIds = useMemo(() => {
+    if (entity !== "leads") return [] as string[];
+    return ["close_with_os", "close_without_os"];
+  }, [entity]);
 
   const chartData: ChartDatum[] = (() => {
     const breakdown = selectedRow?.actions_breakdown ?? {};
+    if (viewMode === "billing") {
+      const items = billingActionIds.map((action) => ({
+        action,
+        label: labelByAction.get(action) ?? action,
+        count: breakdown[action] ?? 0,
+        tone: action === "close_with_os" ? ("emerald" as const) : ("amber" as const),
+      }));
+      return items.filter((item) => item.count > 0);
+    }
+
     const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
     const topEntries = entries.slice(0, 10);
     const remainingCount = entries
@@ -363,40 +414,110 @@ export function UserActionMetricsView({
     }));
   }, [daily, range, selectedUser?.id]);
 
+  const billingDailySeries: DailyChartDatum[] = useMemo(() => {
+    if (!selectedUser || entity !== "leads") return [];
+    const byDate = new Map<string, Map<string, number>>();
+
+    events
+      .filter((event) => event.actor_user_id === selectedUser.id)
+      .filter((event) => event.action === "close_with_os")
+      .forEach((event) => {
+        const os = String(event.payload?.os ?? "").trim();
+        if (!os) return;
+        const date = new Date(event.occurred_at);
+        if (Number.isNaN(date.getTime())) return;
+        const dayKey = date.toISOString().slice(0, 10);
+        const value = parseValor(event.payload?.valor);
+        if (!value) return;
+
+        const byOs = byDate.get(dayKey) ?? new Map<string, number>();
+        if (!byOs.has(os)) {
+          byOs.set(os, value);
+          byDate.set(dayKey, byOs);
+        }
+      });
+
+    return listMetricsRangeDays(range).map((date) => {
+      const byOs = byDate.get(date);
+      const total = byOs
+        ? Array.from(byOs.values()).reduce((acc, value) => acc + value, 0)
+        : 0;
+      return { date, total };
+    });
+  }, [entity, events, range, selectedUser?.id]);
+
+  const lineSeries = viewMode === "billing" ? billingDailySeries : dailySeries;
+
   const [actionFilter, setActionFilter] = useState<string>("all");
   useEffect(() => {
     setActionFilter("all");
-  }, [selectedUser?.id]);
+  }, [selectedUser?.id, viewMode]);
   const actionFilterOptions = useMemo(() => {
     const breakdown = selectedRow?.actions_breakdown ?? {};
+    if (viewMode === "billing") {
+      return billingActionIds
+        .map((action) => ({
+          action,
+          label: labelByAction.get(action) ?? action,
+          count: breakdown[action] ?? 0,
+        }))
+        .filter((item) => item.count > 0)
+        .map(({ action, label }) => ({ action, label }));
+    }
     return Object.entries(breakdown)
       .sort((a, b) => b[1] - a[1])
       .map(([action]) => ({
         action,
         label: labelByAction.get(action) ?? action,
       }));
-  }, [labelByAction, selectedRow?.actions_breakdown]);
+  }, [billingActionIds, labelByAction, selectedRow?.actions_breakdown, viewMode]);
 
   const actionEvents = useMemo(() => {
     if (!selectedUser) return [];
     return events
       .filter((event) => event.actor_user_id === selectedUser.id)
       .filter(
+        (event) => viewMode !== "billing" || billingActionIds.includes(event.action),
+      )
+      .filter(
         (event) => actionFilter === "all" || event.action === actionFilter
       )
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  }, [actionFilter, events, selectedUser?.id]);
+  }, [actionFilter, billingActionIds, events, selectedUser?.id, viewMode]);
 
   const hasAnyEventsForUser = useMemo(() => {
     if (!selectedUser) return false;
-    return events.some((event) => event.actor_user_id === selectedUser.id);
-  }, [events, selectedUser?.id]);
+    return events.some((event) => {
+      if (event.actor_user_id !== selectedUser.id) return false;
+      if (viewMode !== "billing") return true;
+      return billingActionIds.includes(event.action);
+    });
+  }, [billingActionIds, events, selectedUser?.id, viewMode]);
 
   const formatEventDate = (value: string) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleDateString("pt-BR");
   };
+
+  function parseValor(value: unknown): number | null {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const normalized = trimmed.replace(/[^\d,.-]/g, "");
+    if (!normalized) return null;
+    let numeric = normalized;
+    if (numeric.includes(",") && numeric.includes(".")) {
+      numeric = numeric.replace(/\./g, "").replace(",", ".");
+    } else if (numeric.includes(",")) {
+      numeric = numeric.replace(",", ".");
+    }
+    const parsed = Number.parseFloat(numeric);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
 
   const formatPayloadDetails = (event: UserActionEventRow) => {
     const payload = (event.payload ?? {}) as EventPayload;
@@ -466,14 +587,14 @@ export function UserActionMetricsView({
 
       <div className="border-b border-slate-200 px-5 py-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Acoes por dia
+          {lineTitle}
         </div>
-        {dailySeries.length > 0 ? (
+        {lineSeries.length > 0 ? (
           <div className="mt-3 h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={dailySeries}
-                margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
+                data={lineSeries}
+                margin={{ top: 8, right: 16, bottom: 8, left: 12 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis
@@ -484,10 +605,16 @@ export function UserActionMetricsView({
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 12, fill: "#64748B" }}
+                  width={72}
+                  tickFormatter={(value) =>
+                    viewMode === "billing"
+                      ? currencyFormatter.format(Number(value))
+                      : String(value)
+                  }
                 />
                 <Tooltip
                   cursor={{ stroke: "#E2E8F0", strokeWidth: 1 }}
-                  content={<DailyActionsTooltip />}
+                  content={viewMode === "billing" ? <BillingTooltip /> : <DailyActionsTooltip />}
                 />
                 <Line
                   type="monotone"
@@ -500,13 +627,13 @@ export function UserActionMetricsView({
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="mt-3 text-sm text-slate-500">{dailyEmptyMessage}</div>
+          <div className="mt-3 text-sm text-slate-500">{lineEmptyMessage}</div>
         )}
       </div>
 
       <div className="px-5 py-4">
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Distribuicao de acoes
+          {distributionTitle}
         </div>
 
         {chartData.length > 0 ? (
@@ -563,14 +690,14 @@ export function UserActionMetricsView({
           </div>
         ) : (
           <div className="my-3 text-sm text-slate-500">
-            {distributionEmptyMessage}
+            {viewMode === "billing" ? billingEmptyMessage : distributionEmptyMessage}
           </div>
         )}
 
         {hasAnyEventsForUser ? (
           <div className="mt-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Lista de acoes no periodo
+              {listTitle}
             </div>
             <div className="mt-2">
               <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -635,14 +762,16 @@ export function UserActionMetricsView({
                 ))
               ) : (
                 <div className="py-3 text-center text-slate-500">
-                  Nenhuma acao para o filtro selecionado.
+                  {viewMode === "billing"
+                    ? "Nenhum fechamento para o filtro selecionado."
+                    : "Nenhuma acao para o filtro selecionado."}
                 </div>
               )}
             </div>
           </div>
         ) : (
           <div className="mt-4 text-sm text-slate-500">
-            {distributionEmptyMessage}
+            {viewMode === "billing" ? billingEmptyMessage : distributionEmptyMessage}
           </div>
         )}
       </div>

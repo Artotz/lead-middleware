@@ -5,17 +5,16 @@ import { LeadDetailsAside } from "@/components/LeadDetailsAside";
 import { LeadsList } from "@/components/LeadsList";
 import { MetricCard } from "@/components/MetricCard";
 import { PageShell } from "@/components/PageShell";
+import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
 import { fetchLeads } from "@/lib/api";
 import type { Lead } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
 
-type HomeClientProps = {
-  consultor: string | null;
-};
-
 const PAGE_SIZE = 20;
 
-export default function HomeClient({ consultor }: HomeClientProps) {
+export default function HomeClient() {
+  const { user } = useAuth();
+  const consultor = useMemo(() => getUserDisplayName(user), [user]);
   const [filters, setFilters] = useState<FiltersState>(INITIAL_FILTERS);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);

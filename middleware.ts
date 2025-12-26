@@ -49,7 +49,11 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLoginRoute = pathname.startsWith("/login");
-  const isProtectedRoute = pathname === "/" || pathname.startsWith("/metrics");
+  const isProtectedRoute =
+    pathname === "/" ||
+    pathname.startsWith("/metrics") ||
+    pathname.startsWith("/home") ||
+    pathname.startsWith("/leads");
 
   if (!session && isProtectedRoute) {
     const mockUserId = process.env.MOCK_USER_ID?.trim();
@@ -74,5 +78,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/metrics/:path*", "/login"],
+  matcher: ["/", "/metrics/:path*", "/home", "/leads/:path*", "/login"],
 };

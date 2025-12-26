@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabaseClient";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { fetchExpertConnectTicketById } from "@/lib/expertconnect";
 
 export const runtime = "nodejs";

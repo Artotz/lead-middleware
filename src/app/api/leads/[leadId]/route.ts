@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/currentUser";
-import { getSupabaseServerClient } from "@/lib/supabaseClient";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { LEAD_SELECT_COLUMNS, mapLeadRow, type LeadRow } from "@/lib/leadData";
 
 export const dynamic = "force-dynamic";

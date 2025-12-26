@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
 import { TicketDetailsAside } from "@/components/TicketDetailsAside";
 import { LeadDetailsAside } from "@/components/LeadDetailsAside";
+import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
 import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
 import { Lead, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
@@ -17,11 +18,9 @@ import {
 
 type DashboardTab = "leads" | "tickets";
 
-type DashboardClientProps = {
-  currentUserName: string;
-};
-
-export default function DashboardClient({ currentUserName }: DashboardClientProps) {
+export default function DashboardClient() {
+  const { user } = useAuth();
+  const currentUserName = useMemo(() => getUserDisplayName(user), [user]);
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
 
   // Leads

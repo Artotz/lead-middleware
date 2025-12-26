@@ -1,15 +1,10 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/currentUser";
+import { RequireAuth } from "@/components/RequireAuth";
 import LeadsImportClient from "./leads-import-client";
 
-export const dynamic = "force-dynamic";
-
-export default async function LeadsImportPage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  return <LeadsImportClient />;
+export default function LeadsImportPage() {
+  return (
+    <RequireAuth>
+      <LeadsImportClient />
+    </RequireAuth>
+  );
 }

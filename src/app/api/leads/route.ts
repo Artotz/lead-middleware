@@ -8,7 +8,7 @@ import {
   mapLeadRow,
   isLeadCategory,
 } from "@/lib/leadData";
-import { getSupabaseServerClient } from "@/lib/supabaseClient";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 type LeadInsertRow = Omit<LeadRow, "id">;
 

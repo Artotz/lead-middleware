@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Ticket, TicketStatus } from "@/lib/domain";
 import { SortOrder } from "@/lib/filters";
-import { getSupabaseServerClient } from "@/lib/supabaseClient";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
 type TicketRow = {
   ticket_id: string | null;

@@ -1,14 +1,10 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/currentUser";
+import { RequireAuth } from "@/components/RequireAuth";
 import MetricsClient from "./metrics-client";
 
-export const dynamic = "force-dynamic";
-
-export default async function MetricsPage() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/login");
-  }
-
-  return <MetricsClient />;
+export default function MetricsPage() {
+  return (
+    <RequireAuth>
+      <MetricsClient />
+    </RequireAuth>
+  );
 }

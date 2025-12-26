@@ -19,10 +19,12 @@ import type {
 } from "@/lib/metrics";
 
 type MetricsTab = "leads" | "tickets";
+type MetricsViewMode = "actions" | "billing";
 
 export default function MetricsClient() {
   const [activeTab, setActiveTab] = useState<MetricsTab>("leads");
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
+  const [viewMode, setViewMode] = useState<MetricsViewMode>("actions");
   const [rows, setRows] = useState<UserActionMetricsRow[]>([]);
   const [daily, setDaily] = useState<DailyActionMetricsRow[]>([]);
   const [events, setEvents] = useState<UserActionEventRow[]>([]);
@@ -155,6 +157,7 @@ export default function MetricsClient() {
         users={usersByTab[activeTab] ?? []}
         selectedUserId={selectedUserByTab[activeTab] ?? null}
         range={timeRange}
+        viewMode={viewMode}
         onActionEventClick={activeTab === "leads" ? handleActionEventClick : undefined}
       />
     );
@@ -192,6 +195,28 @@ export default function MetricsClient() {
           selectedUserId={selectedUserByTab[activeTab] ?? null}
           onSelectedUserIdChange={handleSelectedUserChange}
         />
+        <div className="flex w-full items-center divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white">
+          {[
+            { id: "actions", label: "Acoes" },
+            { id: "billing", label: "Faturamento" },
+          ].map((tab) => {
+            const isActive = tab.id === viewMode;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setViewMode(tab.id as MetricsViewMode)}
+                className={`flex-1 px-4 py-2 text-center text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80 focus-visible:z-10 first:rounded-l-lg last:rounded-r-lg ${
+                  isActive
+                    ? "bg-sky-100 text-sky-800"
+                    : "bg-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
         {renderContent()}
       </div>
 
