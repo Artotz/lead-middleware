@@ -63,6 +63,12 @@ export async function GET(request: Request) {
     const consultorParam = (searchParams.get("consultor") ?? "").trim();
     const tipoLeadParam = searchParams.get("tipoLead") as LeadCategory | null;
     const statusParam = (searchParams.get("status") ?? "").trim();
+    const statusFilters = statusParam
+      ? statusParam
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
     const groupByRaw = (searchParams.get("groupBy") ?? "")
@@ -133,9 +139,12 @@ export async function GET(request: Request) {
         }
       }
 
-      if (options.includeStatus !== false && statusParam) {
-        const safe = statusParam.replace(/,/g, "\\,");
-        filtered = filtered.ilike("status", `%${safe}%`);
+      if (options.includeStatus !== false && statusFilters.length) {
+        const filters = statusFilters.map((status) => {
+          const safe = status.replace(/,/g, "\\,");
+          return `status.ilike.%${safe}%`;
+        });
+        filtered = filtered.or(filters.join(","));
       }
 
       if (search) {

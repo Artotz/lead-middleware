@@ -177,19 +177,36 @@ export function LeadsList({
         map.set(key, status);
       }
     });
-    const current = filters.status?.trim();
-    if (current && !map.has(current.toLowerCase())) {
-      map.set(current.toLowerCase(), current);
-    }
+    filters.status.forEach((status) => {
+      const trimmed = status.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, trimmed);
+      }
+    });
     return Array.from(map.values()).sort((a, b) =>
       a.localeCompare(b, "pt-BR")
     );
   }, [filters.status, leads]);
 
-  const resolvedStatusOptions = useMemo(
-    () => statusOptions ?? derivedStatusOptions,
-    [derivedStatusOptions, statusOptions],
-  );
+  const resolvedStatusOptions = useMemo(() => {
+    if (!statusOptions) return derivedStatusOptions;
+    const map = new Map<string, string>();
+    statusOptions.forEach((status) => {
+      const trimmed = status.trim();
+      if (!trimmed) return;
+      map.set(trimmed.toLowerCase(), trimmed);
+    });
+    derivedStatusOptions.forEach((status) => {
+      const trimmed = status.trim();
+      if (!trimmed) return;
+      if (!map.has(trimmed.toLowerCase())) {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [derivedStatusOptions, statusOptions]);
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
     [filters.groupByChassi, filters.groupByEmpresa]

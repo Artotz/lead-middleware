@@ -14,7 +14,7 @@ export type FiltersState = {
   regiao: Regiao | "";
   estado: Estado | "";
   tipoLead: LeadCategory | "";
-  status: string;
+  status: string[];
   sort: SortOrder;
   groupByEmpresa?: boolean;
   groupByChassi?: boolean;
@@ -25,7 +25,7 @@ export const INITIAL_FILTERS: FiltersState = {
   regiao: "",
   estado: "",
   tipoLead: "",
-  status: "",
+  status: ["atribuido", "em contato", "novo"],
   sort: "recentes",
   groupByEmpresa: false,
   groupByChassi: false,

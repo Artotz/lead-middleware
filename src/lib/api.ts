@@ -122,7 +122,7 @@ export async function fetchLeads(
   if (regiao) searchParams.set("regiao", regiao);
   if (estado) searchParams.set("estado", estado);
   if (tipoLead) searchParams.set("tipoLead", tipoLead);
-  if (status) searchParams.set("status", status);
+  if (status.length) searchParams.set("status", status.join(","));
   if (consultor) searchParams.set("consultor", consultor);
   const groupBy: string[] = [];
   if (groupByEmpresa) groupBy.push("empresa");
