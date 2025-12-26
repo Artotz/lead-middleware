@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/currentUser";
 import { validateLeadEventInput } from "@/lib/events";
-import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { getSupabaseUserClient } from "@/lib/supabaseUserClient";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseUserClient();
     const { data: leadRow, error: leadError } = await supabase
       .from("leads")
       .select("consultor")

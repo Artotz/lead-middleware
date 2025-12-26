@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/currentUser";
-import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { getSupabaseUserClient } from "@/lib/supabaseUserClient";
 import {
   aggregateDailyMetrics,
   aggregateUserMetrics,
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const start = rangeToStart(range);
     const yearStart = rangeToStart("year");
 
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseUserClient();
     let query = supabase
       .from("lead_events")
       .select("lead_id,actor_user_id,actor_email,actor_name,action,occurred_at,payload");

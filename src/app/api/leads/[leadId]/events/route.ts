@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/currentUser";
-import { getSupabaseAdminClient } from "@/lib/supabaseAdmin";
+import { getSupabaseUserClient } from "@/lib/supabaseUserClient";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabaseAdminClient();
+    const supabase = await getSupabaseUserClient();
     const { data, error } = await supabase
       .from("lead_events")
       .select(
