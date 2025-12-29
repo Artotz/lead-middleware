@@ -22,7 +22,6 @@ export default function HomeClient() {
     assigned: 0,
     emContato: 0,
   });
-  const [leadStatusOptions, setLeadStatusOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -56,7 +55,6 @@ export default function HomeClient() {
         ]);
         setLeads(response.items);
         setLeadsTotal(response.total);
-        setLeadStatusOptions(response.statusOptions ?? []);
         setLeadMetrics({
           assigned: assignedResp.total,
           emContato: emContatoResp.total,
@@ -157,8 +155,9 @@ export default function HomeClient() {
             leads={leads}
             filters={filters}
             onFiltersChange={setFilters}
+            loading={loading}
+            pageSize={PAGE_SIZE}
             currentUserName={consultor}
-            statusOptions={leadStatusOptions}
             onLeadAssigned={handleLeadAssigned}
             onLeadStatusChange={handleLeadStatusChange}
             onLeadSelect={(lead) => {

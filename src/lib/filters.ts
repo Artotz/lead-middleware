@@ -31,6 +31,15 @@ export const INITIAL_FILTERS: FiltersState = {
   groupByChassi: false,
 };
 
+export const LEAD_STATUS_OPTIONS = [
+  "atribuido",
+  "descartado",
+  "em contato",
+  "fechado (com OS)",
+  "fechado (sem OS)",
+  "novo",
+] as const;
+
 export const REGIAO_FILTER_QUERIES: Record<Regiao, string> = {
   R1: "REGIONAL = 'R1'",
   R2: "REGIONAL = 'R2'",

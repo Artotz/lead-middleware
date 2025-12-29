@@ -9,8 +9,8 @@ type TimeRangeSelectorProps = {
 
 const ranges: { id: TimeRange; label: string }[] = [
   { id: "today", label: "Hoje" },
-  { id: "week", label: "Essa semana" },
-  { id: "month", label: "Esse mês" },
+  { id: "week", label: "7 dias" },
+  { id: "month", label: "30 dias" },
   { id: "year", label: "Esse ano" },
 ];
 

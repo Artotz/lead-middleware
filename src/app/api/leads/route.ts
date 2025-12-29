@@ -49,6 +49,23 @@ const normalizeNumber = (value: unknown): number | null => {
   return null;
 };
 
+const normalizeWhitespace = (value: string) =>
+  value.replace(/\s+/g, " ").trim();
+
+const expandStatusFilters = (items: string[]) => {
+  const expanded: string[] = [];
+  items.forEach((status) => {
+    const trimmed = normalizeWhitespace(status);
+    if (!trimmed) return;
+    expanded.push(trimmed);
+    const withoutParens = normalizeWhitespace(trimmed.replace(/[()]/g, ""));
+    if (withoutParens && withoutParens !== trimmed) {
+      expanded.push(withoutParens);
+    }
+  });
+  return Array.from(new Set(expanded));
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -69,6 +86,7 @@ export async function GET(request: Request) {
           .map((item) => item.trim())
           .filter(Boolean)
       : [];
+    const expandedStatusFilters = expandStatusFilters(statusFilters);
     const sortParam = searchParams.get("sort") as SortOrder | null;
     const sort: SortOrder = sortParam === "antigos" ? "antigos" : "recentes";
     const groupByRaw = (searchParams.get("groupBy") ?? "")
@@ -139,8 +157,8 @@ export async function GET(request: Request) {
         }
       }
 
-      if (options.includeStatus !== false && statusFilters.length) {
-        const filters = statusFilters.map((status) => {
+      if (options.includeStatus !== false && expandedStatusFilters.length) {
+        const filters = expandedStatusFilters.map((status) => {
           const safe = status.replace(/,/g, "\\,");
           return `status.ilike.%${safe}%`;
         });

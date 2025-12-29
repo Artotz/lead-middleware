@@ -132,6 +132,10 @@ export function TicketsList({
   options,
 }: TicketsListProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const skeletonRows = useMemo(
+    () => Array.from({ length: Math.max(1, pageSize) }, (_, i) => i),
+    [pageSize]
+  );
 
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
@@ -323,142 +327,156 @@ export function TicketsList({
         </div>
 
         <div className="divide-y divide-slate-200">
-          {groupedTickets.map(({ ticket, groupIndex }) => {
-            const isStriped = filters.groupByChassi || filters.groupByEmpresa;
-            const backgroundClass =
-              isStriped && groupIndex % 2 === 1 ? "bg-slate-50" : "bg-white";
-
-            const cells: Record<ColumnId, React.ReactNode> = {
-              ticket: (
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Badge tone="slate" className="max-w-[150px] truncate">
-                    #{ticket.number}
-                  </Badge>
-                  {ticket.url && (
-                    <a
-                      href={ticket.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xs font-semibold text-sky-700 underline decoration-sky-300 decoration-2 underline-offset-4 transition hover:text-sky-900"
-                    >
-                      Abrir
-                    </a>
-                  )}
-                </div>
-              ),
-              titulo: (
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="truncate font-semibold text-slate-800">
-                    {ticket.title}
-                  </span>
-                  {ticket.createdAt &&
-                    (() => {
-                      const parts = formatDateParts(ticket.createdAt);
-                      return (
-                        <span className="text-xs text-slate-500 leading-tight">
-                          <span className="block truncate">{parts.time}</span>
-                          <span className="block truncate">{parts.date}</span>
-                        </span>
-                      );
-                    })()}
-                </div>
-              ),
-              status: (
-                <Badge
-                  tone={ticketStatusTone[ticket.status]}
-                  className="max-w-[120px] truncate"
+          {loading
+            ? skeletonRows.map((index) => (
+                <div
+                  key={`ticket-skeleton-${index}`}
+                  className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]"
+                  style={{ gridTemplateColumns }}
                 >
-                  {ticketStatusLabel[ticket.status]}
-                </Badge>
-              ),
-              chassi: (
-                <Badge
-                  tone={ticket.serialNumber ? "emerald" : "slate"}
-                  className="max-w-[170px] truncate"
-                >
-                  {ticket.serialNumber ?? "Sem chassi"}
-                </Badge>
-              ),
-              consultor: (
-                <span className="block max-w-[220px] truncate text-slate-700">
-                  {ticket.advisorName ?? "N/A"}
-                </span>
-              ),
-              cliente: (
-                <div className="flex min-w-0 max-w-[220px] flex-col">
-                  <span className="truncate text-slate-700">
-                    {ticket.customerName ?? "N/A"}
-                  </span>
-                  {ticket.customerOrganization && (
-                    <span className="truncate text-xs text-slate-500">
-                      {ticket.customerOrganization}
-                    </span>
-                  )}
-                </div>
-              ),
-              equipe: (
-                <Badge tone="sky" className="max-w-[150px] truncate">
-                  {ticket.teamName ?? "N/A"}
-                </Badge>
-              ),
-              atualizado:
-                (() => {
-                  const parts = formatDateParts(ticket.updatedAt);
-                  return (
-                    <div className="min-w-0 leading-tight">
-                      <span className="block truncate text-xs font-semibold text-slate-700">
-                        {parts.time}
-                      </span>
-                      <span className="block truncate text-xs text-slate-500">
-                        {parts.date}
-                      </span>
+                  {columnOrder.map((column) => (
+                    <div key={`${index}-${column}`} className="min-w-0">
+                      <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
                     </div>
-                  );
-                })(),
-              acoes: (
-                <ActionButtonCell
-                  entity="ticket"
-                  ticketId={ticket.id}
-                  ticketStatus={ticket.status}
-                />
-              ),
-            };
+                  ))}
+                </div>
+              ))
+            : groupedTickets.map(({ ticket, groupIndex }) => {
+                const isStriped = filters.groupByChassi || filters.groupByEmpresa;
+                const backgroundClass =
+                  isStriped && groupIndex % 2 === 1 ? "bg-slate-50" : "bg-white";
 
-            return (
-              <div
-                key={ticket.id}
-                role={onTicketSelect ? "button" : undefined}
-                tabIndex={onTicketSelect ? 0 : undefined}
-                onClick={
-                  onTicketSelect ? () => onTicketSelect(ticket) : undefined
-                }
-                onKeyDown={
-                  onTicketSelect
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onTicketSelect(ticket);
-                        }
-                      }
-                    : undefined
-                }
-                className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass} ${
-                  onTicketSelect
-                    ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200"
-                    : ""
-                }`}
-                style={{ gridTemplateColumns }}
-              >
-                {columnOrder.map((column) => (
-                  <div key={column} className="min-w-0 overflow-hidden">
-                    {cells[column]}
+                const cells: Record<ColumnId, React.ReactNode> = {
+                  ticket: (
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Badge tone="slate" className="max-w-[150px] truncate">
+                        #{ticket.number}
+                      </Badge>
+                      {ticket.url && (
+                        <a
+                          href={ticket.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs font-semibold text-sky-700 underline decoration-sky-300 decoration-2 underline-offset-4 transition hover:text-sky-900"
+                        >
+                          Abrir
+                        </a>
+                      )}
+                    </div>
+                  ),
+                  titulo: (
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="truncate font-semibold text-slate-800">
+                        {ticket.title}
+                      </span>
+                      {ticket.createdAt &&
+                        (() => {
+                          const parts = formatDateParts(ticket.createdAt);
+                          return (
+                            <span className="text-xs text-slate-500 leading-tight">
+                              <span className="block truncate">{parts.time}</span>
+                              <span className="block truncate">{parts.date}</span>
+                            </span>
+                          );
+                        })()}
+                    </div>
+                  ),
+                  status: (
+                    <Badge
+                      tone={ticketStatusTone[ticket.status]}
+                      className="max-w-[120px] truncate"
+                    >
+                      {ticketStatusLabel[ticket.status]}
+                    </Badge>
+                  ),
+                  chassi: (
+                    <Badge
+                      tone={ticket.serialNumber ? "emerald" : "slate"}
+                      className="max-w-[170px] truncate"
+                    >
+                      {ticket.serialNumber ?? "Sem chassi"}
+                    </Badge>
+                  ),
+                  consultor: (
+                    <span className="block max-w-[220px] truncate text-slate-700">
+                      {ticket.advisorName ?? "N/A"}
+                    </span>
+                  ),
+                  cliente: (
+                    <div className="flex min-w-0 max-w-[220px] flex-col">
+                      <span className="truncate text-slate-700">
+                        {ticket.customerName ?? "N/A"}
+                      </span>
+                      {ticket.customerOrganization && (
+                        <span className="truncate text-xs text-slate-500">
+                          {ticket.customerOrganization}
+                        </span>
+                      )}
+                    </div>
+                  ),
+                  equipe: (
+                    <Badge tone="sky" className="max-w-[150px] truncate">
+                      {ticket.teamName ?? "N/A"}
+                    </Badge>
+                  ),
+                  atualizado:
+                    (() => {
+                      const parts = formatDateParts(ticket.updatedAt);
+                      return (
+                        <div className="min-w-0 leading-tight">
+                          <span className="block truncate text-xs font-semibold text-slate-700">
+                            {parts.time}
+                          </span>
+                          <span className="block truncate text-xs text-slate-500">
+                            {parts.date}
+                          </span>
+                        </div>
+                      );
+                    })(),
+                  acoes: (
+                    <ActionButtonCell
+                      entity="ticket"
+                      ticketId={ticket.id}
+                      ticketStatus={ticket.status}
+                    />
+                  ),
+                };
+
+                return (
+                  <div
+                    key={ticket.id}
+                    role={onTicketSelect ? "button" : undefined}
+                    tabIndex={onTicketSelect ? 0 : undefined}
+                    onClick={
+                      onTicketSelect ? () => onTicketSelect(ticket) : undefined
+                    }
+                    onKeyDown={
+                      onTicketSelect
+                        ? (e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onTicketSelect(ticket);
+                            }
+                          }
+                        : undefined
+                    }
+                    className={`grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50 ${backgroundClass} ${
+                      onTicketSelect
+                        ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-200"
+                        : ""
+                    }`}
+                    style={{ gridTemplateColumns }}
+                  >
+                    {columnOrder.map((column) => (
+                      <div key={column} className="min-w-0 overflow-hidden">
+                        {cells[column]}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            );
-          })}
-          {tickets.length === 0 && (
+                );
+              })}
+          {!loading && tickets.length === 0 && (
             <div className="px-5 py-4 text-sm text-slate-500">
               {loading
                 ? "Carregando tickets..."

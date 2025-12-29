@@ -29,7 +29,6 @@ export default function DashboardClient() {
   const [leadsPage, setLeadsPage] = useState<number>(1);
   const [leadsPageSize] = useState<number>(10);
   const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
-  const [leadStatusOptions, setLeadStatusOptions] = useState<string[]>([]);
   const [leadFilters, setLeadFilters] =
     useState<FiltersState>(INITIAL_FILTERS);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -67,7 +66,6 @@ export default function DashboardClient() {
         });
         setLeads(resp.items);
         setLeadsTotal(resp.total);
-        setLeadStatusOptions(resp.statusOptions ?? []);
         setLeadsPage(resp.page);
       } catch (err) {
         console.error(err);
@@ -122,7 +120,6 @@ export default function DashboardClient() {
       ]);
       setLeads(leadsResp.items);
       setLeadsTotal(leadsResp.total);
-      setLeadStatusOptions(leadsResp.statusOptions ?? []);
       setLeadsPage(leadsResp.page);
 
       setTickets(ticketsResp.items);
@@ -256,8 +253,8 @@ export default function DashboardClient() {
             filters={leadFilters}
             onFiltersChange={handleLeadFiltersChange}
             loading={leadsLoading}
+            pageSize={leadsPageSize}
             currentUserName={currentUserName}
-            statusOptions={leadStatusOptions}
             onLeadAssigned={handleLeadAssigned}
             onLeadStatusChange={handleLeadStatusChange}
             onLeadSelect={(lead) => {
