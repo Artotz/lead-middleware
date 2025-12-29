@@ -30,6 +30,26 @@ const parseTags = (value: string): string[] =>
     .map((part) => part.trim())
     .filter(Boolean);
 
+const LEAD_ACTION_MODAL_DESCRIPTIONS: Record<string, string> = {
+  register_contact: "Registra o contato realizado.",
+  assign: "Atribui o lead a um responsavel.",
+  discard: "Descarta o lead (exige motivo).",
+  close_without_os: "Fecha o lead sem OS (exige motivo).",
+  close_with_os: "Fecha o lead com OS e valor.",
+  convert_to_ticket: "Converte esse lead em ticket.",
+};
+
+const TICKET_ACTION_MODAL_DESCRIPTIONS: Record<string, string> = {
+  view: "Marca que voce visualizou o ticket.",
+  add_note: "Registra uma observacao interna.",
+  add_tags: "Adiciona tags ao ticket.",
+  remove_tags: "Remove tags do ticket.",
+  close: "Registra fechamento do ticket.",
+  reopen: "Registra reabertura do ticket.",
+  assign: "Atribui esse ticket.",
+  external_update_detected: "Marca que houve mudanca fora do middleware.",
+};
+
 export function ActionModal<Action extends string>({
   open,
   entity,
@@ -44,7 +64,8 @@ export function ActionModal<Action extends string>({
   const [reason, setReason] = useState("");
   const [assignee, setAssignee] = useState("");
   const [os, setOs] = useState("");
-  const [valor, setValor] = useState("");
+  const [partsValue, setPartsValue] = useState("");
+  const [laborValue, setLaborValue] = useState("");
   const [tags, setTags] = useState("");
   const [method, setMethod] = useState("manual");
   const [changedFields, setChangedFields] = useState<ChangedFieldRow[]>([
@@ -55,7 +76,7 @@ export function ActionModal<Action extends string>({
 
   const activeDef = useMemo(
     () => actions.find((item) => item.id === action) ?? null,
-    [action, actions],
+    [action, actions]
   );
 
   useEffect(() => {
@@ -66,7 +87,8 @@ export function ActionModal<Action extends string>({
     setReason("");
     setAssignee("");
     setOs("");
-    setValor("");
+    setPartsValue("");
+    setLaborValue("");
     setTags("");
     setMethod("manual");
     setChangedFields([{ key: "", value: "" }]);
@@ -95,16 +117,29 @@ export function ActionModal<Action extends string>({
     if (activeDef.requiresReason && !reason.trim()) return false;
     if (activeDef.requiresAssignee && !assignee.trim()) return false;
     if (activeDef.requiresOs && !os.trim()) return false;
-    if (activeDef.requiresValor && !valor.trim()) return false;
+    if (activeDef.requiresPartsValue && !partsValue.trim()) return false;
+    if (activeDef.requiresLaborValue && !laborValue.trim()) return false;
     if (activeDef.requiresTags && parseTags(tags).length === 0) return false;
     if (activeDef.requiresChangedFields) {
       const hasOne = changedFields.some(
-        (row) => row.key.trim() && row.value.trim(),
+        (row) => row.key.trim() && row.value.trim()
       );
       if (!hasOne) return false;
     }
     return true;
-  }, [action, activeDef, assignee, changedFields, loading, note, os, reason, tags, valor]);
+  }, [
+    action,
+    activeDef,
+    assignee,
+    changedFields,
+    laborValue,
+    loading,
+    note,
+    os,
+    partsValue,
+    reason,
+    tags,
+  ]);
 
   const handleConfirm = async () => {
     if (!action || !activeDef) return;
@@ -131,10 +166,16 @@ export function ActionModal<Action extends string>({
       payload.os = os.trim();
     }
 
-    if (activeDef.requiresValor) {
-      payload.valor = valor.trim();
-    } else if (valor.trim()) {
-      payload.valor = valor.trim();
+    if (activeDef.requiresPartsValue) {
+      payload.parts_value = partsValue.trim();
+    } else if (partsValue.trim()) {
+      payload.parts_value = partsValue.trim();
+    }
+
+    if (activeDef.requiresLaborValue) {
+      payload.labor_value = laborValue.trim();
+    } else if (laborValue.trim()) {
+      payload.labor_value = laborValue.trim();
     }
 
     if (activeDef.requiresTags || tags.trim()) {
@@ -167,9 +208,12 @@ export function ActionModal<Action extends string>({
     (action === ("add_tags" as Action) || action === ("remove_tags" as Action));
   const showAssignee = Boolean(activeDef?.requiresAssignee);
   const showOs = Boolean(activeDef?.requiresOs);
-  const showValor = Boolean(activeDef?.requiresValor);
+  const showPartsValue = Boolean(activeDef?.requiresPartsValue);
+  const showLaborValue = Boolean(activeDef?.requiresLaborValue);
   const noteRequired = Boolean(activeDef?.requiresNote);
-  const noteLabel = noteRequired ? "Descricao do contato" : "Observacao (opcional)";
+  const noteLabel = noteRequired
+    ? "Descricao do contato"
+    : "Observacao (opcional)";
   const notePlaceholder = noteRequired
     ? "Descreva o contato realizado"
     : "Adicione contexto (ate 2000 caracteres)";
@@ -221,6 +265,11 @@ export function ActionModal<Action extends string>({
               {actions.map((item) => {
                 const active = item.id === action;
                 const isDisabled = Boolean(item.disabled);
+                const description =
+                  (entity === "lead"
+                    ? LEAD_ACTION_MODAL_DESCRIPTIONS[item.id]
+                    : TICKET_ACTION_MODAL_DESCRIPTIONS[item.id]) ??
+                  item.description;
                 return (
                   <button
                     key={item.id}
@@ -241,7 +290,7 @@ export function ActionModal<Action extends string>({
                           {item.label}
                         </div>
                         <div className="text-xs text-slate-500">
-                          {item.description}
+                          {description}
                         </div>
                       </div>
                       <div
@@ -313,16 +362,30 @@ export function ActionModal<Action extends string>({
               </label>
             )}
 
-            {showValor && (
+            {showPartsValue && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
-                  Valor <span className="text-rose-600">*</span>
+                  Pecas <span className="text-rose-600">*</span>
                 </span>
                 <input
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
+                  value={partsValue}
+                  onChange={(e) => setPartsValue(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   placeholder="Ex.: 2500"
+                />
+              </label>
+            )}
+
+            {showLaborValue && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Mao de obra <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  value={laborValue}
+                  onChange={(e) => setLaborValue(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder="Ex.: 500"
                 />
               </label>
             )}
@@ -338,9 +401,7 @@ export function ActionModal<Action extends string>({
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   placeholder="Ex.: urgente, callback, vip"
                 />
-                <p className="text-xs text-slate-500">
-                  Separe por vírgula.
-                </p>
+                <p className="text-xs text-slate-500">Separe por vírgula.</p>
               </label>
             )}
 
@@ -366,7 +427,10 @@ export function ActionModal<Action extends string>({
                   <button
                     type="button"
                     onClick={() =>
-                      setChangedFields((prev) => [...prev, { key: "", value: "" }])
+                      setChangedFields((prev) => [
+                        ...prev,
+                        { key: "", value: "" },
+                      ])
                     }
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
@@ -380,8 +444,8 @@ export function ActionModal<Action extends string>({
                       onChange={(e) =>
                         setChangedFields((prev) =>
                           prev.map((item, i) =>
-                            i === idx ? { ...item, key: e.target.value } : item,
-                          ),
+                            i === idx ? { ...item, key: e.target.value } : item
+                          )
                         )
                       }
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
@@ -392,8 +456,10 @@ export function ActionModal<Action extends string>({
                       onChange={(e) =>
                         setChangedFields((prev) =>
                           prev.map((item, i) =>
-                            i === idx ? { ...item, value: e.target.value } : item,
-                          ),
+                            i === idx
+                              ? { ...item, value: e.target.value }
+                              : item
+                          )
                         )
                       }
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
@@ -408,7 +474,9 @@ export function ActionModal<Action extends string>({
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
                   {noteLabel}{" "}
-                  {noteRequired ? <span className="text-rose-600">*</span> : null}
+                  {noteRequired ? (
+                    <span className="text-rose-600">*</span>
+                  ) : null}
                 </span>
                 <textarea
                   value={note}
@@ -446,8 +514,9 @@ export function ActionModal<Action extends string>({
           </button>
         </div>
       </div>
-    </div>
-  , document.body);
+    </div>,
+    document.body
+  );
 }
 
 export const LEAD_ACTIONS_FOR_UI = LEAD_ACTION_DEFINITIONS;

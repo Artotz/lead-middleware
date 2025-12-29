@@ -78,6 +78,63 @@ export async function POST(request: Request) {
       updatePayload.status = "fechado_com_os";
     }
 
+    let eventPayload = parsed.value.payload;
+
+    if (parsed.value.action === "close_with_os") {
+      const osNumber =
+        typeof parsed.value.payload.os === "string"
+          ? parsed.value.payload.os.trim()
+          : "";
+      const partsValueRaw = parsed.value.payload.parts_value;
+      const laborValueRaw = parsed.value.payload.labor_value;
+      const partsValue =
+        typeof partsValueRaw === "number" ? partsValueRaw : Number(partsValueRaw);
+      const laborValue =
+        typeof laborValueRaw === "number" ? laborValueRaw : Number(laborValueRaw);
+      const noteRaw = parsed.value.payload.note;
+      const note =
+        typeof noteRaw === "string" && noteRaw.trim() ? noteRaw.trim() : null;
+
+      if (
+        !Number.isFinite(partsValue) ||
+        !Number.isFinite(laborValue) ||
+        partsValue < 0 ||
+        laborValue < 0
+      ) {
+        return NextResponse.json(
+          { success: false, message: "Valores da OS invalidos." },
+          { status: 400 }
+        );
+      }
+
+      const { data: serviceOrder, error: serviceOrderError } = await supabase
+        .from("lead_service_orders")
+        .insert({
+          lead_id: parsed.value.leadId,
+          os_number: osNumber,
+          parts_value: partsValue,
+          labor_value: laborValue,
+          note,
+        })
+        .select("id")
+        .single();
+
+      if (serviceOrderError) {
+        console.error("Supabase lead_service_orders insert error", serviceOrderError);
+        return NextResponse.json(
+          { success: false, message: "Erro ao registrar OS do lead." },
+          { status: 500 }
+        );
+      }
+
+      const { os, parts_value, labor_value, note, ...restPayload } =
+        parsed.value.payload;
+      eventPayload = {
+        ...restPayload,
+        service_order_id: serviceOrder.id,
+      };
+    }
+
     const { error: updateError } = await supabase
       .from("leads")
       .update(updatePayload)
@@ -99,7 +156,7 @@ export async function POST(request: Request) {
         actor_name: user.name,
         action: parsed.value.action,
         source: "middleware",
-        payload: parsed.value.payload,
+        payload: eventPayload,
       })
       .select("*")
       .single();

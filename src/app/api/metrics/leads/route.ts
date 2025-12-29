@@ -10,6 +10,18 @@ import { isMetricsRange, type MetricsRange } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
+const parseServiceOrderId = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && Number.isInteger(value) ? value : null;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) return null;
+  return parsed;
+};
+
 export async function GET(request: Request) {
   try {
     await requireCurrentUser();
@@ -48,15 +60,58 @@ export async function GET(request: Request) {
       payload: row.payload as Record<string, unknown> | null,
     }));
 
-    const events = rows
-      .filter((row) => row.actor_user_id && row.action && row.item_id && row.occurred_at)
-      .map((row) => ({
-        actor_user_id: row.actor_user_id as string,
-        action: row.action as string,
-        item_id: String(row.item_id as number),
-        occurred_at: row.occurred_at as string,
-        payload: (row.payload as Record<string, unknown> | null) ?? null,
-      }));
+    const serviceOrderIds = rows
+      .map((row) => parseServiceOrderId(row.payload?.service_order_id))
+      .filter((id): id is number => Boolean(id));
+    const serviceOrderMap = new Map<
+      number,
+      { os_number: string; parts_value: unknown; labor_value: unknown; note: unknown }
+    >();
+    if (serviceOrderIds.length) {
+      const { data: serviceOrders, error: serviceOrdersError } = await supabase
+        .from("lead_service_orders")
+        .select("id,os_number,parts_value,labor_value,note")
+        .in("id", Array.from(new Set(serviceOrderIds)));
+
+      if (serviceOrdersError) {
+        console.error("Supabase lead_service_orders metrics error", serviceOrdersError);
+        return NextResponse.json(
+          { success: false, message: "Erro ao buscar OS de leads.", details: serviceOrdersError.message },
+          { status: 500 },
+        );
+      }
+
+      (serviceOrders ?? []).forEach((order: any) => {
+        if (!order?.id) return;
+        serviceOrderMap.set(order.id, {
+          os_number: String(order.os_number ?? ""),
+          parts_value: order.parts_value,
+          labor_value: order.labor_value,
+          note: order.note,
+        });
+      });
+    }
+
+    const enrichedRows = rows.map((row) => {
+      const serviceOrderId = parseServiceOrderId(row.payload?.service_order_id);
+      const serviceOrder = serviceOrderId
+        ? serviceOrderMap.get(serviceOrderId)
+        : null;
+      if (!serviceOrder || !row.payload) return row;
+      return {
+        ...row,
+        payload: {
+          ...row.payload,
+          os: serviceOrder.os_number,
+          parts_value: serviceOrder.parts_value,
+          labor_value: serviceOrder.labor_value,
+          note:
+            typeof serviceOrder.note === "string" && serviceOrder.note.trim()
+              ? serviceOrder.note
+              : row.payload.note,
+        },
+      };
+    });
 
     const usersMap = new Map<string, { id: string; name?: string; email?: string }>();
     const includeUsers = includeUsersParam !== "0";
@@ -86,15 +141,25 @@ export async function GET(request: Request) {
       });
     }
 
-    const metrics = aggregateUserMetrics(rows);
-    const daily = aggregateDailyMetrics(rows);
+    const metrics = aggregateUserMetrics(enrichedRows);
+    const daily = aggregateDailyMetrics(enrichedRows);
     return NextResponse.json({
       success: true,
       range,
       items: metrics,
       daily,
       users: Array.from(usersMap.values()),
-      events,
+      events: enrichedRows
+        .filter(
+          (row) => row.actor_user_id && row.action && row.item_id && row.occurred_at
+        )
+        .map((row) => ({
+          actor_user_id: row.actor_user_id as string,
+          action: row.action as string,
+          item_id: String(row.item_id as number),
+          occurred_at: row.occurred_at as string,
+          payload: (row.payload as Record<string, unknown> | null) ?? null,
+        })),
     });
   } catch (err: any) {
     const status = typeof err?.status === "number" ? err.status : 500;

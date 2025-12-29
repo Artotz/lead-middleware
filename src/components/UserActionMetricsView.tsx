@@ -427,7 +427,7 @@ export function UserActionMetricsView({
         const date = new Date(event.occurred_at);
         if (Number.isNaN(date.getTime())) return;
         const dayKey = date.toISOString().slice(0, 10);
-        const value = parseValor(event.payload?.valor);
+        const value = getTotalValue((event.payload ?? {}) as EventPayload);
         if (!value) return;
 
         const byOs = byDate.get(dayKey) ?? new Map<string, number>();
@@ -500,7 +500,7 @@ export function UserActionMetricsView({
     return date.toLocaleDateString("pt-BR");
   };
 
-  function parseValor(value: unknown): number | null {
+  function parseMoney(value: unknown): number | null {
     if (typeof value === "number") {
       return Number.isFinite(value) ? value : null;
     }
@@ -519,6 +519,16 @@ export function UserActionMetricsView({
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  function getTotalValue(payload: EventPayload | null) {
+    if (!payload) return null;
+    const parts = parseMoney(payload.parts_value);
+    const labor = parseMoney(payload.labor_value);
+    if (parts !== null || labor !== null) {
+      return (parts ?? 0) + (labor ?? 0);
+    }
+    return parseMoney(payload.valor);
+  }
+
   const formatPayloadDetails = (event: UserActionEventRow) => {
     const payload = (event.payload ?? {}) as EventPayload;
     const details: { label: string; value: string }[] = [];
@@ -535,7 +545,32 @@ export function UserActionMetricsView({
     if (payload.os) {
       details.push({ label: "OS", value: String(payload.os) });
     }
-    if (payload.valor) {
+    const partsValue = parseMoney(payload.parts_value);
+    const laborValue = parseMoney(payload.labor_value);
+    if (partsValue !== null) {
+      details.push({
+        label: "Pecas",
+        value: currencyFormatter.format(partsValue),
+      });
+    }
+    if (laborValue !== null) {
+      details.push({
+        label: "Mao de obra",
+        value: currencyFormatter.format(laborValue),
+      });
+    }
+    const totalValue = getTotalValue(payload);
+    if (totalValue !== null && (partsValue !== null || laborValue !== null)) {
+      details.push({
+        label: "Total",
+        value: currencyFormatter.format(totalValue),
+      });
+    }
+    if (
+      totalValue === null &&
+      payload.valor &&
+      (partsValue === null || laborValue === null)
+    ) {
       details.push({ label: "Valor", value: String(payload.valor) });
     }
     if (payload.method) {

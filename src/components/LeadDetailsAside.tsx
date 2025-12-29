@@ -127,6 +127,31 @@ const truncateText = (value: string, max = 120) => {
   return `${value.slice(0, Math.max(0, max - 3))}...`;
 };
 
+const parseMoney = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/[^\d,.-]/g, "");
+  if (!normalized) return null;
+  let numeric = normalized;
+  if (numeric.includes(",") && numeric.includes(".")) {
+    numeric = numeric.replace(/\./g, "").replace(",", ".");
+  } else if (numeric.includes(",")) {
+    numeric = numeric.replace(",", ".");
+  }
+  const parsed = Number.parseFloat(numeric);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatMoney = (value: unknown): string | null => {
+  const parsed = parseMoney(value);
+  if (parsed === null) return null;
+  return numberFormatter.format(parsed);
+};
+
 const renderTemplate = (template: string, tokens: Record<string, string>) => {
   const parts: React.ReactNode[] = [];
   const regex = /\{(\w+)\}/g;
@@ -195,9 +220,20 @@ const summarizePayload = (
   const osValue = typeof payload.os === "string" ? payload.os.trim() : "";
   if (osValue) parts.push(`OS: ${osValue}`);
 
-  const valorValue =
-    typeof payload.valor === "string" ? payload.valor.trim() : "";
-  if (valorValue) parts.push(`Valor: ${valorValue}`);
+  const partsValue = formatMoney(payload.parts_value);
+  const laborValue = formatMoney(payload.labor_value);
+  if (partsValue) parts.push(`Pecas: ${partsValue}`);
+  if (laborValue) parts.push(`Mao de obra: ${laborValue}`);
+  const valorValue = formatMoney(payload.valor);
+  const totalValue =
+    partsValue || laborValue
+      ? formatMoney(
+          (parseMoney(payload.parts_value) ?? 0) +
+            (parseMoney(payload.labor_value) ?? 0)
+        )
+      : valorValue;
+  if (totalValue && (partsValue || laborValue)) parts.push(`Total: ${totalValue}`);
+  if (!partsValue && !laborValue && valorValue) parts.push(`Valor: ${valorValue}`);
 
   const method =
     typeof payload.method === "string" ? payload.method.trim() : "";
@@ -529,10 +565,17 @@ export function LeadDetailsAside({
                           typeof payload.os === "string"
                             ? payload.os.trim()
                             : "";
+                        const partsValue = formatMoney(payload.parts_value) ?? "";
+                        const laborValue = formatMoney(payload.labor_value) ?? "";
+                        const totalValue = formatMoney(
+                          (parseMoney(payload.parts_value) ?? 0) +
+                            (parseMoney(payload.labor_value) ?? 0)
+                        );
                         const valorValue =
-                          typeof payload.valor === "string"
+                          totalValue ??
+                          (typeof payload.valor === "string"
                             ? payload.valor.trim()
-                            : "";
+                            : "");
                         const methodValue =
                           typeof payload.method === "string"
                             ? payload.method.trim()

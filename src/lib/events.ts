@@ -26,6 +26,9 @@ export type EventPayload = {
   method?: string;
   os?: string;
   valor?: string;
+  parts_value?: string | number;
+  labor_value?: string | number;
+  service_order_id?: string | number;
   changed_fields?: Record<string, string>;
   [key: string]: unknown;
 };
@@ -40,6 +43,8 @@ export type ActionDefinition<Action extends string> = {
   requiresAssignee?: boolean;
   requiresOs?: boolean;
   requiresValor?: boolean;
+  requiresPartsValue?: boolean;
+  requiresLaborValue?: boolean;
   requiresChangedFields?: boolean;
   payloadDefaults?: Partial<EventPayload>;
   allowedStatuses?: string[];
@@ -85,7 +90,8 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Fechar (com OS)",
     description: "{actor} fechou esse lead com a OS {os}.",
     requiresOs: true,
-    requiresValor: true,
+    requiresPartsValue: true,
+    requiresLaborValue: true,
     allowedStatuses: ["atribuido", "em contato"],
     allowedRoles: ["user", "admin"],
   },
@@ -214,6 +220,45 @@ const normalizeTags = (value: unknown): string[] | undefined => {
   return tags.length ? tags : undefined;
 };
 
+const parseMoney = (value: unknown): number | null => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/[^\d,.-]/g, "");
+  if (!normalized) return null;
+  let numeric = normalized;
+  if (numeric.includes(",") && numeric.includes(".")) {
+    numeric = numeric.replace(/\./g, "").replace(",", ".");
+  } else if (numeric.includes(",")) {
+    numeric = numeric.replace(",", ".");
+  }
+  const parsed = Number.parseFloat(numeric);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeAmount = (value: unknown): number | undefined => {
+  const parsed = parseMoney(value);
+  if (parsed === null) return undefined;
+  return parsed;
+};
+
+const normalizeId = (value: unknown): number | undefined => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && Number.isInteger(value) ? value : undefined;
+  }
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return parsed;
+};
+
 const normalizeChangedFields = (
   value: unknown
 ): Record<string, string> | undefined => {
@@ -332,6 +377,33 @@ export function validateLeadEventInput(
       error: "OS (payload.os) e obrigatoria para essa acao.",
     };
   }
+  const partsValue = normalizeAmount(common.value.parts_value);
+  if (def.requiresPartsValue && partsValue === undefined) {
+    return {
+      ok: false,
+      error: "Valor de pecas (payload.parts_value) e obrigatorio para essa acao.",
+    };
+  }
+  if (def.requiresPartsValue && partsValue !== undefined && partsValue < 0) {
+    return {
+      ok: false,
+      error: "Valor de pecas (payload.parts_value) deve ser >= 0.",
+    };
+  }
+  const laborValue = normalizeAmount(common.value.labor_value);
+  if (def.requiresLaborValue && laborValue === undefined) {
+    return {
+      ok: false,
+      error:
+        "Valor de mao de obra (payload.labor_value) e obrigatorio para essa acao.",
+    };
+  }
+  if (def.requiresLaborValue && laborValue !== undefined && laborValue < 0) {
+    return {
+      ok: false,
+      error: "Valor de mao de obra (payload.labor_value) deve ser >= 0.",
+    };
+  }
   if (def.requiresValor && !normalizeText(common.value.valor)) {
     return {
       ok: false,
@@ -355,6 +427,9 @@ export function validateLeadEventInput(
     method: normalizeText(common.value.method),
     os: normalizeText(common.value.os),
     valor: normalizeText(common.value.valor),
+    parts_value: partsValue,
+    labor_value: laborValue,
+    service_order_id: normalizeId(common.value.service_order_id),
     changed_fields: normalizeChangedFields(common.value.changed_fields),
   };
 
