@@ -46,6 +46,7 @@ export type ActionDefinition<Action extends string> = {
   requiresPartsValue?: boolean;
   requiresLaborValue?: boolean;
   requiresChangedFields?: boolean;
+  hideNote?: boolean;
   payloadDefaults?: Partial<EventPayload>;
   allowedStatuses?: string[];
   allowedRoles?: ActionRole[];

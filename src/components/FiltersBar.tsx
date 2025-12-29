@@ -9,6 +9,7 @@ type FiltersBarProps = {
   estadoOptions?: string[];
   tipoLeadOptions?: string[];
   statusOptions?: Array<string | { value: string; label: string }>;
+  reserveStatusSlot?: boolean;
   sortOptions?: { id: SortOrder; label: string }[];
   searchPlaceholder?: string;
   searchLabel?: string;
@@ -30,6 +31,7 @@ export function FiltersBar({
   estadoOptions,
   tipoLeadOptions = [],
   statusOptions,
+  reserveStatusSlot = false,
   sortOptions = defaultSortOptions,
   searchPlaceholder = "Buscar...",
   searchLabel = "Busca",
@@ -60,7 +62,7 @@ export function FiltersBar({
           />
         </label>
 
-        {statusOptions !== undefined && (
+        {statusOptions !== undefined ? (
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {statusLabel}
             <LeadTypesMultiSelect
@@ -70,7 +72,9 @@ export function FiltersBar({
               placeholder="Selecionar status"
             />
           </label>
-        )}
+        ) : reserveStatusSlot ? (
+          <div aria-hidden="true" className="hidden md:block" />
+        ) : null}
 
         <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Ordenacao

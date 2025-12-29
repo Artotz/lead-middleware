@@ -16,6 +16,8 @@ type ActionModalProps<Action extends string> = {
   open: boolean;
   entity: EntityKind;
   actions: ActionDefinition<Action>[];
+  defaultAction?: Action;
+  initialPayload?: EventPayload;
   onClose: () => void;
   onConfirm: (action: Action, payload: EventPayload) => Promise<void>;
   loading?: boolean;
@@ -54,6 +56,8 @@ export function ActionModal<Action extends string>({
   open,
   entity,
   actions,
+  defaultAction,
+  initialPayload,
   onClose,
   onConfirm,
   loading = false,
@@ -82,20 +86,56 @@ export function ActionModal<Action extends string>({
   useEffect(() => {
     if (!open) return;
 
-    setAction(undefined);
-    setNote("");
-    setReason("");
-    setAssignee("");
-    setOs("");
-    setPartsValue("");
-    setLaborValue("");
-    setTags("");
-    setMethod("manual");
-    setChangedFields([{ key: "", value: "" }]);
+    setAction(defaultAction);
+    setNote(typeof initialPayload?.note === "string" ? initialPayload.note : "");
+    setReason(
+      typeof initialPayload?.reason === "string" ? initialPayload.reason : "",
+    );
+    setAssignee(
+      typeof initialPayload?.assignee === "string"
+        ? initialPayload.assignee
+        : "",
+    );
+    setOs(typeof initialPayload?.os === "string" ? initialPayload.os : "");
+    setPartsValue(
+      initialPayload?.parts_value !== undefined &&
+        initialPayload?.parts_value !== null
+        ? String(initialPayload.parts_value)
+        : "",
+    );
+    setLaborValue(
+      initialPayload?.labor_value !== undefined &&
+        initialPayload?.labor_value !== null
+        ? String(initialPayload.labor_value)
+        : "",
+    );
+    setTags(
+      Array.isArray(initialPayload?.tags)
+        ? initialPayload?.tags.join(", ")
+        : "",
+    );
+    setMethod(
+      typeof initialPayload?.method === "string"
+        ? initialPayload.method
+        : "manual",
+    );
+    setChangedFields(() => {
+      const entries = initialPayload?.changed_fields;
+      if (!entries || typeof entries !== "object") {
+        return [{ key: "", value: "" }];
+      }
+      const rows = Object.entries(entries as Record<string, unknown>)
+        .map(([key, value]) => ({
+          key,
+          value: typeof value === "string" ? value : String(value),
+        }))
+        .filter((row) => row.key.trim() || row.value.trim());
+      return rows.length ? rows : [{ key: "", value: "" }];
+    });
 
     const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
-  }, [open]);
+  }, [defaultAction, initialPayload, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -211,6 +251,7 @@ export function ActionModal<Action extends string>({
   const showPartsValue = Boolean(activeDef?.requiresPartsValue);
   const showLaborValue = Boolean(activeDef?.requiresLaborValue);
   const noteRequired = Boolean(activeDef?.requiresNote);
+  const showNote = Boolean(activeDef && !activeDef.hideNote);
   const noteLabel = noteRequired
     ? "Descricao do contato"
     : "Observacao (opcional)";
@@ -470,7 +511,7 @@ export function ActionModal<Action extends string>({
               </div>
             )}
 
-            {activeDef && (
+            {showNote && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
                   {noteLabel}{" "}

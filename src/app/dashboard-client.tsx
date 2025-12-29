@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { LeadServiceOrdersList } from "@/components/LeadServiceOrdersList";
 import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
@@ -8,15 +9,25 @@ import { TicketsList } from "@/components/TicketsList";
 import { TicketDetailsAside } from "@/components/TicketDetailsAside";
 import { LeadDetailsAside } from "@/components/LeadDetailsAside";
 import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
-import { fetchLeads, fetchTicketOptions, fetchTickets } from "@/lib/api";
-import { Lead, Ticket } from "@/lib/domain";
+import {
+  fetchLeadServiceOrders,
+  fetchLeads,
+  fetchTicketOptions,
+  fetchTickets,
+} from "@/lib/api";
+import { Lead, LeadServiceOrder, Ticket } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
 import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
 } from "@/lib/ticketFilters";
 
-type DashboardTab = "leads" | "tickets";
+type DashboardTab = "leads" | "tickets" | "os";
+
+const INITIAL_SERVICE_ORDER_FILTERS: FiltersState = {
+  ...INITIAL_FILTERS,
+  status: [],
+};
 
 export default function DashboardClient() {
   const { user } = useAuth();
@@ -33,6 +44,17 @@ export default function DashboardClient() {
     useState<FiltersState>(INITIAL_FILTERS);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadDetailsOpen, setLeadDetailsOpen] = useState<boolean>(false);
+
+  // Service orders
+  const [serviceOrders, setServiceOrders] = useState<LeadServiceOrder[]>([]);
+  const [serviceOrdersTotal, setServiceOrdersTotal] = useState<number>(0);
+  const [serviceOrdersPage, setServiceOrdersPage] = useState<number>(1);
+  const [serviceOrdersPageSize] = useState<number>(10);
+  const [serviceOrdersLoading, setServiceOrdersLoading] =
+    useState<boolean>(false);
+  const [serviceOrderFilters, setServiceOrderFilters] = useState<FiltersState>(
+    INITIAL_SERVICE_ORDER_FILTERS,
+  );
 
   // Tickets
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -77,6 +99,29 @@ export default function DashboardClient() {
     [leadsPageSize],
   );
 
+  const loadServiceOrders = useCallback(
+    async (page: number, filters: FiltersState) => {
+      setServiceOrdersLoading(true);
+      setError(null);
+      try {
+        const resp = await fetchLeadServiceOrders({
+          page,
+          pageSize: serviceOrdersPageSize,
+          ...filters,
+        });
+        setServiceOrders(resp.items);
+        setServiceOrdersTotal(resp.total);
+        setServiceOrdersPage(resp.page);
+      } catch (err) {
+        console.error(err);
+        setError("Nao foi possivel carregar as OS do Supabase.");
+      } finally {
+        setServiceOrdersLoading(false);
+      }
+    },
+    [serviceOrdersPageSize],
+  );
+
   const loadTickets = useCallback(
     async (page: number, filters: TicketFiltersState) => {
       setTicketsLoading(true);
@@ -107,20 +152,31 @@ export default function DashboardClient() {
     setLoading(true);
     setError(null);
     setLeadsLoading(true);
+    setServiceOrdersLoading(true);
     setTicketsLoading(true);
     try {
-      const [leadsResp, ticketsResp, optionsResp] = await Promise.all([
-        fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
-        fetchTickets({
-          page: 1,
-          pageSize: ticketsPageSize,
-          ...INITIAL_TICKET_FILTERS,
-        }),
-        fetchTicketOptions(),
-      ]);
+      const [leadsResp, serviceOrdersResp, ticketsResp, optionsResp] =
+        await Promise.all([
+          fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
+          fetchLeadServiceOrders({
+            page: 1,
+            pageSize: serviceOrdersPageSize,
+            ...INITIAL_SERVICE_ORDER_FILTERS,
+          }),
+          fetchTickets({
+            page: 1,
+            pageSize: ticketsPageSize,
+            ...INITIAL_TICKET_FILTERS,
+          }),
+          fetchTicketOptions(),
+        ]);
       setLeads(leadsResp.items);
       setLeadsTotal(leadsResp.total);
       setLeadsPage(leadsResp.page);
+
+      setServiceOrders(serviceOrdersResp.items);
+      setServiceOrdersTotal(serviceOrdersResp.total);
+      setServiceOrdersPage(serviceOrdersResp.page);
 
       setTickets(ticketsResp.items);
       setTicketsTotal(ticketsResp.total);
@@ -128,22 +184,28 @@ export default function DashboardClient() {
       setTicketOptions(optionsResp);
 
       setLeadFilters(INITIAL_FILTERS);
+      setServiceOrderFilters(INITIAL_SERVICE_ORDER_FILTERS);
       setTicketFilters(INITIAL_TICKET_FILTERS);
     } catch (err) {
       console.error(err);
-      setError("NÇœo foi possÇðvel carregar os dados iniciais.");
+      setError("Nao foi possivel carregar os dados iniciais.");
     } finally {
       setLeadsLoading(false);
+      setServiceOrdersLoading(false);
       setTicketsLoading(false);
       setLoading(false);
     }
-  }, [leadsPageSize, ticketsPageSize]);
+  }, [leadsPageSize, serviceOrdersPageSize, ticketsPageSize]);
 
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
 
   const leadsTotalPages = Math.max(1, Math.ceil(leadsTotal / leadsPageSize));
+  const serviceOrdersTotalPages = Math.max(
+    1,
+    Math.ceil(serviceOrdersTotal / serviceOrdersPageSize),
+  );
   const ticketsTotalPages = Math.max(
     1,
     Math.ceil(ticketsTotal / ticketsPageSize),
@@ -162,6 +224,21 @@ export default function DashboardClient() {
   const handleLeadFiltersChange = (next: FiltersState) => {
     setLeadFilters(next);
     setLeadsPage(1);
+  };
+
+  const handleServiceOrdersPageChange = (direction: -1 | 1) => {
+    const next = Math.min(
+      serviceOrdersTotalPages,
+      Math.max(1, serviceOrdersPage + direction),
+    );
+    if (next !== serviceOrdersPage) {
+      void loadServiceOrders(next, serviceOrderFilters);
+    }
+  };
+
+  const handleServiceOrderFiltersChange = (next: FiltersState) => {
+    setServiceOrderFilters(next);
+    setServiceOrdersPage(1);
   };
 
   const handleTicketPageChange = (direction: -1 | 1) => {
@@ -193,6 +270,13 @@ export default function DashboardClient() {
     return () => window.clearTimeout(timeoutId);
   }, [loadTickets, ticketFilters]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadServiceOrders(1, serviceOrderFilters);
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadServiceOrders, serviceOrderFilters]);
+
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     const updatedAt = new Date().toISOString();
     setLeads((prev) =>
@@ -200,6 +284,21 @@ export default function DashboardClient() {
         lead.id === leadId
           ? { ...lead, consultor: assignee, status: "atribuido", updatedAt }
           : lead,
+      ),
+    );
+    setServiceOrders((prev) =>
+      prev.map((order) =>
+        order.lead.id === leadId
+          ? {
+              ...order,
+              lead: {
+                ...order.lead,
+                consultor: assignee,
+                status: "atribuido",
+                updatedAt,
+              },
+            }
+          : order,
       ),
     );
     setSelectedLead((prev) =>
@@ -216,16 +315,48 @@ export default function DashboardClient() {
         lead.id === leadId ? { ...lead, status, updatedAt } : lead,
       ),
     );
+    setServiceOrders((prev) =>
+      prev.map((order) =>
+        order.lead.id === leadId
+          ? { ...order, lead: { ...order.lead, status, updatedAt } }
+          : order,
+      ),
+    );
     setSelectedLead((prev) =>
       prev && prev.id === leadId ? { ...prev, status, updatedAt } : prev,
     );
   }, []);
 
+  const handleServiceOrderUpdated = useCallback(
+    (update: {
+      id: number;
+      partsValue: number;
+      laborValue: number;
+      note: string | null;
+      updatedAt: string;
+    }) => {
+      setServiceOrders((prev) =>
+        prev.map((order) =>
+          order.id === update.id
+            ? {
+                ...order,
+                partsValue: update.partsValue,
+                laborValue: update.laborValue,
+                note: update.note,
+                updatedAt: update.updatedAt,
+              }
+            : order,
+        ),
+      );
+    },
+    [],
+  );
+
   const renderContent = () => {
     if (loading) {
       return (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Carregando leads e tickets...
+          Carregando leads, OS e tickets...
         </div>
       );
     }
@@ -307,6 +438,69 @@ export default function DashboardClient() {
       );
     }
 
+    if (activeTab === "os") {
+      return (
+        <div className="space-y-3">
+          <LeadServiceOrdersList
+            orders={serviceOrders}
+            filters={serviceOrderFilters}
+            onFiltersChange={handleServiceOrderFiltersChange}
+            onOrderUpdated={handleServiceOrderUpdated}
+            loading={serviceOrdersLoading}
+            pageSize={serviceOrdersPageSize}
+            onLeadSelect={(lead) => {
+              setSelectedLead(lead);
+              setLeadDetailsOpen(true);
+            }}
+          />
+          <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+            <div className="flex items-center gap-2">
+              <span>
+                Pagina {serviceOrdersPage} de {serviceOrdersTotalPages}
+              </span>
+              <span className="text-slate-400">
+                ({serviceOrdersTotal} OS no total)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleServiceOrdersPageChange(-1)}
+                disabled={serviceOrdersPage <= 1 || serviceOrdersLoading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => handleServiceOrdersPageChange(1)}
+                disabled={
+                  serviceOrdersPage >= serviceOrdersTotalPages ||
+                  serviceOrdersLoading
+                }
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+              >
+                Proxima
+              </button>
+              {serviceOrdersLoading && (
+                <span className="text-xs text-slate-500">Atualizando...</span>
+              )}
+            </div>
+          </div>
+
+          {selectedLead ? (
+            <LeadDetailsAside
+              lead={selectedLead}
+              open={leadDetailsOpen}
+              onClose={() => setLeadDetailsOpen(false)}
+              currentUserName={currentUserName}
+              onLeadAssigned={handleLeadAssigned}
+            />
+          ) : null}
+        </div>
+      );
+    }
+
     return (
       <>
         <TicketsList
@@ -339,20 +533,21 @@ export default function DashboardClient() {
   return (
     <PageShell
       title="Dashboard"
-      subtitle="Leads e tickets servidos direto do Supabase."
+      subtitle="Leads, OS e tickets servidos direto do Supabase."
     >
       <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <Tabs
             tabs={[
               { id: "leads", label: "LEADS" },
+              { id: "os", label: "OS" },
               { id: "tickets", label: "TICKETS" },
             ]}
             activeTabId={activeTab}
             onTabChange={(id) => setActiveTab(id as DashboardTab)}
           />
           <div className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:flex-row sm:items-center sm:gap-4">
-            <span>Fonte: Supabase (leads e tickets)</span>
+            <span>Fonte: Supabase (leads, OS e tickets)</span>
             <form action="/auth/logout" method="post">
               <button
                 type="submit"

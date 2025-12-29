@@ -1,5 +1,5 @@
 import { FiltersState, INITIAL_FILTERS } from "./filters";
-import { Lead, LeadCategory, Ticket } from "./domain";
+import { Lead, LeadCategory, LeadServiceOrder, Ticket } from "./domain";
 import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
@@ -78,6 +78,34 @@ export type TicketsPageResponse = {
 export type TicketsQueryParams = Partial<
   { page: number; pageSize: number } & TicketFiltersState
 >;
+
+export type LeadServiceOrdersPageResponse = {
+  items: LeadServiceOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type LeadServiceOrdersQueryParams = Partial<
+  { page: number; pageSize: number; consultor: string } & FiltersState
+>;
+
+export type UpdateLeadServiceOrderInput = {
+  partsValue: string | number;
+  laborValue: string | number;
+  note?: string;
+};
+
+export type UpdateLeadServiceOrderResponse = {
+  item: {
+    id: number;
+    leadId: number | null;
+    partsValue: number;
+    laborValue: number;
+    note: string | null;
+    updatedAt: string;
+  };
+};
 
 export type TicketFilterOptions = {
   consultores: string[];
@@ -212,6 +240,76 @@ export async function fetchTickets(
   }
   const data = (await response.json()) as TicketsPageResponse;
   return data;
+}
+
+export async function fetchLeadServiceOrders(
+  params?: LeadServiceOrdersQueryParams,
+): Promise<LeadServiceOrdersPageResponse> {
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 10;
+
+  const {
+    search = INITIAL_FILTERS.search,
+    regiao = INITIAL_FILTERS.regiao,
+    estado = INITIAL_FILTERS.estado,
+    tipoLead = INITIAL_FILTERS.tipoLead,
+    sort = INITIAL_FILTERS.sort,
+    groupByChassi = INITIAL_FILTERS.groupByChassi ?? false,
+    groupByEmpresa = INITIAL_FILTERS.groupByEmpresa ?? false,
+    consultor = "",
+  } = params ?? {};
+
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    sort,
+  });
+
+  if (search) searchParams.set("search", search);
+  if (regiao) searchParams.set("regiao", regiao);
+  if (estado) searchParams.set("estado", estado);
+  if (tipoLead) searchParams.set("tipoLead", tipoLead);
+  if (consultor) searchParams.set("consultor", consultor);
+  const groupBy: string[] = [];
+  if (groupByEmpresa) groupBy.push("empresa");
+  if (groupByChassi) groupBy.push("chassi");
+  if (groupBy.length) searchParams.set("groupBy", groupBy.join(","));
+
+  const response = await fetch(
+    `/api/lead-service-orders?${searchParams.toString()}`,
+    { cache: "no-store" },
+  );
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    throw new Error("Falha ao buscar OS do Supabase");
+  }
+  const data = (await response.json()) as LeadServiceOrdersPageResponse;
+  return data;
+}
+
+export async function updateLeadServiceOrder(
+  orderId: number,
+  input: UpdateLeadServiceOrderInput,
+) {
+  const response = await fetch(
+    `/api/lead-service-orders/${encodeURIComponent(String(orderId))}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        parts_value: input.partsValue,
+        labor_value: input.laborValue,
+        note: input.note ?? "",
+      }),
+    },
+  );
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? "Falha ao atualizar OS");
+  }
+  const data = (await response.json()) as UpdateLeadServiceOrderResponse;
+  return data.item;
 }
 
 export async function fetchTicketOptions() {

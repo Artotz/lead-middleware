@@ -66,3 +66,15 @@ export type Ticket = {
   createdAt: string | null;
   url: string | null;
 };
+
+export type LeadServiceOrder = {
+  id: number;
+  leadId: number;
+  osNumber: string;
+  partsValue: number;
+  laborValue: number;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lead: Lead;
+};
