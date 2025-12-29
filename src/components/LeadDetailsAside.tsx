@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Lead, LeadCategory } from "@/lib/domain";
 import { LEAD_ACTION_DEFINITIONS, type EventPayload } from "@/lib/events";
+import { LEAD_STATUS_LABELS } from "@/lib/filters";
 import { Badge } from "@/components/Badge";
 import { AssignLeadButton } from "@/components/AssignLeadButton";
 import { CollapsibleSection } from "@/components/ticket-details/CollapsibleSection";
@@ -124,6 +125,46 @@ const formatEventDate = (iso: string | null) => {
 const truncateText = (value: string, max = 120) => {
   if (value.length <= max) return value;
   return `${value.slice(0, Math.max(0, max - 3))}...`;
+};
+
+const renderTemplate = (template: string, tokens: Record<string, string>) => {
+  const parts: React.ReactNode[] = [];
+  const regex = /\{(\w+)\}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(template)) !== null) {
+    const [raw, key] = match;
+    if (match.index > lastIndex) {
+      parts.push(template.slice(lastIndex, match.index));
+    }
+    const value = tokens[key] ?? "...";
+    parts.push(
+      <span
+        key={`${key}-${match.index}`}
+        className="rounded-sm bg-slate-100 px-1 font-semibold text-slate-900"
+      >
+        {value}
+      </span>
+    );
+    lastIndex = match.index + raw.length;
+  }
+
+  if (lastIndex < template.length) {
+    parts.push(template.slice(lastIndex));
+  }
+
+  return parts;
+};
+
+const formatActorName = (value: string | null) => {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "Sistema";
+  if (trimmed.includes("@")) {
+    const handle = trimmed.split("@")[0];
+    return handle.replace(/\./g, " ");
+  }
+  return trimmed;
 };
 
 const summarizePayload = (
@@ -470,8 +511,59 @@ export function LeadDetailsAside({
                         const label = meta?.label ?? event.action ?? "Acao";
                         const description = meta?.description ?? null;
                         const when = formatEventDate(event.occurredAt);
-                        const actor =
-                          event.actorName || event.actorEmail || "Sistema";
+                        const actor = formatActorName(event.actorName);
+                        const payload = event.payload ?? {};
+                        const noteRaw =
+                          typeof payload.note === "string"
+                            ? payload.note.trim()
+                            : "";
+                        const reasonRaw =
+                          typeof payload.reason === "string"
+                            ? payload.reason.trim()
+                            : "";
+                        const assignee =
+                          typeof payload.assignee === "string"
+                            ? payload.assignee.trim()
+                            : "";
+                        const osValue =
+                          typeof payload.os === "string"
+                            ? payload.os.trim()
+                            : "";
+                        const valorValue =
+                          typeof payload.valor === "string"
+                            ? payload.valor.trim()
+                            : "";
+                        const methodValue =
+                          typeof payload.method === "string"
+                            ? payload.method.trim()
+                            : "";
+                        const statusByAction: Record<string, string> = {
+                          assign: "atribuido",
+                          register_contact: "em contato",
+                          discard: "descartado",
+                          close_without_os: "fechado_sem_os",
+                          close_with_os: "fechado_com_os",
+                        };
+                        const statusValue = event.action
+                          ? statusByAction[event.action] ?? ""
+                          : "";
+                        const statusLabel = statusValue
+                          ? LEAD_STATUS_LABELS[statusValue] ?? statusValue
+                          : "";
+                        const descriptionNodes = description
+                          ? renderTemplate(description, {
+                              actor,
+                              note: noteRaw ? truncateText(noteRaw) : "...",
+                              reason: reasonRaw
+                                ? truncateText(reasonRaw, 90)
+                                : "...",
+                              assignee: assignee || "...",
+                              os: osValue || "...",
+                              valor: valorValue || "...",
+                              method: methodValue || "manual",
+                              status: statusLabel || "...",
+                            })
+                          : null;
                         const payloadLines = summarizePayload(
                           event.payload,
                           event.action
@@ -482,24 +574,15 @@ export function LeadDetailsAside({
                             key={`${event.action ?? "event"}-${index}`}
                             className="rounded-xl border border-slate-200 bg-white p-3"
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-sm font-semibold text-slate-900">
-                                  {label}
+                            <div className="flex items-start gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-slate-900 break-words">
+                                  {descriptionNodes ?? label}
                                 </div>
-                                {description ? (
-                                  <div className="text-xs text-slate-500">
-                                    {description}
-                                  </div>
-                                ) : null}
                               </div>
-                              <div className="text-xs text-slate-400">
+                              <div className="flex-shrink-0 text-right text-xs text-slate-400">
                                 {when}
                               </div>
-                            </div>
-                            <div className="mt-2 text-xs text-slate-500">
-                              {actor}
-                              {event.source ? ` - ${event.source}` : ""}
                             </div>
                             {payloadLines.length ? (
                               <div className="mt-2 text-xs text-slate-600">

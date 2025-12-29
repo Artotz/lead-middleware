@@ -51,7 +51,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "register_contact",
     label: "Registrar contato",
-    description: "Registra o contato realizado com descricao obrigatoria.",
+    description: "{actor} realizou um contato com o cliente.",
     requiresNote: true,
     allowedStatuses: ["atribuido", "em contato"],
     allowedRoles: ["user", "admin"],
@@ -59,7 +59,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "assign",
     label: "Atribuir",
-    description: "Atribui o lead a um responsavel.",
+    description: "{actor} atribuiu esse lead.",
     requiresAssignee: true,
     allowedStatuses: ["novo", "atribuido"],
     allowedRoles: ["user", "admin"],
@@ -67,7 +67,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "discard",
     label: "Descartar",
-    description: "Descarta o lead (exige motivo).",
+    description: "{actor} descartou esse lead.",
     requiresReason: true,
     allowedStatuses: ["novo"],
     allowedRoles: ["user", "admin"],
@@ -75,7 +75,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "close_without_os",
     label: "Fechar (sem OS)",
-    description: "Fecha o lead sem OS (exige motivo).",
+    description: "{actor} fechou esse lead sem OS.",
     requiresReason: true,
     allowedStatuses: ["atribuido", "em contato"],
     allowedRoles: ["user", "admin"],
@@ -83,7 +83,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "close_with_os",
     label: "Fechar (com OS)",
-    description: "Fecha o lead com OS e valor.",
+    description: "{actor} fechou esse lead com a OS {os}.",
     requiresOs: true,
     requiresValor: true,
     allowedStatuses: ["atribuido", "em contato"],
@@ -92,7 +92,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
   {
     id: "convert_to_ticket",
     label: "Converter em ticket",
-    description: "Registra intencao de converter esse lead em ticket.",
+    description: "{actor} marcou esse lead para conversao em ticket.",
     payloadDefaults: { method: "manual" },
     allowedStatuses: ["*"],
     allowedRoles: [],
