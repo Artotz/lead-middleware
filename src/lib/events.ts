@@ -61,7 +61,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Atribuir",
     description: "Atribui o lead a um responsavel.",
     requiresAssignee: true,
-    allowedStatuses: ["*"],
+    allowedStatuses: ["novo", "atribuido"],
     allowedRoles: ["user", "admin"],
   },
   {
@@ -69,7 +69,7 @@ export const LEAD_ACTION_DEFINITIONS: ActionDefinition<LeadEventAction>[] = [
     label: "Descartar",
     description: "Descarta o lead (exige motivo).",
     requiresReason: true,
-    allowedStatuses: ["*"],
+    allowedStatuses: ["novo"],
     allowedRoles: ["user", "admin"],
   },
   {

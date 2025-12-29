@@ -71,11 +71,11 @@ export async function POST(request: Request) {
     }
 
     if (parsed.value.action === "close_without_os") {
-      updatePayload.status = "fechado (sem OS)";
+      updatePayload.status = "fechado_sem_os";
     }
 
     if (parsed.value.action === "close_with_os") {
-      updatePayload.status = "fechado (com OS)";
+      updatePayload.status = "fechado_com_os";
     }
 
     const { error: updateError } = await supabase

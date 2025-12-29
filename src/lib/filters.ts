@@ -32,13 +32,21 @@ export const INITIAL_FILTERS: FiltersState = {
 };
 
 export const LEAD_STATUS_OPTIONS = [
-  "atribuido",
-  "descartado",
-  "em contato",
-  "fechado (com OS)",
-  "fechado (sem OS)",
-  "novo",
+  { value: "atribuido", label: "atribuido" },
+  { value: "descartado", label: "descartado" },
+  { value: "em contato", label: "em contato" },
+  { value: "fechado_com_os", label: "fechado (com OS)" },
+  { value: "fechado_sem_os", label: "fechado (sem OS)" },
+  { value: "novo", label: "novo" },
 ] as const;
+
+export const LEAD_STATUS_LABELS = LEAD_STATUS_OPTIONS.reduce(
+  (acc, item) => {
+    acc[item.value] = item.label;
+    return acc;
+  },
+  {} as Record<string, string>,
+);
 
 export const REGIAO_FILTER_QUERIES: Record<Regiao, string> = {
   R1: "REGIONAL = 'R1'",

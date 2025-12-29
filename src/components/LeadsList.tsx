@@ -5,6 +5,7 @@ import { Lead, LeadCategory } from "@/lib/domain";
 import {
   ESTADOS,
   FiltersState,
+  LEAD_STATUS_LABELS,
   LEAD_STATUS_OPTIONS,
   LEAD_TYPES,
   REGIOES,
@@ -356,7 +357,9 @@ export function LeadsList({
                       tone={pickStatusTone(lead.status)}
                       className="max-w-[160px] truncate"
                     >
-                      {lead.status ?? "Sem status"}
+                      {lead.status
+                        ? LEAD_STATUS_LABELS[lead.status] ?? lead.status
+                        : "Sem status"}
                     </Badge>
                   ),
                   horimetro: (

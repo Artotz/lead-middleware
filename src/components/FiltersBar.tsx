@@ -8,7 +8,7 @@ type FiltersBarProps = {
   regiaoOptions?: string[];
   estadoOptions?: string[];
   tipoLeadOptions?: string[];
-  statusOptions?: string[];
+  statusOptions?: Array<string | { value: string; label: string }>;
   sortOptions?: { id: SortOrder; label: string }[];
   searchPlaceholder?: string;
   searchLabel?: string;

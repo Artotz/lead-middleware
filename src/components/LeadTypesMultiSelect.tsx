@@ -12,15 +12,20 @@ import {
 
 type LeadTypesMultiSelectProps = {
   value: string[];
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   onChange: (next: string[]) => void;
   placeholder?: string;
 };
 
-const buildSummary = (value: string[], placeholder?: string) => {
+const buildSummary = (
+  value: string[],
+  labelByValue: Map<string, string>,
+  placeholder?: string
+) => {
   if (!value.length) return placeholder ?? "Selecionar tipos";
-  if (value.length === 1) return value[0];
-  if (value.length === 2) return `${value[0]}, ${value[1]}`;
+  const labels = value.map((item) => labelByValue.get(item) ?? item);
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]}, ${labels[1]}`;
   return `${value.length} selecionados`;
 };
 
@@ -38,13 +43,31 @@ export function LeadTypesMultiSelect({
   const listRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
 
+  const normalizedOptions = useMemo(
+    () =>
+      options.map((option) =>
+        typeof option === "string" ? { value: option, label: option } : option,
+      ),
+    [options],
+  );
+
+  const labelByValue = useMemo(() => {
+    const map = new Map<string, string>();
+    normalizedOptions.forEach((option) => {
+      map.set(option.value, option.label);
+    });
+    return map;
+  }, [normalizedOptions]);
+
   const filteredOptions = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return options;
-    return options.filter((option) =>
-      option.toLowerCase().includes(normalized),
-    );
-  }, [options, query]);
+    if (!normalized) return normalizedOptions;
+    return normalizedOptions.filter((option) => {
+      const label = option.label.toLowerCase();
+      const value = option.value.toLowerCase();
+      return label.includes(normalized) || value.includes(normalized);
+    });
+  }, [normalizedOptions, query]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,8 +90,8 @@ export function LeadTypesMultiSelect({
   }, [open]);
 
   const summary = useMemo(
-    () => buildSummary(value, placeholder),
-    [value, placeholder],
+    () => buildSummary(value, labelByValue, placeholder),
+    [value, labelByValue, placeholder],
   );
 
   const toggleOption = useCallback(
@@ -192,15 +215,15 @@ export function LeadTypesMultiSelect({
           >
             {filteredOptions.length ? (
               filteredOptions.map((option) => {
-                const selected = value.includes(option);
+                const selected = value.includes(option.value);
                 return (
                   <button
-                    key={option}
+                    key={option.value}
                     type="button"
                     role="option"
                     aria-selected={selected}
                     data-option
-                    onClick={() => toggleOption(option)}
+                    onClick={() => toggleOption(option.value)}
                     onKeyDown={handleOptionKeyDown}
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-slate-700 transition hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
                   >
@@ -214,7 +237,7 @@ export function LeadTypesMultiSelect({
                     >
                       x
                     </span>
-                    <span className="truncate">{option}</span>
+                    <span className="truncate">{option.label}</span>
                   </button>
                 );
               })

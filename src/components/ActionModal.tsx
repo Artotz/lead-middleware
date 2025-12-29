@@ -39,8 +39,7 @@ export function ActionModal<Action extends string>({
   loading = false,
   error = null,
 }: ActionModalProps<Action>) {
-  const firstAction = actions.find((item) => !item.disabled)?.id ?? actions[0]?.id;
-  const [action, setAction] = useState<Action | undefined>(firstAction);
+  const [action, setAction] = useState<Action | undefined>(undefined);
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -62,7 +61,7 @@ export function ActionModal<Action extends string>({
   useEffect(() => {
     if (!open) return;
 
-    setAction(firstAction);
+    setAction(undefined);
     setNote("");
     setReason("");
     setAssignee("");
@@ -74,7 +73,7 @@ export function ActionModal<Action extends string>({
 
     const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
-  }, [firstAction, open]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -405,23 +404,26 @@ export function ActionModal<Action extends string>({
               </div>
             )}
 
-            <label className="space-y-1 text-sm font-medium text-slate-700">
-              <span>
-                {noteLabel} {noteRequired ? <span className="text-rose-600">*</span> : null}
-              </span>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                maxLength={MAX_NOTE_CHARS}
-                rows={4}
-                required={noteRequired}
-                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                placeholder={notePlaceholder}
-              />
-              <div className="flex justify-end text-xs text-slate-400">
-                {note.length}/{MAX_NOTE_CHARS}
-              </div>
-            </label>
+            {activeDef && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  {noteLabel}{" "}
+                  {noteRequired ? <span className="text-rose-600">*</span> : null}
+                </span>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={MAX_NOTE_CHARS}
+                  rows={4}
+                  required={noteRequired}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  placeholder={notePlaceholder}
+                />
+                <div className="flex justify-end text-xs text-slate-400">
+                  {note.length}/{MAX_NOTE_CHARS}
+                </div>
+              </label>
+            )}
           </div>
         </div>
 

@@ -103,8 +103,8 @@ export function ActionButtonCell(props: ActionButtonCellProps) {
           assign: "atribuido",
           register_contact: "em contato",
           discard: "descartado",
-          close_without_os: "fechado (sem OS)",
-          close_with_os: "fechado (com OS)",
+          close_without_os: "fechado_sem_os",
+          close_with_os: "fechado_com_os",
         };
         const nextStatus = statusByAction[action as LeadEventAction];
         if (nextStatus) {
