@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LeadServiceOrdersList } from "@/components/LeadServiceOrdersList";
 import { LeadsList } from "@/components/LeadsList";
 import { PageShell } from "@/components/PageShell";
@@ -21,8 +21,20 @@ import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
 } from "@/lib/ticketFilters";
+import {
+  FILTER_STORAGE_KEYS,
+  loadLeadFilters,
+  loadTicketFilters,
+  saveFilters,
+} from "@/lib/filterStorage";
 
 type DashboardTab = "leads" | "tickets" | "os";
+
+type DashboardInitialFilters = {
+  leadFilters: FiltersState;
+  serviceOrderFilters: FiltersState;
+  ticketFilters: TicketFiltersState;
+};
 
 const INITIAL_SERVICE_ORDER_FILTERS: FiltersState = {
   ...INITIAL_FILTERS,
@@ -33,6 +45,10 @@ export default function DashboardClient() {
   const { user } = useAuth();
   const currentUserName = useMemo(() => getUserDisplayName(user), [user]);
   const [activeTab, setActiveTab] = useState<DashboardTab>("leads");
+  const [filtersReady, setFiltersReady] = useState(false);
+  const leadFiltersHydrated = useRef(false);
+  const serviceOrderFiltersHydrated = useRef(false);
+  const ticketFiltersHydrated = useRef(false);
 
   // Leads
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -148,7 +164,16 @@ export default function DashboardClient() {
     [ticketsPageSize],
   );
 
-  const loadInitial = useCallback(async () => {
+  const loadInitial = useCallback(
+    async (
+      initialFilters: DashboardInitialFilters = {
+        leadFilters: INITIAL_FILTERS,
+        serviceOrderFilters: INITIAL_SERVICE_ORDER_FILTERS,
+        ticketFilters: INITIAL_TICKET_FILTERS,
+      },
+    ) => {
+      const { leadFilters, serviceOrderFilters, ticketFilters } =
+        initialFilters;
     setLoading(true);
     setError(null);
     setLeadsLoading(true);
@@ -157,16 +182,16 @@ export default function DashboardClient() {
     try {
       const [leadsResp, serviceOrdersResp, ticketsResp, optionsResp] =
         await Promise.all([
-          fetchLeads({ page: 1, pageSize: leadsPageSize, ...INITIAL_FILTERS }),
+          fetchLeads({ page: 1, pageSize: leadsPageSize, ...leadFilters }),
           fetchLeadServiceOrders({
             page: 1,
             pageSize: serviceOrdersPageSize,
-            ...INITIAL_SERVICE_ORDER_FILTERS,
+            ...serviceOrderFilters,
           }),
           fetchTickets({
             page: 1,
             pageSize: ticketsPageSize,
-            ...INITIAL_TICKET_FILTERS,
+            ...ticketFilters,
           }),
           fetchTicketOptions(),
         ]);
@@ -183,9 +208,9 @@ export default function DashboardClient() {
       setTicketsPage(ticketsResp.page);
       setTicketOptions(optionsResp);
 
-      setLeadFilters(INITIAL_FILTERS);
-      setServiceOrderFilters(INITIAL_SERVICE_ORDER_FILTERS);
-      setTicketFilters(INITIAL_TICKET_FILTERS);
+      setLeadFilters(leadFilters);
+      setServiceOrderFilters(serviceOrderFilters);
+      setTicketFilters(ticketFilters);
     } catch (err) {
       console.error(err);
       setError("Nao foi possivel carregar os dados iniciais.");
@@ -195,10 +220,31 @@ export default function DashboardClient() {
       setTicketsLoading(false);
       setLoading(false);
     }
-  }, [leadsPageSize, serviceOrdersPageSize, ticketsPageSize]);
+    },
+    [leadsPageSize, serviceOrdersPageSize, ticketsPageSize],
+  );
 
   useEffect(() => {
-    void loadInitial();
+    const storedLeadFilters = loadLeadFilters(
+      FILTER_STORAGE_KEYS.dashboardLeads,
+      INITIAL_FILTERS,
+    );
+    const storedServiceOrderFilters = loadLeadFilters(
+      FILTER_STORAGE_KEYS.dashboardServiceOrders,
+      INITIAL_SERVICE_ORDER_FILTERS,
+    );
+    const storedTicketFilters = loadTicketFilters(
+      FILTER_STORAGE_KEYS.dashboardTickets,
+      INITIAL_TICKET_FILTERS,
+    );
+
+    void loadInitial({
+      leadFilters: storedLeadFilters,
+      serviceOrderFilters: storedServiceOrderFilters,
+      ticketFilters: storedTicketFilters,
+    }).finally(() => {
+      setFiltersReady(true);
+    });
   }, [loadInitial]);
 
   const leadsTotalPages = Math.max(1, Math.ceil(leadsTotal / leadsPageSize));
@@ -257,25 +303,70 @@ export default function DashboardClient() {
   };
 
   useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    if (!leadFiltersHydrated.current) {
+      leadFiltersHydrated.current = true;
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadLeads(1, leadFilters);
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [leadFilters, loadLeads]);
+  }, [filtersReady, leadFilters, loadLeads]);
 
   useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    if (!ticketFiltersHydrated.current) {
+      ticketFiltersHydrated.current = true;
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadTickets(1, ticketFilters);
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [loadTickets, ticketFilters]);
+  }, [filtersReady, loadTickets, ticketFilters]);
 
   useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    if (!serviceOrderFiltersHydrated.current) {
+      serviceOrderFiltersHydrated.current = true;
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadServiceOrders(1, serviceOrderFilters);
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [loadServiceOrders, serviceOrderFilters]);
+  }, [filtersReady, loadServiceOrders, serviceOrderFilters]);
+
+  useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    saveFilters(FILTER_STORAGE_KEYS.dashboardLeads, leadFilters);
+  }, [filtersReady, leadFilters]);
+
+  useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    saveFilters(
+      FILTER_STORAGE_KEYS.dashboardServiceOrders,
+      serviceOrderFilters,
+    );
+  }, [filtersReady, serviceOrderFilters]);
+
+  useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    saveFilters(FILTER_STORAGE_KEYS.dashboardTickets, ticketFilters);
+  }, [filtersReady, ticketFilters]);
 
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     const updatedAt = new Date().toISOString();
@@ -367,7 +458,13 @@ export default function DashboardClient() {
           <span>{error}</span>
           <button
             type="button"
-            onClick={loadInitial}
+            onClick={() =>
+              loadInitial({
+                leadFilters,
+                serviceOrderFilters,
+                ticketFilters,
+              })
+            }
             className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
           >
             Tentar novamente

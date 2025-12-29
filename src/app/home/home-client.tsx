@@ -9,6 +9,11 @@ import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
 import { fetchLeads } from "@/lib/api";
 import type { Lead } from "@/lib/domain";
 import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
+import {
+  FILTER_STORAGE_KEYS,
+  loadLeadFilters,
+  saveFilters,
+} from "@/lib/filterStorage";
 
 const PAGE_SIZE = 20;
 
@@ -16,6 +21,7 @@ export default function HomeClient() {
   const { user } = useAuth();
   const consultor = useMemo(() => getUserDisplayName(user), [user]);
   const [filters, setFilters] = useState<FiltersState>(INITIAL_FILTERS);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadMetrics, setLeadMetrics] = useState({
@@ -28,6 +34,22 @@ export default function HomeClient() {
   const [leadDetailsOpen, setLeadDetailsOpen] = useState(false);
 
   const consultorFilter = consultor?.trim() ?? "";
+
+  useEffect(() => {
+    const stored = loadLeadFilters(
+      FILTER_STORAGE_KEYS.home,
+      INITIAL_FILTERS,
+    );
+    setFilters(stored);
+    setFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
+    saveFilters(FILTER_STORAGE_KEYS.home, filters);
+  }, [filters, filtersReady]);
 
   const loadLeads = useCallback(
     async (nextFilters: FiltersState) => {
@@ -70,11 +92,14 @@ export default function HomeClient() {
   );
 
   useEffect(() => {
+    if (!filtersReady) {
+      return;
+    }
     const timeoutId = window.setTimeout(() => {
       void loadLeads(filters);
     }, 400);
     return () => window.clearTimeout(timeoutId);
-  }, [filters, loadLeads]);
+  }, [filters, loadLeads, filtersReady]);
 
   const handleLeadAssigned = useCallback((leadId: number, assignee: string) => {
     const updatedAt = new Date().toISOString();
