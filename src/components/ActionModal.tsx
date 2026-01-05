@@ -32,6 +32,20 @@ const parseTags = (value: string): string[] =>
     .map((part) => part.trim())
     .filter(Boolean);
 
+const CLOSE_WITHOUT_OS_REASONS = [
+  "Preço da peça",
+  "Preço da mão de obra",
+  "Preço do deslocamento",
+  "Indisponibilidade técnica",
+  "Indisponibilidade de peça",
+  "Experiência anterior negativa",
+  "Mão de obra própria",
+  "Mão de obra terceirizada",
+  "Postergou o serviço",
+  "Pendência financeira",
+  "Falta de flexibilidade comercial",
+] as const;
+
 const LEAD_ACTION_MODAL_DESCRIPTIONS: Record<string, string> = {
   register_contact: "Registra o contato realizado.",
   assign: "Atribui o lead a um responsavel.",
@@ -250,6 +264,8 @@ export function ActionModal<Action extends string>({
   const showOs = Boolean(activeDef?.requiresOs);
   const showPartsValue = Boolean(activeDef?.requiresPartsValue);
   const showLaborValue = Boolean(activeDef?.requiresLaborValue);
+  const showReasonSelect =
+    entity === "lead" && action === ("close_without_os" as Action);
   const noteRequired = Boolean(activeDef?.requiresNote);
   const showNote = Boolean(activeDef && !activeDef.hideNote);
   const noteLabel = noteRequired
@@ -360,7 +376,28 @@ export function ActionModal<Action extends string>({
               </div>
             )}
 
-            {activeDef?.requiresReason && (
+            {activeDef?.requiresReason && showReasonSelect && (
+              <label className="space-y-1 text-sm font-medium text-slate-700">
+                <span>
+                  Motivo <span className="text-rose-600">*</span>
+                </span>
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  required
+                >
+                  <option value="">Selecione o motivo</option>
+                  {CLOSE_WITHOUT_OS_REASONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {activeDef?.requiresReason && !showReasonSelect && (
               <label className="space-y-1 text-sm font-medium text-slate-700">
                 <span>
                   Motivo <span className="text-rose-600">*</span>

@@ -19,7 +19,6 @@ export async function GET(request: Request) {
     const includeUsersParam = (searchParams.get("includeUsers") ?? "1").trim();
     const range: MetricsRange = isMetricsRange(rangeParam) ? rangeParam : "week";
     const start = rangeToStart(range);
-    const yearStart = rangeToStart("year");
 
     const supabase = await getSupabaseUserClient();
     let query = supabase
@@ -63,8 +62,7 @@ export async function GET(request: Request) {
     if (includeUsers) {
       const { data: userData, error: userError } = await supabase
         .from("ticket_events")
-        .select("actor_user_id,actor_email,actor_name")
-        .gte("occurred_at", yearStart.toISOString());
+        .select("actor_user_id,actor_email,actor_name");
 
       if (userError) {
         console.error("Supabase ticket users error", userError);
