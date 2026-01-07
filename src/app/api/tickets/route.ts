@@ -200,16 +200,22 @@ export async function GET(request: Request) {
     }
 
     if (consultorParam) {
-      const safe = consultorParam.replace(/,/g, "\\,");
-      const pattern = `%${safe}%`;
-      query = query.or(
-        [
-          `advisor_first_name.ilike.${pattern}`,
-          `advisor_last_name.ilike.${pattern}`,
-          `advisor_email.ilike.${pattern}`,
-          `advisor_racfid.ilike.${pattern}`,
-        ].join(",")
-      );
+      const parts = consultorParam.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const first = `%${parts[0].replace(/,/g, "\\,")}%`;
+        const last = `%${parts.slice(1).join(" ").replace(/,/g, "\\,")}%`;
+        query = query
+          .ilike("advisor_first_name", first)
+          .ilike("advisor_last_name", last);
+      } else {
+        const token = `%${parts[0].replace(/,/g, "\\,")}%`;
+        query = query.or(
+          [
+            `advisor_first_name.ilike.${token}`,
+            `advisor_last_name.ilike.${token}`,
+          ].join(",")
+        );
+      }
     }
 
     if (clienteParam) {
