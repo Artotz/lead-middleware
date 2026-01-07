@@ -113,6 +113,22 @@ export type TicketFilterOptions = {
   equipes: string[];
 };
 
+export type TicketUpdateInput = {
+  title?: string;
+  description?: string;
+  product?: string;
+  machineHours?: string;
+  serialNumber?: string;
+  misc?: string;
+  resolution?: string;
+  isArchived?: boolean;
+  priority?: number;
+};
+
+export type TicketTagsAddInput = {
+  tagIds: string[];
+};
+
 const ensureAuthenticated = (response: Response) => {
   if (response.status === 401) {
     if (typeof window !== "undefined") {
@@ -240,6 +256,58 @@ export async function fetchTickets(
   }
   const data = (await response.json()) as TicketsPageResponse;
   return data;
+}
+
+export async function updateTicket(ticketId: string, input: TicketUpdateInput) {
+  const response = await fetch(
+    `/api/tickets/${encodeURIComponent(ticketId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? "Failed to update ticket");
+  }
+  return await response.json().catch(() => null);
+}
+
+export async function addTicketTags(
+  ticketId: string,
+  input: TicketTagsAddInput,
+) {
+  const response = await fetch(
+    `/api/tickets/${encodeURIComponent(ticketId)}/tags`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? "Failed to add ticket tags");
+  }
+  return await response.json().catch(() => null);
+}
+
+export async function closeTicket(ticketId: string) {
+  const response = await fetch(
+    `/api/tickets/${encodeURIComponent(ticketId)}/close`,
+    {
+      method: "PUT",
+    },
+  );
+  ensureAuthenticated(response);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? "Failed to close ticket");
+  }
+  return await response.json().catch(() => null);
 }
 
 export async function fetchLeadServiceOrders(

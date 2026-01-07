@@ -62,6 +62,22 @@ type TokenCache = {
   expiresAtMs: number;
 };
 
+export type TicketResourceUpdateInput = {
+  title?: string;
+  description?: string;
+  product?: string;
+  machineHours?: string;
+  serialNumber?: string;
+  misc?: string;
+  resolution?: string;
+  isArchived?: boolean;
+  priority?: number;
+};
+
+export type TicketResourceTagsAddInput = {
+  tagIds: string[];
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var __expertConnectTokenCache: TokenCache | undefined;
@@ -71,6 +87,47 @@ const getTokenCache = () => globalThis.__expertConnectTokenCache ?? null;
 const setTokenCache = (cache: TokenCache | null) => {
   if (cache) globalThis.__expertConnectTokenCache = cache;
   else globalThis.__expertConnectTokenCache = undefined;
+};
+
+const buildTicketUrl = (
+  config: ExpertConnectConfig,
+  ticketId: string,
+  suffix?: string
+) => {
+  const basePath = `/api/v1/companies/${encodeURIComponent(
+    config.companyId
+  )}/tickets/${encodeURIComponent(ticketId)}`;
+  const path = suffix ? `${basePath}/${suffix}` : basePath;
+  return new URL(path, config.apiBaseUrl);
+};
+
+const parseExpertConnectPayload = async (resp: Response) => {
+  const contentType = resp.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+  return isJson
+    ? await resp.json().catch(() => null)
+    : await resp.text().catch(() => null);
+};
+
+const unwrapExpertConnectPayload = (payload: unknown) => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: unknown }).data;
+  }
+  return payload;
+};
+
+const handleExpertConnectResponse = async (
+  resp: Response,
+  actionLabel: string
+) => {
+  const payload = await parseExpertConnectPayload(resp);
+  if (!resp.ok) {
+    const error = new Error(`ExpertConnect ${actionLabel} failed (${resp.status})`);
+    (error as any).status = resp.status;
+    (error as any).payload = payload;
+    throw error;
+  }
+  return unwrapExpertConnectPayload(payload);
 };
 
 export const getExpertConnectAccessToken = async (
@@ -128,12 +185,7 @@ export const fetchExpertConnectTicketById = async (
   const config = getExpertConnectConfig();
   const accessToken = await getExpertConnectAccessToken(config);
 
-  const url = new URL(
-    `/api/v1/companies/${encodeURIComponent(
-      config.companyId
-    )}/tickets/${encodeURIComponent(ticketId)}`,
-    config.apiBaseUrl
-  );
+  const url = buildTicketUrl(config, ticketId);
   if (config.fieldsInclude) {
     url.searchParams.set("Fields.Include", config.fieldsInclude);
   }
@@ -148,24 +200,74 @@ export const fetchExpertConnectTicketById = async (
     },
     cache: "no-store",
   });
+  return handleExpertConnectResponse(resp, "ticket fetch");
+};
 
-  const contentType = resp.headers.get("content-type") ?? "";
-  const isJson = contentType.includes("application/json");
-  const payload = isJson
-    ? await resp.json().catch(() => null)
-    : await resp.text().catch(() => null);
+export const updateExpertConnectTicketById = async (
+  ticketId: string,
+  input: TicketResourceUpdateInput
+): Promise<unknown> => {
+  const config = getExpertConnectConfig();
+  const accessToken = await getExpertConnectAccessToken(config);
+  const url = buildTicketUrl(config, ticketId);
 
-  if (!resp.ok) {
-    const error = new Error(
-      `ExpertConnect ticket fetch failed (${resp.status})`
-    );
-    (error as any).status = resp.status;
-    (error as any).payload = payload;
-    throw error;
-  }
+  const resp = await fetch(url.toString(), {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Subscription-Key": config.subscriptionKey,
+      "Cache-Control": "no-cache",
+      Accept: "application/json",
+      "Content-Type": "application/json-patch+json",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
 
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as { data: unknown }).data;
-  }
-  return payload;
+  return handleExpertConnectResponse(resp, "ticket update");
+};
+
+export const addExpertConnectTicketTags = async (
+  ticketId: string,
+  input: TicketResourceTagsAddInput
+): Promise<unknown> => {
+  const config = getExpertConnectConfig();
+  const accessToken = await getExpertConnectAccessToken(config);
+  const url = buildTicketUrl(config, ticketId, "tags");
+
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Subscription-Key": config.subscriptionKey,
+      "Cache-Control": "no-cache",
+      Accept: "application/json",
+      "Content-Type": "application/json-patch+json",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  return handleExpertConnectResponse(resp, "ticket tags add");
+};
+
+export const closeExpertConnectTicketById = async (
+  ticketId: string
+): Promise<unknown> => {
+  const config = getExpertConnectConfig();
+  const accessToken = await getExpertConnectAccessToken(config);
+  const url = buildTicketUrl(config, ticketId, "close");
+
+  const resp = await fetch(url.toString(), {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Subscription-Key": config.subscriptionKey,
+      "Cache-Control": "no-cache",
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  return handleExpertConnectResponse(resp, "ticket close");
 };

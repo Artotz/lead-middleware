@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Ticket, TicketStatus } from "@/lib/domain";
 import { SortOrder } from "@/lib/filters";
 import { TicketFiltersState } from "@/lib/ticketFilters";
+import {
+  addTicketTags,
+  closeTicket,
+  fetchTickets,
+  updateTicket,
+} from "@/lib/api";
 import { Badge } from "./Badge";
 import { ActionButtonCell } from "./ActionButtonCell";
 
@@ -17,6 +23,7 @@ type TicketsListProps = {
   onFiltersChange: (filters: TicketFiltersState) => void;
   onPageChange: (direction: -1 | 1) => void;
   onTicketSelect?: (ticket: Ticket) => void;
+  onRefresh?: () => void;
   options?: {
     consultores: string[];
     clientes: string[];
@@ -119,6 +126,13 @@ const buildColumnOrder = (
   return deduped;
 };
 
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const SAFE_DELAY_MS = 125;
+
 export function TicketsList({
   tickets,
   total,
@@ -129,8 +143,19 @@ export function TicketsList({
   onFiltersChange,
   onPageChange,
   onTicketSelect,
+  onRefresh,
   options,
 }: TicketsListProps) {
+  const [topTicketAction, setTopTicketAction] = useState<
+    "idle" | "working" | "success" | "error"
+  >("idle");
+  const [topTicketMessage, setTopTicketMessage] = useState<string | null>(null);
+  const [bulkTicketAction, setBulkTicketAction] = useState<
+    "idle" | "working" | "success" | "error"
+  >("idle");
+  const [bulkTicketMessage, setBulkTicketMessage] = useState<string | null>(
+    null
+  );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const skeletonRows = useMemo(
     () => Array.from({ length: Math.max(1, pageSize) }, (_, i) => i),
@@ -182,6 +207,98 @@ export function TicketsList({
       return acc;
     }, []);
   }, [makeGroupKey, tickets]);
+
+  const topTicket = groupedTickets[0]?.ticket;
+  const isBusy =
+    topTicketAction === "working" || bulkTicketAction === "working";
+
+  const handleTopTicketClose = async () => {
+    if (!topTicket || isBusy) {
+      return;
+    }
+    setTopTicketAction("working");
+    setTopTicketMessage("Working...");
+    try {
+      await updateTicket(topTicket.id, {
+        resolution: "Tempo finalizado.",
+        description: "Tempo esgotado.",
+      });
+      await addTicketTags(topTicket.id, {
+        tagIds: ["cf5c0788-c1cf-4c60-92ce-0966cc637199"],
+      });
+      await closeTicket(topTicket.id);
+      setTopTicketAction("success");
+      setTopTicketMessage(`Ticket ${topTicket.number ?? topTicket.id} closed.`);
+      onRefresh?.();
+    } catch (err) {
+      console.error("Failed to close top ticket", err);
+      setTopTicketAction("error");
+      setTopTicketMessage("Failed to close top ticket.");
+    }
+  };
+
+  const fetchAllFilteredTickets = async () => {
+    const pageSize = 200;
+    const first = await fetchTickets({
+      page: 1,
+      pageSize,
+      ...filters,
+    });
+    const items = [...first.items];
+    const totalCount = Math.max(first.total ?? 0, items.length);
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      const resp = await fetchTickets({
+        page,
+        pageSize,
+        ...filters,
+      });
+      items.push(...resp.items);
+    }
+
+    return items;
+  };
+
+  const handleBulkClose = async () => {
+    if (isBusy || loading) {
+      return;
+    }
+    setBulkTicketAction("working");
+    setBulkTicketMessage("Loading tickets...");
+    try {
+      const allTickets = await fetchAllFilteredTickets();
+      if (!allTickets.length) {
+        setBulkTicketAction("success");
+        setBulkTicketMessage("No tickets to process.");
+        return;
+      }
+
+      for (let index = 0; index < allTickets.length; index += 1) {
+        const ticket = allTickets[index];
+        setBulkTicketMessage(
+          `Processing ${index + 1} of ${allTickets.length}...`
+        );
+        await updateTicket(ticket.id, {
+          resolution: "Tempo finalizado.",
+          description: "Tempo esgotado.",
+        });
+        await addTicketTags(ticket.id, {
+          tagIds: ["cf5c0788-c1cf-4c60-92ce-0966cc637199"],
+        });
+        await closeTicket(ticket.id);
+        await wait(SAFE_DELAY_MS);
+      }
+
+      setBulkTicketAction("success");
+      setBulkTicketMessage(`Closed ${allTickets.length} tickets.`);
+      onRefresh?.();
+    } catch (err) {
+      console.error("Failed to bulk close tickets", err);
+      setBulkTicketAction("error");
+      setBulkTicketMessage("Failed to close filtered tickets.");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -316,6 +433,60 @@ export function TicketsList({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+        <span className="font-semibold uppercase tracking-wide text-slate-500">
+          Acao rapida
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleTopTicketClose}
+              disabled={!topTicket || loading || isBusy}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+            >
+              Fechar ticket do topo
+            </button>
+            {topTicketMessage && (
+              <span
+                className={`text-xs ${
+                  topTicketAction === "error"
+                    ? "text-rose-600"
+                    : topTicketAction === "success"
+                    ? "text-emerald-600"
+                    : "text-slate-500"
+                }`}
+              >
+                {topTicketMessage}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBulkClose}
+              disabled={loading || total === 0 || isBusy}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+            >
+              Fechar todos filtrados
+            </button>
+            {bulkTicketMessage && (
+              <span
+                className={`text-xs ${
+                  bulkTicketAction === "error"
+                    ? "text-rose-600"
+                    : bulkTicketAction === "success"
+                    ? "text-emerald-600"
+                    : "text-slate-500"
+                }`}
+              >
+                {bulkTicketMessage}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div
           className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600"
@@ -342,9 +513,12 @@ export function TicketsList({
                 </div>
               ))
             : groupedTickets.map(({ ticket, groupIndex }) => {
-                const isStriped = filters.groupByChassi || filters.groupByEmpresa;
+                const isStriped =
+                  filters.groupByChassi || filters.groupByEmpresa;
                 const backgroundClass =
-                  isStriped && groupIndex % 2 === 1 ? "bg-slate-50" : "bg-white";
+                  isStriped && groupIndex % 2 === 1
+                    ? "bg-slate-50"
+                    : "bg-white";
 
                 const cells: Record<ColumnId, React.ReactNode> = {
                   ticket: (
@@ -375,8 +549,12 @@ export function TicketsList({
                           const parts = formatDateParts(ticket.createdAt);
                           return (
                             <span className="text-xs text-slate-500 leading-tight">
-                              <span className="block truncate">{parts.time}</span>
-                              <span className="block truncate">{parts.date}</span>
+                              <span className="block truncate">
+                                {parts.time}
+                              </span>
+                              <span className="block truncate">
+                                {parts.date}
+                              </span>
                             </span>
                           );
                         })()}
@@ -420,20 +598,19 @@ export function TicketsList({
                       {ticket.teamName ?? "N/A"}
                     </Badge>
                   ),
-                  atualizado:
-                    (() => {
-                      const parts = formatDateParts(ticket.updatedAt);
-                      return (
-                        <div className="min-w-0 leading-tight">
-                          <span className="block truncate text-xs font-semibold text-slate-700">
-                            {parts.time}
-                          </span>
-                          <span className="block truncate text-xs text-slate-500">
-                            {parts.date}
-                          </span>
-                        </div>
-                      );
-                    })(),
+                  atualizado: (() => {
+                    const parts = formatDateParts(ticket.updatedAt);
+                    return (
+                      <div className="min-w-0 leading-tight">
+                        <span className="block truncate text-xs font-semibold text-slate-700">
+                          {parts.time}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">
+                          {parts.date}
+                        </span>
+                      </div>
+                    );
+                  })(),
                   acoes: (
                     <ActionButtonCell
                       entity="ticket"

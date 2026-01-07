@@ -610,6 +610,9 @@ export default function DashboardClient() {
           onFiltersChange={handleTicketFiltersChange}
           onPageChange={handleTicketPageChange}
           options={ticketOptions ?? undefined}
+          onRefresh={() => {
+            void loadTickets(ticketsPage, ticketFilters);
+          }}
           onTicketSelect={(ticket: Ticket) => {
             setSelectedTicketId(ticket.id);
             setTicketDetailsOpen(true);
