@@ -2,7 +2,16 @@ import { LeadCategory } from "./domain";
 
 export const REGIOES = ["R1", "R2", "R3"] as const;
 
-export const ESTADOS = ["AL", "BA", "CE", "PB", "PE", "PI", "RN", "SE"] as const;
+export const ESTADOS = [
+  "AL",
+  "BA",
+  "CE",
+  "PB",
+  "PE",
+  "PI",
+  "RN",
+  "SE",
+] as const;
 
 export type Regiao = (typeof REGIOES)[number];
 export type Estado = (typeof ESTADOS)[number];
@@ -25,7 +34,7 @@ export const INITIAL_FILTERS: FiltersState = {
   regiao: "",
   estado: "",
   tipoLead: "",
-  status: ["atribuido", "em contato", "novo"],
+  status: ["atribuido", "em contato"],
   sort: "recentes",
   groupByEmpresa: false,
   groupByChassi: false,
@@ -40,13 +49,10 @@ export const LEAD_STATUS_OPTIONS = [
   { value: "novo", label: "novo" },
 ] as const;
 
-export const LEAD_STATUS_LABELS = LEAD_STATUS_OPTIONS.reduce(
-  (acc, item) => {
-    acc[item.value] = item.label;
-    return acc;
-  },
-  {} as Record<string, string>,
-);
+export const LEAD_STATUS_LABELS = LEAD_STATUS_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {} as Record<string, string>);
 
 export const REGIAO_FILTER_QUERIES: Record<Regiao, string> = {
   R1: "REGIONAL = 'R1'",
@@ -71,7 +77,7 @@ export const ALL_REGIOES_QUERY = "REGIONAL IN ('R1', 'R2', 'R3')";
 // Exemplo de helper para montar WHERE dinamico
 export function buildWhereByRegiaoEstado(
   regiao?: Regiao,
-  estado?: Estado,
+  estado?: Estado
 ): string {
   const clauses: string[] = [];
   if (regiao) {
