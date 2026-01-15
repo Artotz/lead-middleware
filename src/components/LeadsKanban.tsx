@@ -18,6 +18,7 @@ type LeadsKanbanProps = {
   filters: FiltersState;
   onFiltersChange: (filters: FiltersState) => void;
   onLeadSelect?: (lead: Lead) => void;
+  statusOptions?: Array<string | { value: string; label: string }>;
   loading?: boolean;
   pageSize?: number;
 };
@@ -101,17 +102,17 @@ const formatDateParts = (iso?: string | null) => {
   };
 };
 
-const STATUS_KEY_BY_VALUE = new Map(
-  LEAD_STATUS_OPTIONS.map((opt) => [opt.value.toLowerCase(), opt.value])
-);
-
 const normalizeStatus = (value?: string | null) =>
   value?.trim().toLowerCase() ?? "";
+
+const STATUS_KEYS = new Map(
+  Object.keys(LEAD_STATUS_LABELS).map((key) => [key.toLowerCase(), key])
+);
 
 const resolveStatusLabel = (value: string | null) => {
   const normalized = normalizeStatus(value);
   if (!normalized) return "Sem status";
-  const key = STATUS_KEY_BY_VALUE.get(normalized);
+  const key = STATUS_KEYS.get(normalized);
   return key ? LEAD_STATUS_LABELS[key] ?? key : value ?? "Sem status";
 };
 
@@ -198,21 +199,43 @@ export function LeadsKanban({
   filters,
   onFiltersChange,
   onLeadSelect,
+  statusOptions,
   loading = false,
   pageSize = 10,
 }: LeadsKanbanProps) {
+  const normalizedStatusOptions = useMemo(() => {
+    const source = statusOptions ?? LEAD_STATUS_OPTIONS;
+    return source.map((opt) =>
+      typeof opt === "string" ? { value: opt, label: opt } : opt
+    );
+  }, [statusOptions]);
+
+  const statusKeyByValue = useMemo(
+    () =>
+      new Map(
+        normalizedStatusOptions.map((opt) => [
+          opt.value.toLowerCase(),
+          opt.value,
+        ])
+      ),
+    [normalizedStatusOptions]
+  );
+
   const regiaoOptions = useMemo(() => REGIOES.slice(), []);
   const estadoOptions = useMemo(() => ESTADOS.slice(), []);
   const tipoLeadOptions = useMemo(() => LEAD_TYPES.slice(), []);
-  const resolvedStatusOptions = useMemo(() => LEAD_STATUS_OPTIONS.slice(), []);
+  const resolvedStatusOptions = useMemo(
+    () => normalizedStatusOptions.slice(),
+    [normalizedStatusOptions]
+  );
 
   const baseColumns = useMemo<StatusColumn[]>(() => {
-    return LEAD_STATUS_OPTIONS.map((opt) => ({
+    return normalizedStatusOptions.map((opt) => ({
       id: opt.value,
-      label: LEAD_STATUS_LABELS[opt.value] ?? opt.value,
+      label: opt.label ?? opt.value,
       tone: pickStatusTone(opt.value),
     }));
-  }, []);
+  }, [normalizedStatusOptions]);
 
   const activeBaseColumns = useMemo(() => {
     const requested = filters.status
@@ -241,7 +264,7 @@ export function LeadsKanban({
         semStatus.push(lead);
         return;
       }
-      const key = STATUS_KEY_BY_VALUE.get(normalized);
+      const key = statusKeyByValue.get(normalized);
       if (key && grouped.has(key)) {
         grouped.get(key)?.push(lead);
       } else {
@@ -264,7 +287,7 @@ export function LeadsKanban({
     }
 
     return { columns: nextColumns, groupedLeads: grouped };
-  }, [activeBaseColumns, visibleLeads]);
+  }, [activeBaseColumns, statusKeyByValue, visibleLeads]);
 
   const skeletonCount = Math.max(
     2,

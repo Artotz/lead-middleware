@@ -8,7 +8,11 @@ import { PageShell } from "@/components/PageShell";
 import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
 import { fetchLeads } from "@/lib/api";
 import type { Lead } from "@/lib/domain";
-import { FiltersState, INITIAL_FILTERS } from "@/lib/filters";
+import {
+  FiltersState,
+  INITIAL_FILTERS,
+  LEAD_STATUS_OPTIONS,
+} from "@/lib/filters";
 import {
   FILTER_STORAGE_KEYS,
   loadLeadFilters,
@@ -16,11 +20,49 @@ import {
 } from "@/lib/filterStorage";
 
 const PAGE_SIZE = 20;
+const HOME_STATUS_OPTIONS = LEAD_STATUS_OPTIONS.filter(
+  (option) => option.value !== "novo"
+);
+const HOME_DEFAULT_STATUS = [
+  "atribuido",
+  "em contato",
+  "fechado_com_os",
+  "fechado_sem_os",
+];
+const HOME_INITIAL_FILTERS: FiltersState = {
+  ...INITIAL_FILTERS,
+  status: HOME_DEFAULT_STATUS,
+};
+
+const areStatusListsEqual = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+};
+
+const sanitizeHomeFilters = (stored: FiltersState): FiltersState => {
+  const allowedStatuses = new Set(
+    HOME_STATUS_OPTIONS.map((option) => option.value)
+  );
+  const cleanedStatus = (stored.status ?? []).filter((status) =>
+    allowedStatuses.has(status)
+  );
+  const shouldUpgradeDefaults = areStatusListsEqual(
+    stored.status ?? [],
+    INITIAL_FILTERS.status
+  );
+  const nextStatus = shouldUpgradeDefaults ? HOME_DEFAULT_STATUS : cleanedStatus;
+
+  return {
+    ...stored,
+    status: nextStatus,
+  };
+};
 
 export default function HomeClient() {
   const { user } = useAuth();
   const consultor = useMemo(() => getUserDisplayName(user), [user]);
-  const [filters, setFilters] = useState<FiltersState>(INITIAL_FILTERS);
+  const [filters, setFilters] =
+    useState<FiltersState>(HOME_INITIAL_FILTERS);
   const [filtersReady, setFiltersReady] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsTotal, setLeadsTotal] = useState(0);
@@ -36,8 +78,11 @@ export default function HomeClient() {
   const consultorFilter = consultor?.trim() ?? "";
 
   useEffect(() => {
-    const stored = loadLeadFilters(FILTER_STORAGE_KEYS.home, INITIAL_FILTERS);
-    setFilters(stored);
+    const stored = loadLeadFilters(
+      FILTER_STORAGE_KEYS.home,
+      HOME_INITIAL_FILTERS
+    );
+    setFilters(sanitizeHomeFilters(stored));
     setFiltersReady(true);
   }, []);
 
@@ -119,7 +164,7 @@ export default function HomeClient() {
       title="Home"
       subtitle="Resumo rapido dos seus leads e atividade recente."
     >
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
           label="Total de leads"
           value={leadsTotal}
@@ -137,7 +182,7 @@ export default function HomeClient() {
           value={leadMetrics.emContato}
           subtitle="no total do consultor"
         />
-      </div>
+      </div> */}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
@@ -167,6 +212,7 @@ export default function HomeClient() {
             leads={leads}
             filters={filters}
             onFiltersChange={setFilters}
+            statusOptions={HOME_STATUS_OPTIONS}
             loading={loading}
             pageSize={PAGE_SIZE}
             onLeadSelect={(lead) => {
