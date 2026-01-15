@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { LeadDetailsAside } from "@/components/LeadDetailsAside";
-import { LeadsList } from "@/components/LeadsList";
+import { LeadsKanban } from "@/components/LeadsKanban";
 import { MetricCard } from "@/components/MetricCard";
 import { PageShell } from "@/components/PageShell";
 import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
@@ -117,18 +117,6 @@ export default function HomeClient() {
     );
   }, []);
 
-  const handleLeadStatusChange = useCallback((leadId: number, status: string) => {
-    const updatedAt = new Date().toISOString();
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === leadId ? { ...lead, status, updatedAt } : lead,
-      ),
-    );
-    setSelectedLead((prev) =>
-      prev && prev.id === leadId ? { ...prev, status, updatedAt } : prev,
-    );
-  }, []);
-
   return (
     <PageShell
       title="Home"
@@ -176,15 +164,12 @@ export default function HomeClient() {
             </div>
           ) : null}
 
-          <LeadsList
+          <LeadsKanban
             leads={leads}
             filters={filters}
             onFiltersChange={setFilters}
             loading={loading}
             pageSize={PAGE_SIZE}
-            currentUserName={consultor}
-            onLeadAssigned={handleLeadAssigned}
-            onLeadStatusChange={handleLeadStatusChange}
             onLeadSelect={(lead) => {
               setSelectedLead(lead);
               setLeadDetailsOpen(true);
