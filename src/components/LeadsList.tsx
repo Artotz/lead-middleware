@@ -2,18 +2,11 @@
 
 import { useMemo } from "react";
 import { Lead, LeadCategory } from "@/lib/domain";
-import {
-  ESTADOS,
-  FiltersState,
-  LEAD_STATUS_LABELS,
-  LEAD_STATUS_OPTIONS,
-  LEAD_TYPES,
-  REGIOES,
-} from "@/lib/filters";
+import { FiltersState, LEAD_STATUS_LABELS } from "@/lib/filters";
 import { Badge } from "./Badge";
 import { AssignLeadButton } from "./AssignLeadButton";
 import { ActionButtonCell } from "./ActionButtonCell";
-import { FiltersBar } from "./FiltersBar";
+import { LeadsFiltersPanel } from "./LeadsFiltersPanel";
 
 type LeadsListProps = {
   leads: Lead[];
@@ -25,6 +18,8 @@ type LeadsListProps = {
   onLeadStatusChange?: (leadId: number, status: string) => void;
   loading?: boolean;
   pageSize?: number;
+  showFilters?: boolean;
+  showGrouping?: boolean;
 };
 
 type ColumnId =
@@ -167,20 +162,12 @@ export function LeadsList({
   onLeadStatusChange,
   loading = false,
   pageSize = 10,
+  showFilters = true,
+  showGrouping = true,
 }: LeadsListProps) {
   const skeletonRows = useMemo(
     () => Array.from({ length: Math.max(1, pageSize) }, (_, i) => i),
     [pageSize]
-  );
-  const regiaoOptions = useMemo(() => REGIOES.slice(), []);
-
-  const estadoOptions = useMemo(() => ESTADOS.slice(), []);
-
-  const tipoLeadOptions = useMemo(() => LEAD_TYPES.slice(), []);
-
-  const resolvedStatusOptions = useMemo(
-    () => LEAD_STATUS_OPTIONS.slice(),
-    []
   );
   const columnOrder = useMemo(
     () => buildColumnOrder(filters.groupByEmpresa, filters.groupByChassi),
@@ -220,54 +207,15 @@ export function LeadsList({
     );
   }, [leads, makeGroupKey]);
 
-  const handleToggle = (key: "groupByEmpresa" | "groupByChassi") => {
-    onFiltersChange({ ...filters, [key]: !filters[key] });
-  };
-
   return (
     <div className="space-y-4">
-      <FiltersBar
-        value={filters}
-        regiaoOptions={regiaoOptions}
-        estadoOptions={estadoOptions}
-        tipoLeadOptions={tipoLeadOptions.map((id) => id)}
-        statusOptions={resolvedStatusOptions}
-        searchPlaceholder="Buscar por chassi, modelo, cidade, consultor ou cliente"
-        regiaoLabel="Regiao"
-        estadoLabel="Estado"
-        tipoLeadLabel="Tipo de lead"
-        onFiltersChange={onFiltersChange}
-      />
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Agrupar
-        </span>
-        <button
-          type="button"
-          onClick={() => handleToggle("groupByEmpresa")}
-          aria-pressed={filters.groupByEmpresa}
-          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-            filters.groupByEmpresa
-              ? "border-sky-300 bg-sky-50 text-sky-800"
-              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900"
-          }`}
-        >
-          Empresa
-        </button>
-        <button
-          type="button"
-          onClick={() => handleToggle("groupByChassi")}
-          aria-pressed={filters.groupByChassi}
-          className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-            filters.groupByChassi
-              ? "border-sky-300 bg-sky-50 text-sky-800"
-              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900"
-          }`}
-        >
-          Chassi
-        </button>
-      </div>
+      {showFilters ? (
+        <LeadsFiltersPanel
+          filters={filters}
+          onFiltersChange={onFiltersChange}
+          showGrouping={showGrouping}
+        />
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div

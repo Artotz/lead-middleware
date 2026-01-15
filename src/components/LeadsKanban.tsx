@@ -173,12 +173,8 @@ function KanbanCard({
             {leadTypeLabel[tipo]}
           </Badge>
         ))}
-        {extraTypes > 0 ? (
-          <Badge tone="stone">+{extraTypes}</Badge>
-        ) : null}
-        {lead.regional ? (
-          <Badge tone="sky">{lead.regional}</Badge>
-        ) : null}
+        {extraTypes > 0 ? <Badge tone="stone">+{extraTypes}</Badge> : null}
+        {lead.regional ? <Badge tone="sky">{lead.regional}</Badge> : null}
       </div>
 
       <div className="mt-3 space-y-1 text-xs text-slate-600">
@@ -208,10 +204,7 @@ export function LeadsKanban({
   const regiaoOptions = useMemo(() => REGIOES.slice(), []);
   const estadoOptions = useMemo(() => ESTADOS.slice(), []);
   const tipoLeadOptions = useMemo(() => LEAD_TYPES.slice(), []);
-  const resolvedStatusOptions = useMemo(
-    () => LEAD_STATUS_OPTIONS.slice(),
-    []
-  );
+  const resolvedStatusOptions = useMemo(() => LEAD_STATUS_OPTIONS.slice(), []);
 
   const baseColumns = useMemo<StatusColumn[]>(() => {
     return LEAD_STATUS_OPTIONS.map((opt) => ({
@@ -285,7 +278,7 @@ export function LeadsKanban({
 
   return (
     <div className="space-y-4">
-      <FiltersBar
+      {/* <FiltersBar
         value={filters}
         regiaoOptions={regiaoOptions}
         estadoOptions={estadoOptions}
@@ -296,7 +289,7 @@ export function LeadsKanban({
         estadoLabel="Estado"
         tipoLeadLabel="Tipo de lead"
         onFiltersChange={onFiltersChange}
-      />
+      /> */}
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
         <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">

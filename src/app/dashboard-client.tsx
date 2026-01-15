@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LeadServiceOrdersList } from "@/components/LeadServiceOrdersList";
 import { LeadsList } from "@/components/LeadsList";
+import { LeadsFiltersPanel } from "@/components/LeadsFiltersPanel";
+import { LeadsMapView } from "@/components/LeadsMapView";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { TicketsList } from "@/components/TicketsList";
@@ -29,6 +31,7 @@ import {
 } from "@/lib/filterStorage";
 
 type DashboardTab = "leads" | "tickets" | "os";
+type LeadsViewMode = "list" | "map";
 
 type DashboardInitialFilters = {
   leadFilters: FiltersState;
@@ -58,6 +61,10 @@ export default function DashboardClient() {
   const [leadsLoading, setLeadsLoading] = useState<boolean>(false);
   const [leadFilters, setLeadFilters] =
     useState<FiltersState>(INITIAL_FILTERS);
+  const [leadsView, setLeadsView] = useState<LeadsViewMode>("list");
+  const [mapLeads, setMapLeads] = useState<Lead[]>([]);
+  const [mapLeadsLoading, setMapLeadsLoading] = useState<boolean>(false);
+  const [mapLeadsError, setMapLeadsError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadDetailsOpen, setLeadDetailsOpen] = useState<boolean>(false);
 
@@ -114,6 +121,43 @@ export default function DashboardClient() {
     },
     [leadsPageSize],
   );
+
+  const loadAllLeads = useCallback(async (filters: FiltersState) => {
+    setMapLeadsLoading(true);
+    setMapLeadsError(null);
+    try {
+      const pageSize = 100;
+      const first = await fetchLeads({ page: 1, pageSize, ...filters });
+      const totalPages = Math.max(
+        1,
+        Math.ceil(first.total / pageSize),
+      );
+      const allItems = [...first.items];
+
+      if (totalPages > 1) {
+        const requests = Array.from(
+          { length: totalPages - 1 },
+          (_, index) =>
+            fetchLeads({
+              page: index + 2,
+              pageSize,
+              ...filters,
+            }),
+        );
+        const responses = await Promise.all(requests);
+        responses.forEach((resp) => {
+          allItems.push(...resp.items);
+        });
+      }
+
+      setMapLeads(allItems);
+    } catch (err) {
+      console.error(err);
+      setMapLeadsError("Nao foi possivel carregar o mapa de leads.");
+    } finally {
+      setMapLeadsLoading(false);
+    }
+  }, []);
 
   const loadServiceOrders = useCallback(
     async (page: number, filters: FiltersState) => {
@@ -317,6 +361,16 @@ export default function DashboardClient() {
   }, [filtersReady, leadFilters, loadLeads]);
 
   useEffect(() => {
+    if (!filtersReady || activeTab !== "leads" || leadsView !== "map") {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      void loadAllLeads(leadFilters);
+    }, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, filtersReady, leadFilters, leadsView, loadAllLeads]);
+
+  useEffect(() => {
     if (!filtersReady) {
       return;
     }
@@ -418,6 +472,11 @@ export default function DashboardClient() {
     );
   }, []);
 
+  const handleLeadSelect = useCallback((lead: Lead) => {
+    setSelectedLead(lead);
+    setLeadDetailsOpen(true);
+  }, []);
+
   const handleServiceOrderUpdated = useCallback(
     (update: {
       id: number;
@@ -476,51 +535,92 @@ export default function DashboardClient() {
     if (activeTab === "leads") {
       return (
         <div className="space-y-3">
-          <LeadsList
-            leads={leads}
-            filters={leadFilters}
-            onFiltersChange={handleLeadFiltersChange}
-            loading={leadsLoading}
-            pageSize={leadsPageSize}
-            currentUserName={currentUserName}
-            onLeadAssigned={handleLeadAssigned}
-            onLeadStatusChange={handleLeadStatusChange}
-            onLeadSelect={(lead) => {
-              setSelectedLead(lead);
-              setLeadDetailsOpen(true);
-            }}
-          />
-          <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
-            <div className="flex items-center gap-2">
-              <span>
-                PÇ­gina {leadsPage} de {leadsTotalPages}
-              </span>
-              <span className="text-slate-400">
-                ({leadsTotal} leads no total)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleLeadPageChange(-1)}
-                disabled={leadsPage <= 1 || leadsLoading}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLeadPageChange(1)}
-                disabled={leadsPage >= leadsTotalPages || leadsLoading}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
-              >
-                PrÇüxima
-              </button>
-              {leadsLoading && (
-                <span className="text-xs text-slate-500">Atualizando...</span>
-              )}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <Tabs
+              tabs={[
+                { id: "list", label: "LISTA" },
+                { id: "map", label: "MAPA" },
+              ]}
+              activeTabId={leadsView}
+              onTabChange={(id) => setLeadsView(id as LeadsViewMode)}
+            />
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {leadsView === "map"
+                ? "Mapa mostra todos os leads filtrados (coords mockadas no Brasil)."
+                : "Lista de leads filtrados."}
             </div>
           </div>
+
+          <LeadsFiltersPanel
+            filters={leadFilters}
+            onFiltersChange={handleLeadFiltersChange}
+          />
+
+          {leadsView === "list" ? (
+            <LeadsList
+              leads={leads}
+              filters={leadFilters}
+              onFiltersChange={handleLeadFiltersChange}
+              loading={leadsLoading}
+              pageSize={leadsPageSize}
+              currentUserName={currentUserName}
+              onLeadAssigned={handleLeadAssigned}
+              onLeadStatusChange={handleLeadStatusChange}
+              onLeadSelect={handleLeadSelect}
+              showFilters={false}
+            />
+          ) : (
+            <LeadsMapView
+              leads={mapLeads}
+              onLeadSelect={handleLeadSelect}
+              visible={leadsView === "map"}
+              loading={mapLeadsLoading}
+              error={mapLeadsError}
+            />
+          )}
+          {leadsView === "list" ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+              <div className="flex items-center gap-2">
+                <span>
+                  Pagina {leadsPage} de {leadsTotalPages}
+                </span>
+                <span className="text-slate-400">
+                  ({leadsTotal} leads no total)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleLeadPageChange(-1)}
+                  disabled={leadsPage <= 1 || leadsLoading}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLeadPageChange(1)}
+                  disabled={leadsPage >= leadsTotalPages || leadsLoading}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-700 transition enabled:hover:border-slate-300 enabled:hover:text-slate-900 disabled:opacity-50"
+                >
+                  Proxima
+                </button>
+                {leadsLoading && (
+                  <span className="text-xs text-slate-500">Atualizando...</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+              <div className="flex items-center gap-2">
+                <span>Mostrando {mapLeads.length} leads no mapa</span>
+              </div>
+              {mapLeadsLoading ? (
+                <span className="text-xs text-slate-500">Atualizando...</span>
+              ) : null}
+            </div>
+          )}
+
 
           {selectedLead ? (
             <LeadDetailsAside

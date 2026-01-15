@@ -36,10 +36,7 @@ export default function HomeClient() {
   const consultorFilter = consultor?.trim() ?? "";
 
   useEffect(() => {
-    const stored = loadLeadFilters(
-      FILTER_STORAGE_KEYS.home,
-      INITIAL_FILTERS,
-    );
+    const stored = loadLeadFilters(FILTER_STORAGE_KEYS.home, INITIAL_FILTERS);
     setFilters(stored);
     setFiltersReady(true);
   }, []);
@@ -88,7 +85,7 @@ export default function HomeClient() {
         setLoading(false);
       }
     },
-    [consultorFilter],
+    [consultorFilter]
   );
 
   useEffect(() => {
@@ -107,13 +104,13 @@ export default function HomeClient() {
       prev.map((lead) =>
         lead.id === leadId
           ? { ...lead, consultor: assignee, status: "atribuido", updatedAt }
-          : lead,
-      ),
+          : lead
+      )
     );
     setSelectedLead((prev) =>
       prev && prev.id === leadId
         ? { ...prev, consultor: assignee, status: "atribuido", updatedAt }
-        : prev,
+        : prev
     );
   }, []);
 
@@ -126,7 +123,9 @@ export default function HomeClient() {
         <MetricCard
           label="Total de leads"
           value={leadsTotal}
-          subtitle={consultorFilter ? `Consultor: ${consultorFilter}` : undefined}
+          subtitle={
+            consultorFilter ? `Consultor: ${consultorFilter}` : undefined
+          }
         />
         <MetricCard
           label="Leads atribuidos"
