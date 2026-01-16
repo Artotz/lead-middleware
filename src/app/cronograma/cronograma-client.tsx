@@ -407,6 +407,7 @@ type RoutingControlOptions = {
 };
 
 type RoutingControl = {
+  addTo: (map: LeafletMap) => RoutingControl;
   setWaypoints: (waypoints: LatLngExpression[]) => void;
   remove: () => void;
 };

@@ -81,17 +81,18 @@ export async function POST(request: Request) {
     let eventPayload = parsed.value.payload;
 
     if (parsed.value.action === "close_with_os") {
-      const osNumber =
-        typeof parsed.value.payload.os === "string"
-          ? parsed.value.payload.os.trim()
-          : "";
-      const partsValueRaw = parsed.value.payload.parts_value;
-      const laborValueRaw = parsed.value.payload.labor_value;
+      const {
+        os,
+        parts_value: partsValueRaw,
+        labor_value: laborValueRaw,
+        note: noteRaw,
+        ...restPayload
+      } = parsed.value.payload;
+      const osNumber = typeof os === "string" ? os.trim() : "";
       const partsValue =
         typeof partsValueRaw === "number" ? partsValueRaw : Number(partsValueRaw);
       const laborValue =
         typeof laborValueRaw === "number" ? laborValueRaw : Number(laborValueRaw);
-      const noteRaw = parsed.value.payload.note;
       const note =
         typeof noteRaw === "string" && noteRaw.trim() ? noteRaw.trim() : null;
 
@@ -127,8 +128,6 @@ export async function POST(request: Request) {
         );
       }
 
-      const { os, parts_value, labor_value, note, ...restPayload } =
-        parsed.value.payload;
       eventPayload = {
         ...restPayload,
         service_order_id: serviceOrder.id,

@@ -18,9 +18,14 @@ type LeadsKanbanProps = {
   filters: FiltersState;
   onFiltersChange: (filters: FiltersState) => void;
   onLeadSelect?: (lead: Lead) => void;
-  statusOptions?: Array<string | { value: string; label: string }>;
+  statusOptions?: Array<string | StatusOption>;
   loading?: boolean;
   pageSize?: number;
+};
+
+type StatusOption = {
+  value: string;
+  label: string;
 };
 
 type StatusColumn = {
@@ -203,10 +208,14 @@ export function LeadsKanban({
   loading = false,
   pageSize = 10,
 }: LeadsKanbanProps) {
-  const normalizedStatusOptions = useMemo(() => {
-    const source = statusOptions ?? LEAD_STATUS_OPTIONS;
-    return source.map((opt) =>
-      typeof opt === "string" ? { value: opt, label: opt } : opt
+  const normalizedStatusOptions = useMemo<StatusOption[]>(() => {
+    const source: Array<string | StatusOption> = statusOptions ?? [
+      ...LEAD_STATUS_OPTIONS,
+    ];
+    return source.map((opt): StatusOption =>
+      typeof opt === "string"
+        ? { value: opt, label: opt }
+        : { value: opt.value, label: opt.label }
     );
   }, [statusOptions]);
 

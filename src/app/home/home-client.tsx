@@ -40,7 +40,7 @@ const areStatusListsEqual = (a: string[], b: string[]) => {
 };
 
 const sanitizeHomeFilters = (stored: FiltersState): FiltersState => {
-  const allowedStatuses = new Set(
+  const allowedStatuses = new Set<string>(
     HOME_STATUS_OPTIONS.map((option) => option.value)
   );
   const cleanedStatus = (stored.status ?? []).filter((status) =>
