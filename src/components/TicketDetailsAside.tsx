@@ -127,7 +127,7 @@ export function TicketDetailsAside({
 
   return (
     <div
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-[9999]"
       role="dialog"
       aria-modal="true"
       aria-label="Detalhes do ticket"
@@ -232,7 +232,10 @@ export function TicketDetailsAside({
                 <TicketMachineList machines={viewModel.machines} />
               </CollapsibleSection>
 
-              <CollapsibleSection title="Resolução / Descrição" defaultOpen={false}>
+              <CollapsibleSection
+                title="Resolução / Descrição"
+                defaultOpen={false}
+              >
                 <TicketDescription description={viewModel.description} />
               </CollapsibleSection>
 

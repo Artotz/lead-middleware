@@ -450,7 +450,7 @@ export function LeadDetailsAside({
 
   return (
     <div
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-[9999]"
       role="dialog"
       aria-modal="true"
       aria-label="Detalhes do lead"
