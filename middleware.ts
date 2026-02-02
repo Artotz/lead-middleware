@@ -7,6 +7,29 @@ const isUuid = (value: string) =>
   );
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname === "/") {
+    const redirectUrl = new URL("/cronograma", request.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (pathname === "/__not-found") {
+    return NextResponse.next();
+  }
+
+  if (pathname.includes(".")) {
+    return NextResponse.next();
+  }
+
+  const isCronogramaRoute =
+    pathname === "/cronograma" || pathname.startsWith("/cronograma/");
+
+  if (!isCronogramaRoute) {
+    const notFoundUrl = new URL("/__not-found", request.url);
+    return NextResponse.rewrite(notFoundUrl, { status: 404 });
+  }
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -47,7 +70,6 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const { pathname } = request.nextUrl;
   const isLoginRoute = pathname.startsWith("/login");
   const isProtectedRoute =
     pathname === "/" ||
@@ -78,5 +100,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/metrics/:path*", "/home", "/leads/:path*", "/login"],
+  matcher: ["/((?!_next|api|favicon.ico|robots.txt|sitemap.xml).*)"],
 };

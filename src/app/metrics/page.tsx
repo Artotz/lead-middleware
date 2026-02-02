@@ -1,10 +1,5 @@
-import { RequireAuth } from "@/components/RequireAuth";
-import MetricsClient from "./metrics-client";
+import { notFound } from "next/navigation";
 
 export default function MetricsPage() {
-  return (
-    <RequireAuth>
-      <MetricsClient />
-    </RequireAuth>
-  );
+  notFound();
 }

@@ -1,10 +1,5 @@
-import { RequireAuth } from "@/components/RequireAuth";
-import DashboardClient from "./dashboard-client";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
-  return (
-    <RequireAuth>
-      <DashboardClient />
-    </RequireAuth>
-  );
+  redirect("/cronograma");
 }

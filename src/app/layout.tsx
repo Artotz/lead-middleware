@@ -25,6 +25,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const disabledNavClass =
+    "rounded-lg px-3 py-2 text-slate-400 bg-slate-100/60 cursor-not-allowed";
+
   return (
     <html lang="pt-BR">
       <body
@@ -50,36 +53,24 @@ export default function RootLayout({
                 </div>
 
                 <nav className="flex items-center gap-2 text-sm font-semibold">
-                  <Link
-                    href="/home"
-                    className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  >
+                  <button type="button" disabled className={disabledNavClass}>
                     Home
-                  </Link>
-                  <Link
-                    href="/"
-                    className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  >
+                  </button>
+                  <button type="button" disabled className={disabledNavClass}>
                     Dashboard
-                  </Link>
+                  </button>
                   <Link
                     href="/cronograma"
                     className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
                   >
                     Cronograma
                   </Link>
-                  <Link
-                    href="/leads/import"
-                    className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  >
+                  <button type="button" disabled className={disabledNavClass}>
                     Importar
-                  </Link>
-                  <Link
-                    href="/metrics"
-                    className="rounded-lg px-3 py-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  >
+                  </button>
+                  <button type="button" disabled className={disabledNavClass}>
                     Métricas
-                  </Link>
+                  </button>
                 </nav>
               </div>
             </header>
@@ -91,3 +82,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+

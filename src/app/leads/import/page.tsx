@@ -1,10 +1,5 @@
-import { RequireAuth } from "@/components/RequireAuth";
-import LeadsImportClient from "./leads-import-client";
+import { notFound } from "next/navigation";
 
 export default function LeadsImportPage() {
-  return (
-    <RequireAuth>
-      <LeadsImportClient />
-    </RequireAuth>
-  );
+  notFound();
 }
