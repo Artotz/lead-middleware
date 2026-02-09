@@ -156,7 +156,7 @@ export function ScheduleMapView({
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
         scrollWheelZoom
-        className="h-[520px] w-full bg-slate-100"
+        className="h-[320px] w-full bg-slate-100 sm:h-[420px] lg:h-[520px]"
       >
         <TileLayer
           attribution="&copy; OpenStreetMap contributors"

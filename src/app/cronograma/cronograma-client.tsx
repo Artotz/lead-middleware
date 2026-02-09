@@ -155,22 +155,22 @@ export default function CronogramaClient() {
       title="Cronograma semanal"
       subtitle="Agendamentos reais carregados do Supabase por semana."
     >
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm sm:p-4">
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <span>Semana selecionada</span>
               <span>{totalAppointments} agendamentos</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <button
                 type="button"
                 onClick={() => refresh()}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
               >
                 Atualizar
               </button>
-              <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold">
+              <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold sm:w-auto sm:justify-start">
                 {[
                   { id: "board", label: "Quadro" },
                   { id: "map", label: "Mapa" },
@@ -195,7 +195,7 @@ export default function CronogramaClient() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -218,7 +218,7 @@ export default function CronogramaClient() {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-1">
+            <div className="flex w-full flex-nowrap gap-1 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
               {weeks.map((week, index) => {
                 const isActive = index === selectedWeekIndex;
                 return (
@@ -252,18 +252,18 @@ export default function CronogramaClient() {
         </div>
 
         {viewMode === "board" ? (
-          <div className="mt-3 overflow-x-auto pb-1">
-            <div className="flex min-w-full gap-1">
+          <div className="mt-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
               {weekDays.map((day) => {
                 const dateKey = toDateKey(day.date);
                 const items = appointmentsByDay.get(dateKey) ?? [];
                 return (
                   <div
                     key={dateKey}
-                    className={`min-w-[170px] max-w-[240px] flex-1 rounded-xl border p-1 ${
+                    className={`rounded-xl border p-2 ${
                       day.isToday
                         ? "border-sky-200 bg-sky-100/80"
-                        : "border-transparent"
+                        : "border-slate-200 bg-white"
                     }`}
                   >
                     <div

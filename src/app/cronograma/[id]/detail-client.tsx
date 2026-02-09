@@ -66,7 +66,7 @@ export default function AppointmentDetailClient() {
 
   return (
     <PageShell title="Detalhe do apontamento" subtitle={company?.name ?? ""}>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 sm:text-xs">
         <Link
           href="/cronograma"
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
@@ -75,9 +75,9 @@ export default function AppointmentDetailClient() {
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-lg font-semibold text-slate-900">
@@ -110,7 +110,7 @@ export default function AppointmentDetailClient() {
           </div>
 
           {appointment.oportunidades?.length ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               <h2 className="text-sm font-semibold text-slate-900">
                 Oportunidades percebidas
               </h2>
@@ -125,7 +125,7 @@ export default function AppointmentDetailClient() {
           ) : null}
 
           {appointment.absenceReason ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 sm:p-4">
               <div className="font-semibold">Ausencia registrada</div>
               <div className="mt-1">
                 <span className="font-semibold">Motivo: </span>
@@ -142,7 +142,7 @@ export default function AppointmentDetailClient() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">Linha do tempo</h2>
             <div className="mt-3 space-y-3 text-sm text-slate-600">
               <div>
