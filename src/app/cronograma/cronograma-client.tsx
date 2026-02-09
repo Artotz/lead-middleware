@@ -14,9 +14,6 @@ import {
   formatTime,
   formatWeekday,
   getWeeksForMonth,
-  isAppointmentAbsent,
-  isAppointmentDone,
-  isAppointmentPending,
   isSameDay,
   STATUS_LABELS,
   STATUS_TONES,
@@ -34,7 +31,6 @@ type ScheduleCardProps = {
   duration: string;
   status: keyof typeof STATUS_LABELS;
   order: number;
-  locked: boolean;
 };
 
 function ScheduleCard({
@@ -47,7 +43,6 @@ function ScheduleCard({
   duration,
   status,
   order,
-  locked,
 }: ScheduleCardProps) {
   return (
     <Link
@@ -58,7 +53,6 @@ function ScheduleCard({
       <div className="flex items-start justify-between gap-1.5">
         <div className="flex items-start gap-1.5">
           <Badge tone="slate">#{order}</Badge>
-          {locked ? <Badge tone="rose">Bloqueado</Badge> : null}
         </div>
         <div className="text-right text-[10px] text-slate-400">
           <div className="font-semibold text-slate-600">{time}</div>
@@ -209,7 +203,7 @@ export default function CronogramaClient() {
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 <span className="sr-only">Mes anterior</span>
-                ?
+                &lt;
               </button>
               <span className="text-xs font-semibold text-slate-700">
                 {formatMonthLabel(selectedMonth)}
@@ -220,7 +214,7 @@ export default function CronogramaClient() {
                 className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
               >
                 <span className="sr-only">Proximo mes</span>
-                ?
+                &gt;
               </button>
             </div>
 
@@ -263,9 +257,6 @@ export default function CronogramaClient() {
               {weekDays.map((day) => {
                 const dateKey = toDateKey(day.date);
                 const items = appointmentsByDay.get(dateKey) ?? [];
-                const firstActiveIndex = items.findIndex(
-                  (item) => !isAppointmentDone(item) && !isAppointmentAbsent(item),
-                );
                 return (
                   <div
                     key={dateKey}
@@ -311,10 +302,6 @@ export default function CronogramaClient() {
                             "Endereco nao informado";
                           const consultant =
                             item.consultantName?.trim() || "Consultor nao informado";
-                          const locked =
-                            firstActiveIndex >= 0 &&
-                            index > firstActiveIndex &&
-                            isAppointmentPending(item);
                           return (
                             <ScheduleCard
                               key={item.id}
@@ -327,7 +314,6 @@ export default function CronogramaClient() {
                               duration={formatDuration(item.startAt, item.endAt)}
                               status={item.status}
                               order={index + 1}
-                              locked={locked}
                             />
                           );
                         })
@@ -394,18 +380,6 @@ export default function CronogramaClient() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-        <div>
-          Dica: use o resumo de oportunidades no checkout para registrar novas
-          vendas.
-        </div>
-        <Link
-          href="/cronograma/dia"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          Ver dia
-        </Link>
-      </div>
     </PageShell>
   );
 }

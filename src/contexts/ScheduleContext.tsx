@@ -31,33 +31,11 @@ type ScheduleState = {
   error: string | null;
 };
 
-type CheckInPayload = {
-  at: Date;
-  lat: number | null;
-  lng: number | null;
-  accuracy: number | null;
-};
-
-type CheckOutPayload = {
-  at: Date;
-  lat: number | null;
-  lng: number | null;
-  accuracy: number | null;
-  oportunidades: string[];
-};
-
 type ScheduleContextValue = ScheduleState & {
   setRange: (range: { startAt: Date; endAt: Date }) => void;
   refresh: () => Promise<void>;
   getCompany: (id: string) => Company | undefined;
   getAppointment: (id: string) => Appointment | undefined;
-  checkIn: (id: string, payload: CheckInPayload) => Promise<Appointment>;
-  checkOut: (id: string, payload: CheckOutPayload) => Promise<Appointment>;
-  justifyAbsence: (
-    id: string,
-    reason: string,
-    note?: string | null,
-  ) => Promise<Appointment>;
 };
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
@@ -172,70 +150,6 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     [state.appointments],
   );
 
-  const updateAppointment = useCallback(
-    async (id: string, changes: Record<string, unknown>) => {
-      const { data, error } = await supabase
-        .from("apontamentos")
-        .update(changes)
-        .eq("id", id)
-        .select(APPOINTMENT_SELECT)
-        .single();
-
-      if (error || !data) {
-        throw new Error(error?.message ?? "update_failed");
-      }
-
-      const updated = mapAppointment(data);
-      setState((prev) => {
-        const index = prev.appointments.findIndex((item) => item.id === id);
-        const nextAppointments = [...prev.appointments];
-        if (index >= 0) {
-          nextAppointments[index] = updated;
-        } else {
-          nextAppointments.push(updated);
-        }
-        return { ...prev, appointments: sortAppointments(nextAppointments) };
-      });
-      return updated;
-    },
-    [supabase],
-  );
-
-  const checkIn = useCallback(
-    async (id: string, payload: CheckInPayload) =>
-      updateAppointment(id, {
-        check_in_at: payload.at.toISOString(),
-        check_in_lat: payload.lat,
-        check_in_lng: payload.lng,
-        check_in_accuracy_m: payload.accuracy,
-        status: "in_progress",
-      }),
-    [updateAppointment],
-  );
-
-  const checkOut = useCallback(
-    async (id: string, payload: CheckOutPayload) =>
-      updateAppointment(id, {
-        check_out_at: payload.at.toISOString(),
-        check_out_lat: payload.lat,
-        check_out_lng: payload.lng,
-        check_out_accuracy_m: payload.accuracy,
-        status: "done",
-        oportunidades: payload.oportunidades,
-      }),
-    [updateAppointment],
-  );
-
-  const justifyAbsence = useCallback(
-    async (id: string, reason: string, note?: string | null) =>
-      updateAppointment(id, {
-        absence_reason: reason,
-        absence_note: note ?? null,
-        status: "absent",
-      }),
-    [updateAppointment],
-  );
-
   useEffect(() => {
     if (authLoading) return;
     void loadSchedule(state.range);
@@ -248,20 +162,8 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       refresh,
       getCompany,
       getAppointment,
-      checkIn,
-      checkOut,
-      justifyAbsence,
     }),
-    [
-      state,
-      setRange,
-      refresh,
-      getCompany,
-      getAppointment,
-      checkIn,
-      checkOut,
-      justifyAbsence,
-    ],
+    [state, setRange, refresh, getCompany, getAppointment],
   );
 
   return (
