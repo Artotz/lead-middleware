@@ -27,6 +27,8 @@ type ScheduleState = {
   range: ScheduleRange;
   appointments: Appointment[];
   companies: Company[];
+  consultants: Consultant[];
+  selectedConsultantId: string | null;
   loading: boolean;
   error: string | null;
 };
@@ -36,12 +38,45 @@ type ScheduleContextValue = ScheduleState & {
   refresh: () => Promise<void>;
   getCompany: (id: string) => Company | undefined;
   getAppointment: (id: string) => Appointment | undefined;
+  setSelectedConsultantId: (id: string | null) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null);
 
 const sortAppointments = (items: Appointment[]) =>
   [...items].sort((a, b) => a.startAt.localeCompare(b.startAt));
+
+type Consultant = {
+  id: string;
+  name: string;
+};
+
+type ConsultantRow = {
+  consultant_id: string | null;
+  consultant_name: string | null;
+};
+
+const normalizeConsultantName = (name: string | null | undefined) =>
+  name?.trim() || "Consultor sem nome";
+
+const mergeConsultant = (
+  map: Map<string, string>,
+  id: string,
+  name: string | null | undefined,
+) => {
+  const normalized = name?.trim() || "";
+  const fallback = "Consultor sem nome";
+  const current = map.get(id);
+
+  if (!current) {
+    map.set(id, normalized || fallback);
+    return;
+  }
+
+  if (current === fallback && normalized) {
+    map.set(id, normalized);
+  }
+};
 
 export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -52,14 +87,17 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       range,
       appointments: [],
       companies: [],
+      consultants: [],
+      selectedConsultantId: null,
       loading: true,
       error: null,
     };
   });
   const requestIdRef = useRef(0);
+  const consultantsRequestIdRef = useRef(0);
 
   const loadSchedule = useCallback(
-    async (range: ScheduleRange) => {
+    async (range: ScheduleRange, consultantId: string | null) => {
       const requestId = ++requestIdRef.current;
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
@@ -76,8 +114,8 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
           .lte("starts_at", range.endIso)
           .order("starts_at", { ascending: true });
 
-        if (user?.id) {
-          appointmentsQuery = appointmentsQuery.eq("consultant_id", user.id);
+        if (consultantId) {
+          appointmentsQuery = appointmentsQuery.eq("consultant_id", consultantId);
         }
 
         const [companiesResp, appointmentsResp] = await Promise.all([
@@ -120,8 +158,60 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
         }));
       }
     },
-    [supabase, user?.id],
+    [supabase],
   );
+
+  const loadConsultants = useCallback(async () => {
+    const requestId = ++consultantsRequestIdRef.current;
+
+    try {
+      const consultantsResp = await supabase
+        .from("apontamentos")
+        .select("consultant_id, consultant_name")
+        .order("consultant_name", { ascending: true });
+
+      if (requestId !== consultantsRequestIdRef.current) return;
+
+      if (consultantsResp.error) {
+        console.error(consultantsResp.error);
+        return;
+      }
+
+      const rows = (consultantsResp.data ?? []) as ConsultantRow[];
+      const map = new Map<string, string>();
+      for (const row of rows) {
+        const consultantId = row.consultant_id;
+        if (!consultantId) continue;
+        mergeConsultant(map, consultantId, row.consultant_name);
+      }
+
+      const consultants = Array.from(map, ([id, name]) => ({
+        id,
+        name: normalizeConsultantName(name),
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      setState((prev) => {
+        const keepSelected =
+          prev.selectedConsultantId &&
+          consultants.some((item) => item.id === prev.selectedConsultantId)
+            ? prev.selectedConsultantId
+            : null;
+        const userCandidate =
+          user?.id && consultants.some((item) => item.id === user.id)
+            ? user.id
+            : null;
+        const selectedConsultantId =
+          keepSelected ?? userCandidate ?? consultants[0]?.id ?? null;
+        return {
+          ...prev,
+          consultants,
+          selectedConsultantId,
+        };
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }, [supabase, user?.id]);
 
   const setRange = useCallback((range: { startAt: Date; endAt: Date }) => {
     const normalized = normalizeRange(range);
@@ -137,8 +227,25 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    await loadSchedule(state.range);
-  }, [loadSchedule, state.range]);
+    const consultantId = state.selectedConsultantId ?? user?.id ?? null;
+    await Promise.all([
+      loadConsultants(),
+      loadSchedule(state.range, consultantId),
+    ]);
+  }, [
+    loadConsultants,
+    loadSchedule,
+    state.range,
+    state.selectedConsultantId,
+    user?.id,
+  ]);
+
+  const setSelectedConsultantId = useCallback((id: string | null) => {
+    setState((prev) => ({
+      ...prev,
+      selectedConsultantId: id,
+    }));
+  }, []);
 
   const getCompany = useCallback(
     (id: string) => state.companies.find((company) => company.id === id),
@@ -152,8 +259,19 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
-    void loadSchedule(state.range);
-  }, [authLoading, loadSchedule, state.range]);
+    void loadConsultants();
+  }, [authLoading, loadConsultants]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void loadSchedule(state.range, state.selectedConsultantId ?? user?.id ?? null);
+  }, [
+    authLoading,
+    loadSchedule,
+    state.range,
+    state.selectedConsultantId,
+    user?.id,
+  ]);
 
   const value = useMemo<ScheduleContextValue>(
     () => ({
@@ -162,8 +280,9 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       refresh,
       getCompany,
       getAppointment,
+      setSelectedConsultantId,
     }),
-    [state, setRange, refresh, getCompany, getAppointment],
+    [state, setRange, refresh, getCompany, getAppointment, setSelectedConsultantId],
   );
 
   return (

@@ -85,10 +85,13 @@ export default function CronogramaClient() {
   const {
     appointments,
     companies,
+    consultants,
     loading,
     error,
+    selectedConsultantId,
     setRange,
     refresh,
+    setSelectedConsultantId,
   } = useSchedule();
   const today = useMemo(() => new Date(), []);
 
@@ -148,6 +151,11 @@ export default function CronogramaClient() {
     return new Map(companies.map((company) => [company.id, company]));
   }, [companies]);
 
+  const selectedConsultant = useMemo(
+    () => consultants.find((item) => item.id === selectedConsultantId) ?? null,
+    [consultants, selectedConsultantId],
+  );
+
   const totalAppointments = appointments.length;
 
   return (
@@ -161,8 +169,36 @@ export default function CronogramaClient() {
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <span>Semana selecionada</span>
               <span>{totalAppointments} agendamentos</span>
+              <span>
+                Consultor:{" "}
+                {selectedConsultant?.name ?? "Consultor nao selecionado"}
+              </span>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                <span className="uppercase text-[10px] text-slate-400">
+                  Consultor
+                </span>
+                <select
+                  value={selectedConsultantId ?? ""}
+                  onChange={(event) => {
+                    const next = event.target.value || null;
+                    setSelectedConsultantId(next);
+                  }}
+                  disabled={!consultants.length}
+                  className="min-w-[160px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                >
+                  {consultants.length ? (
+                    consultants.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Nenhum consultor</option>
+                  )}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => refresh()}
