@@ -6,18 +6,46 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { useSchedule } from "@/contexts/ScheduleContext";
-import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import {
+  APPOINTMENT_SELECT,
   formatDateLabel,
   formatDuration,
   formatTime,
   getOpportunityLabel,
+  mapAppointment,
   STATUS_LABELS,
   STATUS_TONES,
+  type Appointment,
 } from "@/lib/schedule";
+import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "../components/ScheduleMapView";
 
 type AppointmentMediaKind = "checkin" | "checkout" | "absence" | "other";
+
+type AppointmentRow = {
+  id: string;
+  company_id: string;
+  consultant_id: string | null;
+  consultant_name: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: "scheduled" | "in_progress" | "done" | "absent" | null;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  check_in_lat: number | null;
+  check_in_lng: number | null;
+  check_in_accuracy_m: number | null;
+  check_out_lat: number | null;
+  check_out_lng: number | null;
+  check_out_accuracy_m: number | null;
+  address_snapshot: string | null;
+  absence_reason: string | null;
+  absence_note: string | null;
+  notes: string | null;
+  oportunidades: string[] | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
 
 type AppointmentMediaRow = {
   id: string;
@@ -76,21 +104,69 @@ const formatMediaTimestamp = (value: string | null) => {
 export default function AppointmentDetailClient() {
   const params = useParams();
   const appointmentId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const { appointments, companies, loading } = useSchedule();
+  const { companies } = useSchedule();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [appointment, setAppointment] = useState<Appointment | null>(null);
+  const [appointmentLoading, setAppointmentLoading] = useState(false);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const appointmentRequestIdRef = useRef(0);
   const [media, setMedia] = useState<AppointmentMediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const mediaRequestIdRef = useRef(0);
 
-  const appointment = useMemo(
-    () => appointments.find((item) => item.id === appointmentId),
-    [appointments, appointmentId],
-  );
   const company = useMemo(
     () => companies.find((item) => item.id === appointment?.companyId),
     [companies, appointment?.companyId],
   );
+
+  const loadAppointment = useCallback(
+    async (id: string) => {
+      const requestId = ++appointmentRequestIdRef.current;
+      setAppointmentLoading(true);
+      setAppointmentError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from("apontamentos")
+          .select(APPOINTMENT_SELECT)
+          .eq("id", id)
+          .maybeSingle();
+
+        if (requestId !== appointmentRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setAppointment(null);
+          setAppointmentLoading(false);
+          setAppointmentError("Nao foi possivel carregar o apontamento.");
+          return;
+        }
+
+        if (!data) {
+          setAppointment(null);
+          setAppointmentLoading(false);
+          return;
+        }
+
+        setAppointment(mapAppointment(data as AppointmentRow));
+        setAppointmentLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== appointmentRequestIdRef.current) return;
+        setAppointment(null);
+        setAppointmentLoading(false);
+        setAppointmentError("Nao foi possivel carregar o apontamento.");
+      }
+    },
+    [supabase],
+  );
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    setAppointment(null);
+    void loadAppointment(appointmentId);
+  }, [appointmentId, loadAppointment]);
 
   const loadMedia = useCallback(
     async (id: string) => {
@@ -189,7 +265,7 @@ export default function AppointmentDetailClient() {
     void loadMedia(appointmentId);
   }, [appointmentId, loadMedia]);
 
-  if (loading && !appointment) {
+  if (appointmentLoading && !appointment) {
     return (
       <PageShell title="Apontamento" subtitle="Carregando detalhes...">
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
@@ -201,9 +277,12 @@ export default function AppointmentDetailClient() {
 
   if (!appointment) {
     return (
-      <PageShell title="Apontamento" subtitle="Nao encontrado">
+      <PageShell
+        title="Apontamento"
+        subtitle={appointmentError ? "Erro ao carregar" : "Nao encontrado"}
+      >
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          Apontamento nao encontrado.
+          {appointmentError ?? "Apontamento nao encontrado."}
         </div>
         <Link
           href="/cronograma"

@@ -552,9 +552,10 @@ export default function CronogramaClient() {
                       </div>
                     ))
                   : filteredCompanies.map((company) => (
-                      <div
+                      <Link
                         key={company.id}
-                        className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 hover:bg-slate-50"
+                        href={`/cronograma/empresa/${company.id}`}
+                        className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
                         style={{ gridTemplateColumns: companyGridTemplateColumns }}
                       >
                         <div className="min-w-0">
@@ -599,7 +600,7 @@ export default function CronogramaClient() {
                             {company.validacao ?? "Sem validacao"}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     ))}
 
                 {!loading && filteredCompanies.length === 0 && (
