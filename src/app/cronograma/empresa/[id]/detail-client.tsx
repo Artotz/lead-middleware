@@ -72,6 +72,9 @@ export default function CompanyDetailClient() {
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
   const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const [showCompanies, setShowCompanies] = useState(true);
+  const [showCheckIns, setShowCheckIns] = useState(true);
+  const [showCheckOuts, setShowCheckOuts] = useState(true);
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
@@ -347,12 +350,47 @@ export default function CompanyDetailClient() {
           </div>
 
           <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
+              <button
+                type="button"
+                onClick={() => setShowCompanies((prev) => !prev)}
+                className={`rounded-lg border px-2 py-1 transition ${
+                  showCompanies
+                    ? "border-sky-300 bg-sky-100 text-sky-800"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Empresas
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCheckIns((prev) => !prev)}
+                className={`rounded-lg border px-2 py-1 transition ${
+                  showCheckIns
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Check-ins
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCheckOuts((prev) => !prev)}
+                className={`rounded-lg border px-2 py-1 transition ${
+                  showCheckOuts
+                    ? "border-rose-200 bg-rose-50 text-rose-800"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Check-outs
+              </button>
+            </div>
             <ScheduleMapView
               appointments={appointments}
               companies={[company]}
-              showCompanies
-              showCheckIns
-              showCheckOuts
+              showCompanies={showCompanies}
+              showCheckIns={showCheckIns}
+              showCheckOuts={showCheckOuts}
               visible
               loading={appointmentsLoading}
               error={appointmentsError}

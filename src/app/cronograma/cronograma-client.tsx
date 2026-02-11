@@ -21,6 +21,7 @@ import {
   toDateKey,
 } from "@/lib/schedule";
 import { ScheduleMapView } from "./components/ScheduleMapView";
+import { CreateAppointmentPanel } from "./components/CreateAppointmentPanel";
 
 type ScheduleCardProps = {
   id: string;
@@ -108,6 +109,7 @@ export default function CronogramaClient() {
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [companySearch, setCompanySearch] = useState("");
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -126,6 +128,14 @@ export default function CronogramaClient() {
   }, [selectedMonth, weeks, today]);
 
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
+  const defaultCreateDate = useMemo(() => {
+    if (!selectedWeek) return today;
+    const todayKey = toDateKey(today);
+    const startKey = toDateKey(selectedWeek.startAt);
+    const endKey = toDateKey(selectedWeek.endAt);
+    if (todayKey >= startKey && todayKey <= endKey) return today;
+    return selectedWeek.startAt;
+  }, [selectedWeek, today]);
 
   useEffect(() => {
     if (!selectedWeek) return;
@@ -272,6 +282,15 @@ export default function CronogramaClient() {
                   >
                     Atualizar
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePanel((prev) => !prev)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
+                    aria-expanded={showCreatePanel}
+                    aria-controls="create-appointment-panel"
+                  >
+                    {showCreatePanel ? "Fechar criacao" : "Novo apontamento"}
+                  </button>
                   <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold sm:w-auto sm:justify-start">
                     {[
                       { id: "board", label: "Quadro" },
@@ -340,6 +359,21 @@ export default function CronogramaClient() {
                   })}
                 </div>
               </div>
+
+              {showCreatePanel ? (
+                <div id="create-appointment-panel">
+                  <CreateAppointmentPanel
+                    companies={companies}
+                    consultants={consultants}
+                    defaultConsultantId={selectedConsultantId}
+                    defaultDate={defaultCreateDate}
+                    onCancel={() => setShowCreatePanel(false)}
+                    onCreated={async () => {
+                      await refresh();
+                    }}
+                  />
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
