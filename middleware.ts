@@ -22,14 +22,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isCronogramaRoute =
-    pathname === "/cronograma" || pathname.startsWith("/cronograma/");
-
-  if (!isCronogramaRoute) {
-    const notFoundUrl = new URL("/__not-found", request.url);
-    return NextResponse.rewrite(notFoundUrl, { status: 404 });
-  }
-
   const response = NextResponse.next({
     request: {
       headers: request.headers,

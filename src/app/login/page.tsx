@@ -1,5 +1,5 @@
-import { notFound } from "next/navigation";
+import LoginClient from "./login-client";
 
 export default function LoginPage() {
-  notFound();
+  return <LoginClient />;
 }
