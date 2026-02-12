@@ -21,6 +21,7 @@ import {
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "../../components/ScheduleMapView";
+import { CreateAppointmentModal } from "../../components/CreateAppointmentPanel";
 
 type AppointmentRow = {
   id: string;
@@ -65,7 +66,13 @@ const formatAppointmentShort = (appointment: Appointment) => {
 export default function CompanyDetailClient() {
   const params = useParams();
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const { companies, loading: scheduleLoading } = useSchedule();
+  const {
+    companies,
+    consultants,
+    selectedConsultantId,
+    refresh,
+    loading: scheduleLoading,
+  } = useSchedule();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -75,11 +82,18 @@ export default function CompanyDetailClient() {
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalDate, setCreateModalDate] = useState(() => new Date());
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
     [companies, companyId],
   );
+
+  const openCreateModal = useCallback(() => {
+    setCreateModalDate(new Date());
+    setCreateModalOpen(true);
+  }, []);
 
   const loadAppointments = useCallback(
     async (id: string) => {
@@ -182,6 +196,7 @@ export default function CompanyDetailClient() {
     { label: "Documento", value: company.document ?? "Documento nao informado" },
     { label: "Estado", value: company.state ?? "Sem estado" },
     { label: "CSA", value: company.csa ?? "Sem CSA" },
+    { label: "Email CSA", value: company.emailCsa ?? "Sem email CSA" },
     { label: "Carteira", value: company.carteiraDef ?? "Sem carteira" },
     { label: "Carteira 2", value: company.carteiraDef2 ?? "Sem carteira 2" },
     { label: "Classe", value: company.clientClass ?? "Sem classe" },
@@ -209,7 +224,30 @@ export default function CompanyDetailClient() {
         >
           Voltar ao cronograma
         </Link>
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+        >
+          Criar apontamento
+        </button>
       </div>
+
+      <CreateAppointmentModal
+        open={createModalOpen}
+        companies={companies}
+        consultants={consultants}
+        defaultConsultantId={selectedConsultantId}
+        defaultCompanyId={company.id}
+        defaultDate={createModalDate}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={async () => {
+          await refresh();
+          if (companyId) {
+            await loadAppointments(companyId);
+          }
+        }}
+      />
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-4">

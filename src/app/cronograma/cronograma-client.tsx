@@ -16,12 +16,13 @@ import {
   formatWeekday,
   getWeeksForMonth,
   isSameDay,
+  matchesConsultantCompany,
   STATUS_LABELS,
   STATUS_TONES,
   toDateKey,
 } from "@/lib/schedule";
 import { ScheduleMapView } from "./components/ScheduleMapView";
-import { CreateAppointmentPanel } from "./components/CreateAppointmentPanel";
+import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
 type ScheduleCardProps = {
   id: string;
@@ -115,7 +116,7 @@ export default function CronogramaClient({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [companySearch, setCompanySearch] = useState("");
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -185,9 +186,16 @@ export default function CronogramaClient({
   const totalAppointments = appointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
 
+  const companiesByConsultant = useMemo(() => {
+    if (!selectedConsultant?.name) return [];
+    return companies.filter((company) =>
+      matchesConsultantCompany(company, selectedConsultant.name),
+    );
+  }, [companies, selectedConsultant]);
+
   const filteredCompanies = useMemo(() => {
-    if (!normalizedCompanySearch) return companies;
-    return companies.filter((company) => {
+    if (!normalizedCompanySearch) return companiesByConsultant;
+    return companiesByConsultant.filter((company) => {
       const haystack = [
         company.name,
         company.document,
@@ -205,7 +213,7 @@ export default function CronogramaClient({
         .toLowerCase();
       return haystack.includes(normalizedCompanySearch);
     });
-  }, [companies, normalizedCompanySearch]);
+  }, [companiesByConsultant, normalizedCompanySearch]);
 
   const companyColumns = [
     { id: "empresa", label: "Empresa", width: "1.8fr" },
@@ -290,12 +298,11 @@ export default function CronogramaClient({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowCreatePanel((prev) => !prev)}
+                    onClick={() => setShowCreateModal((prev) => !prev)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
-                    aria-expanded={showCreatePanel}
-                    aria-controls="create-appointment-panel"
+                    aria-expanded={showCreateModal}
                   >
-                    {showCreatePanel ? "Fechar criacao" : "Novo apontamento"}
+                    {showCreateModal ? "Fechar criacao" : "Novo apontamento"}
                   </button>
                   <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold sm:w-auto sm:justify-start">
                     {[
@@ -366,20 +373,17 @@ export default function CronogramaClient({
                 </div>
               </div>
 
-              {showCreatePanel ? (
-                <div id="create-appointment-panel">
-                  <CreateAppointmentPanel
-                    companies={companies}
-                    consultants={consultants}
-                    defaultConsultantId={selectedConsultantId}
-                    defaultDate={defaultCreateDate}
-                    onCancel={() => setShowCreatePanel(false)}
-                    onCreated={async () => {
-                      await refresh();
-                    }}
-                  />
-                </div>
-              ) : null}
+              <CreateAppointmentModal
+                open={showCreateModal}
+                companies={companies}
+                consultants={consultants}
+                defaultConsultantId={selectedConsultantId}
+                defaultDate={defaultCreateDate}
+                onClose={() => setShowCreateModal(false)}
+                onCreated={async () => {
+                  await refresh();
+                }}
+              />
 
               {error ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -539,14 +543,43 @@ export default function CronogramaClient({
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
+                      Consultor
+                    </span>
+                    <select
+                      value={selectedConsultantId ?? ""}
+                      onChange={(event) => {
+                        const next = event.target.value || null;
+                        setSelectedConsultantId(next);
+                      }}
+                      disabled={!consultants.length}
+                      className="min-w-[160px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                    >
+                      {consultants.length ? (
+                        consultants.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Nenhum consultor</option>
+                      )}
+                    </select>
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                    <span className="uppercase text-[10px] text-slate-400">
                       Busca
                     </span>
                     <input
                       type="search"
                       value={companySearch}
                       onChange={(event) => setCompanySearch(event.target.value)}
-                      placeholder="Buscar por empresa, documento ou carteira"
-                      className="min-w-[200px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                      placeholder={
+                        selectedConsultantId
+                          ? "Buscar por empresa, documento ou carteira"
+                          : "Selecione um consultor"
+                      }
+                      disabled={!selectedConsultantId}
+                      className="min-w-[200px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
                   <button
@@ -577,73 +610,79 @@ export default function CronogramaClient({
               </div>
 
               <div className="divide-y divide-slate-200">
-                {loading
-                  ? companySkeletonRows.map((index) => (
-                      <div
-                        key={`company-skeleton-${index}`}
-                        className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]"
-                        style={{ gridTemplateColumns: companyGridTemplateColumns }}
-                      >
-                        {companyColumns.map((column) => (
-                          <div key={`${index}-${column.id}`} className="min-w-0">
-                            <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
-                          </div>
-                        ))}
+                {!selectedConsultant ? (
+                  <div className="px-5 py-4 text-sm text-slate-500">
+                    Selecione um consultor para ver as empresas.
+                  </div>
+                ) : loading ? (
+                  companySkeletonRows.map((index) => (
+                    <div
+                      key={`company-skeleton-${index}`}
+                      className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]"
+                      style={{ gridTemplateColumns: companyGridTemplateColumns }}
+                    >
+                      {companyColumns.map((column) => (
+                        <div key={`${index}-${column.id}`} className="min-w-0">
+                          <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  filteredCompanies.map((company) => (
+                    <Link
+                      key={company.id}
+                      href={`/cronograma/empresa/${company.id}`}
+                      className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                      style={{ gridTemplateColumns: companyGridTemplateColumns }}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-slate-900">
+                          {company.name}
+                        </div>
+                        <div className="truncate text-xs text-slate-500">
+                          {company.document ?? "Documento nao informado"}
+                        </div>
                       </div>
-                    ))
-                  : filteredCompanies.map((company) => (
-                      <Link
-                        key={company.id}
-                        href={`/cronograma/empresa/${company.id}`}
-                        className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                        style={{ gridTemplateColumns: companyGridTemplateColumns }}
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-900">
-                            {company.name}
-                          </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {company.document ?? "Documento nao informado"}
-                          </div>
+                      <div className="min-w-0">
+                        <Badge tone="sky" className="max-w-[120px] truncate">
+                          {company.state ?? "Sem estado"}
+                        </Badge>
+                      </div>
+                      <div className="min-w-0">
+                        <Badge tone="emerald" className="max-w-[140px] truncate">
+                          {company.csa ?? "Sem CSA"}
+                        </Badge>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-700">
+                          {company.carteiraDef ?? "Sem carteira"}
                         </div>
-                        <div className="min-w-0">
-                          <Badge tone="sky" className="max-w-[120px] truncate">
-                            {company.state ?? "Sem estado"}
-                          </Badge>
+                        <div className="truncate text-xs text-slate-500">
+                          {company.carteiraDef2 ?? "Sem carteira 2"}
                         </div>
-                        <div className="min-w-0">
-                          <Badge tone="emerald" className="max-w-[140px] truncate">
-                            {company.csa ?? "Sem CSA"}
-                          </Badge>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-700">
+                          {company.clientClass ?? "Sem classe"}
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {company.carteiraDef ?? "Sem carteira"}
-                          </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {company.carteiraDef2 ?? "Sem carteira 2"}
-                          </div>
+                        <div className="truncate text-xs text-slate-500">
+                          {company.classeCliente ?? "Sem classe cliente"}
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {company.clientClass ?? "Sem classe"}
-                          </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {company.classeCliente ?? "Sem classe cliente"}
-                          </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-700">
+                          {company.referencia ?? "Sem referencia"}
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {company.referencia ?? "Sem referencia"}
-                          </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {company.validacao ?? "Sem validacao"}
-                          </div>
+                        <div className="truncate text-xs text-slate-500">
+                          {company.validacao ?? "Sem validacao"}
                         </div>
-                      </Link>
-                    ))}
+                      </div>
+                    </Link>
+                  ))
+                )}
 
-                {!loading && filteredCompanies.length === 0 && (
+                {selectedConsultant && !loading && filteredCompanies.length === 0 && (
                   <div className="px-5 py-4 text-sm text-slate-500">
                     Nenhuma empresa encontrada com esses filtros.
                   </div>

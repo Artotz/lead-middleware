@@ -1,7 +1,7 @@
 "use client";
 
 export const COMPANY_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, created_at";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, created_at, email_csa";
 
 export const APPOINTMENT_SELECT =
   "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_in_accuracy_m, check_out_lat, check_out_lng, check_out_accuracy_m, address_snapshot, absence_reason, absence_note, notes, oportunidades, created_at, updated_at";
@@ -35,6 +35,7 @@ export type Company = {
   classeCliente: string | null;
   validacao: string | null;
   referencia: string | null;
+  emailCsa: string | null;
   createdAt: string | null;
 };
 
@@ -84,6 +85,7 @@ type SupabaseCompanyRow = {
   classe_cliente: string | null;
   validacao: string | null;
   referencia: string | null;
+  email_csa: string | null;
   created_at: string | null;
 };
 
@@ -206,6 +208,7 @@ export const mapCompany = (row: SupabaseCompanyRow): Company => ({
   classeCliente: row.classe_cliente ?? null,
   validacao: row.validacao ?? null,
   referencia: row.referencia ?? null,
+  emailCsa: row.email_csa ?? null,
   createdAt: row.created_at ?? null,
 });
 
@@ -243,6 +246,17 @@ export const mapAppointment = (row: SupabaseAppointmentRow): Appointment => ({
   createdAt: row.created_at ?? null,
   updatedAt: row.updated_at ?? null,
 });
+
+export const matchesConsultantCompany = (
+  company: Company,
+  consultantName: string,
+): boolean => {
+  const normalized = consultantName.trim().toLowerCase();
+  if (!normalized) return false;
+  const email = company.emailCsa?.trim().toLowerCase() ?? "";
+  if (!email) return false;
+  return email.includes(normalized);
+};
 
 export const startOfDay = (date: Date): Date =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());

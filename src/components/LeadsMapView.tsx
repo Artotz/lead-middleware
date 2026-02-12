@@ -213,7 +213,7 @@ export function LeadsMapView({
         : null;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="relative z-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div ref={containerRef} className="h-[520px] w-full bg-slate-100" />
       {overlayMessage ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

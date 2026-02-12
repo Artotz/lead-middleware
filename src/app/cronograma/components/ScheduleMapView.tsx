@@ -151,7 +151,7 @@ export function ScheduleMapView({
         : null;
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="relative z-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <MapContainer
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
