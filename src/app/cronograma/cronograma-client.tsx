@@ -80,10 +80,10 @@ function ScheduleCard({
         <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>
       </div>
 
-      <div className="mt-2 space-y-0.5 text-[11px] text-slate-600">
+      {/* <div className="mt-2 space-y-0.5 text-[11px] text-slate-600">
         <div>{location}</div>
         <div>Consultor: {consultant}</div>
-      </div>
+      </div> */}
     </Link>
   );
 }
@@ -108,8 +108,8 @@ export default function CronogramaClient({
   const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
     initialTab,
   );
-  const [selectedMonth, setSelectedMonth] = useState(() =>
-    new Date(today.getFullYear(), today.getMonth(), 1),
+  const [selectedMonth, setSelectedMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [showCompanies, setShowCompanies] = useState(true);
@@ -129,7 +129,9 @@ export default function CronogramaClient({
     if (!weeks.length) return;
     const todayKey = toDateKey(today);
     const index = weeks.findIndex(
-      (week) => todayKey >= toDateKey(week.startAt) && todayKey <= toDateKey(week.endAt),
+      (week) =>
+        todayKey >= toDateKey(week.startAt) &&
+        todayKey <= toDateKey(week.endAt),
     );
     setSelectedWeekIndex(index >= 0 ? index : 0);
   }, [selectedMonth, weeks, today]);
@@ -333,7 +335,9 @@ export default function CronogramaClient({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedMonth((prev) => addMonths(prev, -1))}
+                    onClick={() =>
+                      setSelectedMonth((prev) => addMonths(prev, -1))
+                    }
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                   >
                     <span className="sr-only">Mes anterior</span>
@@ -344,7 +348,9 @@ export default function CronogramaClient({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setSelectedMonth((prev) => addMonths(prev, 1))}
+                    onClick={() =>
+                      setSelectedMonth((prev) => addMonths(prev, 1))
+                    }
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                   >
                     <span className="sr-only">Proximo mes</span>
@@ -619,7 +625,9 @@ export default function CronogramaClient({
                     <div
                       key={`company-skeleton-${index}`}
                       className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]"
-                      style={{ gridTemplateColumns: companyGridTemplateColumns }}
+                      style={{
+                        gridTemplateColumns: companyGridTemplateColumns,
+                      }}
                     >
                       {companyColumns.map((column) => (
                         <div key={`${index}-${column.id}`} className="min-w-0">
@@ -634,7 +642,9 @@ export default function CronogramaClient({
                       key={company.id}
                       href={`/cronograma/empresa/${company.id}`}
                       className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                      style={{ gridTemplateColumns: companyGridTemplateColumns }}
+                      style={{
+                        gridTemplateColumns: companyGridTemplateColumns,
+                      }}
                     >
                       <div className="min-w-0">
                         <div className="truncate font-semibold text-slate-900">
@@ -650,7 +660,10 @@ export default function CronogramaClient({
                         </Badge>
                       </div>
                       <div className="min-w-0">
-                        <Badge tone="emerald" className="max-w-[140px] truncate">
+                        <Badge
+                          tone="emerald"
+                          className="max-w-[140px] truncate"
+                        >
                           {company.csa ?? "Sem CSA"}
                         </Badge>
                       </div>
@@ -682,11 +695,13 @@ export default function CronogramaClient({
                   ))
                 )}
 
-                {selectedConsultant && !loading && filteredCompanies.length === 0 && (
-                  <div className="px-5 py-4 text-sm text-slate-500">
-                    Nenhuma empresa encontrada com esses filtros.
-                  </div>
-                )}
+                {selectedConsultant &&
+                  !loading &&
+                  filteredCompanies.length === 0 && (
+                    <div className="px-5 py-4 text-sm text-slate-500">
+                      Nenhuma empresa encontrada com esses filtros.
+                    </div>
+                  )}
               </div>
             </div>
           </div>

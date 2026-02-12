@@ -207,6 +207,7 @@ export function CreateAppointmentModal({
     try {
       const consultantName =
         selectedConsultant?.name ?? getUserDisplayName(user) ?? null;
+      const createdBy = user?.email?.trim() || null;
 
       const payload = {
         company_id: selectedCompanyId,
@@ -215,7 +216,8 @@ export function CreateAppointmentModal({
         consultant_id: consultantId || null,
         consultant_name: consultantName,
         status: "scheduled",
-        address_snapshot: selectedCompany?.state ?? null,
+        // address_snapshot: selectedCompany?.state ?? null,
+        created_by: createdBy,
       };
 
       const { error: insertError } = await supabase

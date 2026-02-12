@@ -4,7 +4,7 @@ export const COMPANY_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, created_at, email_csa";
 
 export const APPOINTMENT_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_in_accuracy_m, check_out_lat, check_out_lng, check_out_accuracy_m, address_snapshot, absence_reason, absence_note, notes, oportunidades, created_at, updated_at";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_in_accuracy_m, check_out_lat, check_out_lng, check_out_accuracy_m, address_snapshot, absence_reason, absence_note, notes, oportunidades, created_by, created_at, updated_at";
 
 export type SupabaseAppointmentStatus =
   | "scheduled"
@@ -60,6 +60,7 @@ export type Appointment = {
   absenceNote: string | null;
   notes: string | null;
   oportunidades: string[] | null;
+  createdBy: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -110,6 +111,7 @@ type SupabaseAppointmentRow = {
   absence_note: string | null;
   notes: string | null;
   oportunidades: string[] | null;
+  created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -243,6 +245,7 @@ export const mapAppointment = (row: SupabaseAppointmentRow): Appointment => ({
   absenceNote: row.absence_note ?? null,
   notes: row.notes ?? null,
   oportunidades: row.oportunidades ?? null,
+  createdBy: row.created_by ?? null,
   createdAt: row.created_at ?? null,
   updatedAt: row.updated_at ?? null,
 });
