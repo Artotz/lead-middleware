@@ -445,12 +445,11 @@ export default function CronogramaClient({
                           {items.length ? (
                             items.map((item, index) => {
                               const company = companyById.get(item.companyId);
-                              const title =
-                                item.notes?.trim() ||
-                                company?.name ||
-                                "Apontamento";
+                              const title = company?.name || "Apontamento";
                               const client =
-                                company?.name || "Empresa nao informada";
+                                // item.notes?.trim() ||
+                                // company?.name ||
+                                "";
                               const location =
                                 item.addressSnapshot?.trim() ||
                                 company?.state ||
