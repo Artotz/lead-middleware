@@ -35,6 +35,10 @@ type ScheduleCardProps = {
   order: number;
 };
 
+type CronogramaClientProps = {
+  initialTab?: "cronograma" | "empresas";
+};
+
 function ScheduleCard({
   id,
   title,
@@ -83,7 +87,9 @@ function ScheduleCard({
   );
 }
 
-export default function CronogramaClient() {
+export default function CronogramaClient({
+  initialTab = "cronograma",
+}: CronogramaClientProps) {
   const {
     appointments,
     companies,
@@ -99,7 +105,7 @@ export default function CronogramaClient() {
 
   const [viewMode, setViewMode] = useState<"board" | "map">("board");
   const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
-    "cronograma",
+    initialTab,
   );
   const [selectedMonth, setSelectedMonth] = useState(() =>
     new Date(today.getFullYear(), today.getMonth(), 1),
