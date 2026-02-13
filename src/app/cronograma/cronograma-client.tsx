@@ -128,6 +128,7 @@ export default function CronogramaClient({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [companySearch, setCompanySearch] = useState("");
+  const [companySort, setCompanySort] = useState<"vlr-3m" | "qtd-3m">("vlr-3m");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const companySkeletonRows = useMemo(
@@ -234,6 +235,28 @@ export default function CronogramaClient({
       return haystack.includes(normalizedCompanySearch);
     });
   }, [companiesByConsultant, normalizedCompanySearch]);
+
+  const sortedCompanies = useMemo(() => {
+    const sorted = [...filteredCompanies];
+    sorted.sort((a, b) => {
+      const aValue =
+        companySort === "vlr-3m"
+          ? (a.vlrUltimos3Meses ?? Number.NEGATIVE_INFINITY)
+          : (a.qtdUltimos3Meses ?? Number.NEGATIVE_INFINITY);
+      const bValue =
+        companySort === "vlr-3m"
+          ? (b.vlrUltimos3Meses ?? Number.NEGATIVE_INFINITY)
+          : (b.qtdUltimos3Meses ?? Number.NEGATIVE_INFINITY);
+
+      if (aValue === bValue) {
+        return a.name.localeCompare(b.name, "pt-BR");
+      }
+
+      return bValue - aValue;
+    });
+
+    return sorted;
+  }, [filteredCompanies, companySort]);
 
   const companyColumns = [
     { id: "empresa", label: "Empresa", width: "1.8fr" },
@@ -607,6 +630,23 @@ export default function CronogramaClient({
                       className="min-w-[200px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                    <span className="uppercase text-[10px] text-slate-400">
+                      Ordenar
+                    </span>
+                    <select
+                      value={companySort}
+                      onChange={(event) =>
+                        setCompanySort(
+                          event.target.value === "qtd-3m" ? "qtd-3m" : "vlr-3m",
+                        )
+                      }
+                      className="min-w-[140px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                    >
+                      <option value="vlr-3m">Valor 3m</option>
+                      <option value="qtd-3m">Qtd 3m</option>
+                    </select>
+                  </label>
                   <button
                     type="button"
                     onClick={() => refresh()}
@@ -656,7 +696,7 @@ export default function CronogramaClient({
                     </div>
                   ))
                 ) : (
-                  filteredCompanies.map((company) => (
+                  sortedCompanies.map((company) => (
                     <Link
                       key={company.id}
                       href={`/cronograma/empresa/${company.id}`}

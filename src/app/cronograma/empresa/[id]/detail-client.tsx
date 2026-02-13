@@ -90,7 +90,9 @@ export default function CompanyDetailClient() {
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
-  const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(
+    null,
+  );
   const requestIdRef = useRef(0);
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
@@ -156,7 +158,10 @@ export default function CompanyDetailClient() {
     const done = appointments.filter(isAppointmentDone).length;
     const absent = appointments.filter(isAppointmentAbsent).length;
     const inProgress = appointments.filter(
-      (item) => !isAppointmentDone(item) && !isAppointmentAbsent(item) && isAppointmentInProgress(item),
+      (item) =>
+        !isAppointmentDone(item) &&
+        !isAppointmentAbsent(item) &&
+        isAppointmentInProgress(item),
     ).length;
     const pending = total - done - absent - inProgress;
     return { total, done, inProgress, absent, pending };
@@ -206,7 +211,10 @@ export default function CompanyDetailClient() {
   }
 
   const infoItems = [
-    { label: "Documento", value: company.document ?? "Documento nao informado" },
+    {
+      label: "Documento",
+      value: company.document ?? "Documento nao informado",
+    },
     { label: "Estado", value: company.state ?? "Sem estado" },
     { label: "CSA", value: company.csa ?? "Sem CSA" },
     { label: "Email CSA", value: company.emailCsa ?? "Sem email CSA" },
@@ -327,7 +335,9 @@ export default function CompanyDetailClient() {
               </div>
             ) : null}
 
-            {!appointmentsLoading && !appointmentsError && appointments.length === 0 ? (
+            {!appointmentsLoading &&
+            !appointmentsError &&
+            appointments.length === 0 ? (
               <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
                 Nenhum apontamento registrado para esta empresa.
               </div>
@@ -355,10 +365,14 @@ export default function CompanyDetailClient() {
                   </div>
                   <div className="mt-2 space-y-1 text-[11px] text-slate-600">
                     <div>
-                      Consultor: {appointment.consultantName?.trim() || "Nao informado"}
+                      Consultor:{" "}
+                      {appointment.consultantName?.trim() || "Nao informado"}
                     </div>
                     <div>
-                      Endereco: {appointment.addressSnapshot?.trim() || company.state || "Nao informado"}
+                      Endereco:{" "}
+                      {appointment.addressSnapshot?.trim() ||
+                        company.state ||
+                        "Nao informado"}
                     </div>
                   </div>
                   {appointment.absenceReason ? (
@@ -384,7 +398,7 @@ export default function CompanyDetailClient() {
               <Badge tone="amber">{stats.pending} pendentes</Badge>
               <Badge tone="rose">{stats.absent} ausentes</Badge>
             </div>
-            <div className="mt-3 space-y-3 text-sm text-slate-600">
+            {/* <div className="mt-3 space-y-3 text-sm text-slate-600">
               <div>
                 <div className="font-semibold text-slate-700">
                   Ultimo apontamento
@@ -405,7 +419,7 @@ export default function CompanyDetailClient() {
                     : "Sem agenda futura"}
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
 
           <div>
