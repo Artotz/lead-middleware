@@ -40,6 +40,18 @@ type CronogramaClientProps = {
   initialTab?: "cronograma" | "empresas";
 };
 
+const numberFormatter = new Intl.NumberFormat("pt-BR");
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const formatQuantity = (value: number | null) =>
+  value == null ? "Sem dados" : numberFormatter.format(value);
+
+const formatCurrency = (value: number | null) =>
+  value == null ? "Sem dados" : currencyFormatter.format(value);
+
 function ScheduleCard({
   id,
   title,
@@ -209,6 +221,12 @@ export default function CronogramaClient({
         company.classeCliente,
         company.validacao,
         company.referencia,
+        company.qtdUltimos3Meses != null
+          ? String(company.qtdUltimos3Meses)
+          : null,
+        company.vlrUltimos3Meses != null
+          ? String(company.vlrUltimos3Meses)
+          : null,
       ]
         .filter(Boolean)
         .join(" ")
@@ -224,6 +242,8 @@ export default function CronogramaClient({
     { id: "carteira", label: "Carteira", width: "1.2fr" },
     { id: "classe", label: "Classe", width: "1.2fr" },
     { id: "referencia", label: "Referencia", width: "1.1fr" },
+    { id: "qtd-3m", label: "Qtd 3m", width: "0.7fr" },
+    { id: "vlr-3m", label: "Valor 3m", width: "0.9fr" },
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
@@ -688,6 +708,22 @@ export default function CronogramaClient({
                         </div>
                         <div className="truncate text-xs text-slate-500">
                           {company.validacao ?? "Sem validacao"}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-700">
+                          {formatQuantity(company.qtdUltimos3Meses)}
+                        </div>
+                        <div className="truncate text-xs text-slate-500">
+                          Ultimos 3 meses
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-700">
+                          {formatCurrency(company.vlrUltimos3Meses)}
+                        </div>
+                        <div className="truncate text-xs text-slate-500">
+                          Ultimos 3 meses
                         </div>
                       </div>
                     </Link>

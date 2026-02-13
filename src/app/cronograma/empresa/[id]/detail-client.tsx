@@ -64,6 +64,18 @@ const formatAppointmentShort = (appointment: Appointment) => {
   return `${formatDateLabel(date)} · ${formatTime(appointment.startAt)}`;
 };
 
+const numberFormatter = new Intl.NumberFormat("pt-BR");
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const formatQuantity = (value: number | null) =>
+  value == null ? "Sem dados" : numberFormatter.format(value);
+
+const formatCurrency = (value: number | null) =>
+  value == null ? "Sem dados" : currencyFormatter.format(value);
+
 export default function CompanyDetailClient() {
   const params = useParams();
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -207,6 +219,14 @@ export default function CompanyDetailClient() {
     },
     { label: "Validacao", value: company.validacao ?? "Sem validacao" },
     { label: "Referencia", value: company.referencia ?? "Sem referencia" },
+    {
+      label: "Qtd ultimos 3 meses",
+      value: formatQuantity(company.qtdUltimos3Meses),
+    },
+    {
+      label: "Valor ultimos 3 meses",
+      value: formatCurrency(company.vlrUltimos3Meses),
+    },
     {
       label: "Coordenadas",
       value:

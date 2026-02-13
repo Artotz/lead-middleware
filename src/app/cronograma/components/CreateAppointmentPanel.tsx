@@ -52,6 +52,18 @@ const parseDateTime = (dateValue: string, timeValue: string) => {
   return date;
 };
 
+const numberFormatter = new Intl.NumberFormat("pt-BR");
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const formatQuantity = (value: number | null) =>
+  value == null ? "Sem dados" : numberFormatter.format(value);
+
+const formatCurrency = (value: number | null) =>
+  value == null ? "Sem dados" : currencyFormatter.format(value);
+
 export function CreateAppointmentModal({
   open,
   companies,
@@ -339,6 +351,14 @@ export function CreateAppointmentModal({
                   </span>
                   <span>
                     Carteira: {selectedCompany.carteiraDef ?? "Nao informado"}
+                  </span>
+                  <span>
+                    Qtd ultimos 3 meses:{" "}
+                    {formatQuantity(selectedCompany.qtdUltimos3Meses)}
+                  </span>
+                  <span>
+                    Valor ultimos 3 meses:{" "}
+                    {formatCurrency(selectedCompany.vlrUltimos3Meses)}
                   </span>
                 </div>
               </div>
