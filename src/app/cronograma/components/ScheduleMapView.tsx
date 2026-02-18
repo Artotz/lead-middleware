@@ -1,8 +1,10 @@
 ﻿"use client";
 
 import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { latLngBounds } from "leaflet";
+import { formatDateLabel, formatTime } from "@/lib/schedule";
 import type { Appointment, Company } from "@/lib/schedule";
 
 type MapPointType = "company" | "check_in" | "check_out";
@@ -12,7 +14,9 @@ type MapPoint = {
   type: MapPointType;
   lat: number;
   lng: number;
-  label: string;
+  companyName: string;
+  subtitle: string | null;
+  appointmentId: string | null;
 };
 
 type ScheduleMapViewProps = {
@@ -38,6 +42,13 @@ const markerStyles: Record<MapPointType, { color: string; fill: string }> = {
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+
+const formatDateTime = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${formatDateLabel(date)} ${formatTime(date)}`;
+};
 
 function FitBounds({ points }: { points: MapPoint[] }) {
   const map = useMap();
@@ -81,6 +92,7 @@ export function ScheduleMapView({
   error = null,
   emptyMessage = "Sem coordenadas para exibir no mapa.",
 }: ScheduleMapViewProps) {
+  const router = useRouter();
   const points = useMemo<MapPoint[]>(() => {
     const list: MapPoint[] = [];
     const companyById = new Map(companies.map((company) => [company.id, company]));
@@ -93,12 +105,15 @@ export function ScheduleMapView({
         if (!company) return;
         if (!isFiniteNumber(company.lat) || !isFiniteNumber(company.lng)) return;
         seen.add(appointment.companyId);
+        const scheduleDateTime = formatDateTime(appointment.startAt);
         list.push({
           id: `company-${company.id}`,
           type: "company",
           lat: company.lat,
           lng: company.lng,
-          label: company.name,
+          companyName: company.name,
+          subtitle: scheduleDateTime ? `Agendamento: ${scheduleDateTime}` : null,
+          appointmentId: appointment.id,
         });
       });
     }
@@ -111,12 +126,16 @@ export function ScheduleMapView({
         ) {
           return;
         }
+        const company = companyById.get(appointment.companyId);
+        const checkInDateTime = formatDateTime(appointment.checkInAt ?? appointment.startAt);
         list.push({
           id: `checkin-${appointment.id}`,
           type: "check_in",
           lat: appointment.checkInLat,
           lng: appointment.checkInLng,
-          label: `Check-in ${appointment.id.slice(0, 6)}`,
+          companyName: company?.name ?? "Empresa",
+          subtitle: checkInDateTime ? `Check-in: ${checkInDateTime}` : "Check-in",
+          appointmentId: appointment.id,
         });
       });
     }
@@ -129,12 +148,16 @@ export function ScheduleMapView({
         ) {
           return;
         }
+        const company = companyById.get(appointment.companyId);
+        const checkOutDateTime = formatDateTime(appointment.checkOutAt ?? appointment.endAt);
         list.push({
           id: `checkout-${appointment.id}`,
           type: "check_out",
           lat: appointment.checkOutLat,
           lng: appointment.checkOutLng,
-          label: `Check-out ${appointment.id.slice(0, 6)}`,
+          companyName: company?.name ?? "Empresa",
+          subtitle: checkOutDateTime ? `Check-out: ${checkOutDateTime}` : "Check-out",
+          appointmentId: appointment.id,
         });
       });
     }
@@ -177,9 +200,22 @@ export function ScheduleMapView({
                 fillOpacity: 0.9,
                 weight: 2,
               }}
+              eventHandlers={{
+                click: () => {
+                  if (!point.appointmentId) return;
+                  router.push(`/cronograma/${point.appointmentId}`);
+                },
+              }}
             >
               <Tooltip direction="top" offset={[0, -6]}>
-                {point.label}
+                <div className="text-sm font-semibold text-slate-900">
+                  {point.companyName}
+                </div>
+                {point.subtitle ? (
+                  <div className="text-xs font-medium text-slate-600">
+                    {point.subtitle}
+                  </div>
+                ) : null}
               </Tooltip>
             </CircleMarker>
           );

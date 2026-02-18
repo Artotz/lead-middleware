@@ -345,13 +345,16 @@ export default function AppointmentDetailClient() {
                 {appointment.consultantName?.trim() || "Nao informado"}
               </div>
             </div>
-            {appointment.notes?.trim() ? (
-              <div className="mt-3 text-sm text-slate-600">
-                <span className="font-semibold text-slate-600">Notas: </span>
+          </div>
+
+          {appointment.notes?.trim() ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+              <h2 className="text-sm font-semibold text-slate-900">Notas</h2>
+              <div className="mt-2 text-sm text-slate-600">
                 {appointment.notes}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {appointment.oportunidades?.length ? (
             <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
