@@ -213,15 +213,19 @@ export function CreateAppointmentModal({
     setError(null);
     setLoading(true);
     try {
-      const consultantName =
-        selectedConsultant?.name ?? getUserDisplayName(user) ?? null;
+      const normalizedConsultantId = consultantId.trim();
+      const consultantName = normalizedConsultantId.includes("@")
+        ? normalizedConsultantId
+        : selectedConsultant?.name ?? getUserDisplayName(user) ?? null;
       const createdBy = user?.email?.trim() || null;
 
       const payload = {
         company_id: selectedCompanyId,
         starts_at: startDateTime.toISOString(),
         ends_at: endDateTime.toISOString(),
-        consultant_id: consultantId || null,
+        consultant_id: normalizedConsultantId.includes("@")
+          ? null
+          : normalizedConsultantId || null,
         consultant_name: consultantName,
         status: "scheduled",
         // address_snapshot: selectedCompany?.state ?? null,
