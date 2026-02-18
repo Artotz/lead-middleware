@@ -370,7 +370,11 @@ export function CreateAppointmentModal({
               <span>Consultor</span>
               <select
                 value={consultantId}
-                onChange={(event) => setConsultantId(event.target.value)}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setConsultantId(nextId);
+                  setSelectedCompanyId("");
+                }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               >
                 <option value="">Selecione o consultor</option>
