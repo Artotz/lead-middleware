@@ -269,8 +269,12 @@ export const matchesConsultantCompany = (
   const normalized = consultantName.trim().toLowerCase();
   if (!normalized) return false;
   const email = company.emailCsa?.trim().toLowerCase() ?? "";
-  if (!email) return false;
-  return email.includes(normalized);
+  const csa = company.csa?.trim().toLowerCase() ?? "";
+  if (!email && !csa) return false;
+  return (
+    (email && email.includes(normalized)) ||
+    (csa && csa.includes(normalized))
+  );
 };
 
 export const startOfDay = (date: Date): Date =>

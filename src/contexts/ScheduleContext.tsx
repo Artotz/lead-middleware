@@ -52,12 +52,16 @@ type Consultant = {
 };
 
 type ConsultantRow = {
-  consultant_id: string | null;
-  consultant_name: string | null;
+  csa: string | null;
+  email_csa: string | null;
 };
 
-const normalizeConsultantName = (name: string | null | undefined) =>
-  name?.trim() || "Consultor sem nome";
+const normalizeConsultantName = (
+  name: string | null | undefined,
+  fallback: string,
+) => name?.trim() || fallback || "Consultor sem nome";
+const normalizeConsultantKey = (value: string | null | undefined) =>
+  value?.trim() ?? "";
 
 const mergeConsultant = (
   map: Map<string, string>,
@@ -115,7 +119,18 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
           .order("starts_at", { ascending: true });
 
         if (consultantId) {
-          appointmentsQuery = appointmentsQuery.eq("consultant_id", consultantId);
+          const normalizedConsultantId = consultantId.trim();
+          if (normalizedConsultantId.includes("@")) {
+            appointmentsQuery = appointmentsQuery.eq(
+              "consultant_name",
+              normalizedConsultantId,
+            );
+          } else {
+            appointmentsQuery = appointmentsQuery.eq(
+              "consultant_id",
+              normalizedConsultantId,
+            );
+          }
         }
 
         const [companiesResp, appointmentsResp] = await Promise.all([
@@ -166,9 +181,9 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const consultantsResp = await supabase
-        .from("apontamentos")
-        .select("consultant_id, consultant_name")
-        .order("consultant_name", { ascending: true });
+        .from("companies")
+        .select("csa, email_csa")
+        .order("csa", { ascending: true });
 
       if (requestId !== consultantsRequestIdRef.current) return;
 
@@ -180,14 +195,16 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       const rows = (consultantsResp.data ?? []) as ConsultantRow[];
       const map = new Map<string, string>();
       for (const row of rows) {
-        const consultantId = row.consultant_id;
+        const consultantId =
+          normalizeConsultantKey(row.email_csa) ||
+          normalizeConsultantKey(row.csa);
         if (!consultantId) continue;
-        mergeConsultant(map, consultantId, row.consultant_name);
+        mergeConsultant(map, consultantId, row.csa ?? row.email_csa);
       }
 
       const consultants = Array.from(map, ([id, name]) => ({
         id,
-        name: normalizeConsultantName(name),
+        name: normalizeConsultantName(name, id),
       })).sort((a, b) => a.name.localeCompare(b.name));
 
       setState((prev) => {
@@ -196,10 +213,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
           consultants.some((item) => item.id === prev.selectedConsultantId)
             ? prev.selectedConsultantId
             : null;
-        const userCandidate =
-          user?.id && consultants.some((item) => item.id === user.id)
-            ? user.id
-            : null;
+        const normalizedUserEmail = user?.email?.trim().toLowerCase() ?? "";
+        const userCandidate = normalizedUserEmail
+          ? consultants.find(
+              (item) => item.id.toLowerCase() === normalizedUserEmail,
+            )?.id ?? null
+          : null;
         const selectedConsultantId =
           keepSelected ?? userCandidate ?? consultants[0]?.id ?? null;
         return {
@@ -211,7 +230,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(error);
     }
-  }, [supabase, user?.id]);
+  }, [supabase, user?.email]);
 
   const setRange = useCallback((range: { startAt: Date; endAt: Date }) => {
     const normalized = normalizeRange(range);
@@ -227,7 +246,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const consultantId = state.selectedConsultantId ?? user?.id ?? null;
+    const consultantId = state.selectedConsultantId ?? null;
     await Promise.all([
       loadConsultants(),
       loadSchedule(state.range, consultantId),
@@ -237,7 +256,6 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
     loadSchedule,
     state.range,
     state.selectedConsultantId,
-    user?.id,
   ]);
 
   const setSelectedConsultantId = useCallback((id: string | null) => {
@@ -264,13 +282,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
-    void loadSchedule(state.range, state.selectedConsultantId ?? user?.id ?? null);
+    void loadSchedule(state.range, state.selectedConsultantId ?? null);
   }, [
     authLoading,
     loadSchedule,
     state.range,
     state.selectedConsultantId,
-    user?.id,
   ]);
 
   const value = useMemo<ScheduleContextValue>(

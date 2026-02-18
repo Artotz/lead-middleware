@@ -87,13 +87,6 @@ export function CreateAppointmentModal({
   const [error, setError] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const consultantsWithUser = useMemo(() => {
-    if (!user?.id) return consultants;
-    if (consultants.some((item) => item.id === user.id)) return consultants;
-    const displayName = getUserDisplayName(user) ?? "Consultor atual";
-    return [{ id: user.id, name: displayName }, ...consultants];
-  }, [consultants, user]);
-
   useEffect(() => {
     if (!open) return;
 
@@ -111,20 +104,23 @@ export function CreateAppointmentModal({
     setStartTime(toTimeInputValue(now));
     setEndTime(endValue);
 
-    const nextConsultant =
-      defaultConsultantId ?? user?.id ?? consultantsWithUser[0]?.id ?? "";
+    const hasDefaultConsultant =
+      defaultConsultantId &&
+      consultants.some((item) => item.id === defaultConsultantId);
+    const nextConsultant = hasDefaultConsultant
+      ? defaultConsultantId
+      : consultants[0]?.id ?? "";
     setConsultantId(nextConsultant);
     setSelectedCompanyId(defaultCompanyId ?? "");
 
     const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
   }, [
-    consultantsWithUser,
+    consultants,
     defaultCompanyId,
     defaultConsultantId,
     defaultDate,
     open,
-    user?.id,
   ]);
 
   useEffect(() => {
@@ -145,8 +141,8 @@ export function CreateAppointmentModal({
   );
 
   const selectedConsultant = useMemo(
-    () => consultantsWithUser.find((item) => item.id === consultantId) ?? null,
-    [consultantId, consultantsWithUser],
+    () => consultants.find((item) => item.id === consultantId) ?? null,
+    [consultantId, consultants],
   );
 
   const availableCompanies = useMemo(() => {
@@ -378,7 +374,7 @@ export function CreateAppointmentModal({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               >
                 <option value="">Selecione o consultor</option>
-                {consultantsWithUser.map((consultant) => (
+                {consultants.map((consultant) => (
                   <option key={consultant.id} value={consultant.id}>
                     {consultant.name}
                   </option>
