@@ -10,10 +10,10 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Home", disabled: true },
-  { label: "Dashboard", disabled: true },
+  // { label: "Home", disabled: true },
+  // { label: "Dashboard", disabled: true },
   { label: "Cronograma", href: "/cronograma" },
-  { label: "Importar", disabled: true },
+  // { label: "Importar", disabled: true },
   { label: "Métricas", disabled: true },
 ];
 
@@ -30,15 +30,13 @@ export function AppHeader() {
       <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sm font-bold text-sky-700">
-            LT
+            VFS
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">
-              Leads & Tickets
+              Veneza Field Service
             </p>
-            <p className="hidden text-xs text-slate-500 sm:block">
-              Middleware dashboard
-            </p>
+            <p className="hidden text-xs text-slate-500 sm:block"></p>
           </div>
         </div>
 
@@ -55,7 +53,11 @@ export function AppHeader() {
                   {item.label}
                 </button>
               ) : (
-                <Link key={item.label} href={item.href ?? "#"} className={enabledNavClass}>
+                <Link
+                  key={item.label}
+                  href={item.href ?? "#"}
+                  className={enabledNavClass}
+                >
                   {item.label}
                 </Link>
               ),
