@@ -10,34 +10,34 @@ import {
   addDays,
   addMonths,
   formatDateLabel,
-  formatDuration,
   formatMonthLabel,
   formatTime,
   formatWeekday,
   getWeeksForMonth,
   isSameDay,
+  isAppointmentDone,
   matchesConsultantCompany,
   STATUS_LABELS,
-  STATUS_TONES,
+  type Appointment,
   toDateKey,
 } from "@/lib/schedule";
 import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
-type ScheduleCardProps = {
-  id: string;
-  title: string;
-  client: string;
-  location: string;
-  consultant: string;
-  time: string;
-  duration: string;
-  status: keyof typeof STATUS_LABELS;
-  order: number;
-};
-
 type CronogramaClientProps = {
   initialTab?: "cronograma" | "empresas";
+};
+
+type TimelineItem = {
+  appointment: Appointment;
+  start: Date;
+  end: Date;
+  isActual: boolean;
+};
+
+type TimelineLayoutItem = TimelineItem & {
+  lane: number;
+  lanes: number;
 };
 
 const numberFormatter = new Intl.NumberFormat("pt-BR");
@@ -52,53 +52,70 @@ const formatQuantity = (value: number | null) =>
 const formatCurrency = (value: number | null) =>
   value == null ? "Sem dados" : currencyFormatter.format(value);
 
-function ScheduleCard({
-  id,
-  title,
-  client,
-  location,
-  consultant,
-  time,
-  duration,
-  status,
-  order,
-}: ScheduleCardProps) {
-  return (
-    <Link
-      href={`/cronograma/${id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-2 text-left shadow-sm transition hover:border-slate-300 hover:shadow"
-      aria-label={`Abrir detalhes do apontamento ${title}`}
-    >
-      <div className="flex items-start justify-between gap-1.5">
-        <div className="flex items-start gap-1.5">
-          <Badge tone="slate">#{order}</Badge>
-        </div>
-        <div className="text-right text-[10px] text-slate-400">
-          <div className="font-semibold text-slate-600">{time}</div>
-          <div>{duration}</div>
-        </div>
-      </div>
+const statusCardStyles: Record<keyof typeof STATUS_LABELS, string> = {
+  scheduled: "border-amber-200 bg-amber-50 text-amber-900",
+  in_progress: "border-sky-200 bg-sky-50 text-sky-900",
+  done: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  absent: "border-rose-200 bg-rose-50 text-rose-900",
+};
 
-      <div className="mt-2 min-w-0">
-        <div className="text-xs font-semibold text-slate-900 line-clamp-2">
-          {title}
-        </div>
-        <div className="mt-0.5 text-[11px] text-slate-500 line-clamp-2">
-          {client}
-        </div>
-      </div>
+const resolveTimelineRange = (
+  appointment: Appointment,
+): { start: Date; end: Date; isActual: boolean } => {
+  const scheduledStart = new Date(appointment.startAt);
+  const scheduledEnd = new Date(appointment.endAt);
+  const isDone = isAppointmentDone(appointment);
+  const checkIn = appointment.checkInAt ? new Date(appointment.checkInAt) : null;
+  const checkOut = appointment.checkOutAt
+    ? new Date(appointment.checkOutAt)
+    : null;
 
-      <div className="mt-2 flex flex-wrap gap-1">
-        <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>
-      </div>
+  const start =
+    isDone && checkIn && !Number.isNaN(checkIn.getTime())
+      ? checkIn
+      : scheduledStart;
+  const end =
+    isDone && checkOut && !Number.isNaN(checkOut.getTime())
+      ? checkOut
+      : scheduledEnd;
 
-      {/* <div className="mt-2 space-y-0.5 text-[11px] text-slate-600">
-        <div>{location}</div>
-        <div>Consultor: {consultant}</div>
-      </div> */}
-    </Link>
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    const fallbackStart = new Date();
+    const fallbackEnd = new Date(fallbackStart.getTime() + 30 * 60000);
+    return { start: fallbackStart, end: fallbackEnd, isActual: isDone };
+  }
+
+  if (end.getTime() <= start.getTime()) {
+    return {
+      start,
+      end: new Date(start.getTime() + 30 * 60000),
+      isActual: isDone,
+    };
+  }
+
+  return { start, end, isActual: isDone };
+};
+
+const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
+  if (!items.length) return [];
+  const sorted = [...items].sort(
+    (a, b) => a.start.getTime() - b.start.getTime(),
   );
-}
+  const laneEnds: number[] = [];
+  const placed = sorted.map((item) => {
+    const startTime = item.start.getTime();
+    let laneIndex = laneEnds.findIndex((end) => startTime >= end);
+    if (laneIndex === -1) {
+      laneIndex = laneEnds.length;
+      laneEnds.push(item.end.getTime());
+    } else {
+      laneEnds[laneIndex] = item.end.getTime();
+    }
+    return { ...item, lane: laneIndex, lanes: 0 };
+  });
+  const lanes = Math.max(1, laneEnds.length);
+  return placed.map((item) => ({ ...item, lanes }));
+};
 
 export default function CronogramaClient({
   initialTab = "cronograma",
@@ -130,6 +147,7 @@ export default function CronogramaClient({
   const [companySearch, setCompanySearch] = useState("");
   const [companySort, setCompanySort] = useState<"vlr-3m" | "qtd-3m">("vlr-3m");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -178,16 +196,47 @@ export default function CronogramaClient({
     });
   }, [selectedWeek, today]);
 
-  const appointmentsByDay = useMemo(() => {
-    const map = new Map<string, typeof appointments>();
+  const timelineByDay = useMemo(() => {
+    const map = new Map<string, TimelineItem[]>();
     appointments.forEach((appointment) => {
-      const dateKey = toDateKey(new Date(appointment.startAt));
+      const range = resolveTimelineRange(appointment);
+      const dateKey = toDateKey(range.start);
       const bucket = map.get(dateKey) ?? [];
-      bucket.push(appointment);
+      bucket.push({ appointment, ...range });
       map.set(dateKey, bucket);
     });
     return map;
   }, [appointments]);
+
+  const timelineHours = useMemo(() => {
+    let min = 7;
+    let max = 19;
+    for (const day of weekDays) {
+      const items = timelineByDay.get(toDateKey(day.date)) ?? [];
+      items.forEach((item) => {
+        const startHour = item.start.getHours() + item.start.getMinutes() / 60;
+        const endHour = item.end.getHours() + item.end.getMinutes() / 60;
+        min = Math.min(min, Math.floor(startHour));
+        max = Math.max(max, Math.ceil(endHour));
+      });
+    }
+    min = Math.max(0, Math.min(min, 22));
+    max = Math.max(min + 6, Math.min(max, 23));
+    return { min, max };
+  }, [timelineByDay, weekDays]);
+
+  const hourSlots = useMemo(() => {
+    const slots: number[] = [];
+    for (let hour = timelineHours.min; hour <= timelineHours.max; hour += 1) {
+      slots.push(hour);
+    }
+    return slots;
+  }, [timelineHours]);
+
+  const zoomLevels = [44, 56, 72, 88, 104];
+  const hourRowHeight = zoomLevels[zoomLevel] ?? 56;
+  const minuteHeight = hourRowHeight / 60;
+  const timelineHeight = hourSlots.length * hourRowHeight;
 
   const companyById = useMemo(() => {
     return new Map(companies.map((company) => [company.id, company]));
@@ -310,6 +359,37 @@ export default function CronogramaClient({
                   </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                  {viewMode === "board" ? (
+                    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold text-slate-600">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoomLevel((prev) => Math.max(0, prev - 1))
+                        }
+                        disabled={zoomLevel === 0}
+                        className="rounded-md px-2 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Diminuir zoom da semana"
+                      >
+                        -
+                      </button>
+                      <span className="px-1 text-[10px] uppercase tracking-wide text-slate-400">
+                        Zoom
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoomLevel((prev) =>
+                            Math.min(zoomLevels.length - 1, prev + 1),
+                          )
+                        }
+                        disabled={zoomLevel >= zoomLevels.length - 1}
+                        className="rounded-md px-2 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Aumentar zoom da semana"
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : null}
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
                       Consultor
@@ -351,7 +431,7 @@ export default function CronogramaClient({
                   </button>
                   <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold sm:w-auto sm:justify-start">
                     {[
-                      { id: "board", label: "Quadro" },
+                      { id: "board", label: "Agenda" },
                       { id: "map", label: "Mapa" },
                     ].map((tab) => {
                       const isActive = viewMode === tab.id;
@@ -448,85 +528,149 @@ export default function CronogramaClient({
 
             {viewMode === "board" ? (
               <div className="mt-3">
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-                  {weekDays.map((day) => {
-                    const dateKey = toDateKey(day.date);
-                    const items = appointmentsByDay.get(dateKey) ?? [];
-                    return (
-                      <div
-                        key={dateKey}
-                        className={`rounded-xl border p-2 ${
-                          day.isToday
-                            ? "border-sky-200 bg-sky-100/80"
-                            : "border-slate-200 bg-white"
-                        }`}
-                      >
+                <div className="overflow-x-auto">
+                  <div className="min-w-[980px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div
+                      className="grid border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600"
+                      style={{
+                        gridTemplateColumns:
+                          "64px repeat(7, minmax(0, 1fr))",
+                      }}
+                    >
+                      <div className="border-r border-slate-200 px-2 py-2 text-[10px] uppercase tracking-wide text-slate-400">
+                        Hora
+                      </div>
+                      {weekDays.map((day) => (
                         <div
-                          className={`flex items-center justify-between rounded-lg border px-2 py-1.5 shadow-sm ${
-                            day.isToday
-                              ? "border-sky-200 bg-sky-50 ring-2 ring-sky-200"
-                              : "border-slate-200 bg-white"
+                          key={day.dateLabel}
+                          className={`border-r border-slate-200 px-2 py-2 last:border-r-0 ${
+                            day.isToday ? "bg-sky-50" : ""
                           }`}
                         >
-                          <div className="space-y-0.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              <Badge tone="sky">{day.label}</Badge>
-                              {day.isToday ? (
-                                <Badge tone="emerald">Hoje</Badge>
-                              ) : null}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              {day.dateLabel}
-                            </div>
+                          <div className="flex items-center gap-2">
+                            <Badge tone="sky">{day.shortLabel}</Badge>
+                            {day.isToday ? (
+                              <Badge tone="emerald">Hoje</Badge>
+                            ) : null}
                           </div>
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {items.length}
-                          </span>
+                          <div className="mt-0.5 text-[10px] text-slate-500">
+                            {day.dateLabel}
+                          </div>
                         </div>
+                      ))}
+                    </div>
 
-                        <div className="mt-2 space-y-2">
-                          {items.length ? (
-                            items.map((item, index) => {
-                              const company = companyById.get(item.companyId);
-                              const title = company?.name || "Apontamento";
-                              const client =
-                                // item.notes?.trim() ||
-                                // company?.name ||
-                                "";
-                              const location =
-                                item.addressSnapshot?.trim() ||
-                                company?.state ||
-                                "Endereco nao informado";
-                              const consultant =
-                                item.consultantName?.trim() ||
-                                "Consultor nao informado";
-                              return (
-                                <ScheduleCard
-                                  key={item.id}
-                                  id={item.id}
-                                  title={title}
-                                  client={client}
-                                  location={location}
-                                  consultant={consultant}
-                                  time={formatTime(item.startAt)}
-                                  duration={formatDuration(
-                                    item.startAt,
-                                    item.endAt,
-                                  )}
-                                  status={item.status}
-                                  order={index + 1}
-                                />
-                              );
-                            })
-                          ) : (
-                            <div className="rounded-lg border border-dashed border-slate-200 bg-white px-2 py-4 text-center text-[11px] text-slate-400">
-                              Sem agendamentos.
+                    <div
+                      className="grid"
+                      style={{
+                        gridTemplateColumns:
+                          "64px repeat(7, minmax(0, 1fr))",
+                      }}
+                    >
+                      <div className="relative border-r border-slate-200 bg-slate-50">
+                        <div style={{ height: timelineHeight }}>
+                          {hourSlots.map((hour, index) => (
+                            <div
+                              key={`time-${hour}`}
+                              className="absolute left-0 right-0 border-t border-slate-200 text-[10px] text-slate-400"
+                              style={{ top: index * hourRowHeight }}
+                            >
+                              <span className="-translate-y-1/2 transform px-2">
+                                {String(hour).padStart(2, "0")}:00
+                              </span>
                             </div>
-                          )}
+                          ))}
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {weekDays.map((day) => {
+                        const dateKey = toDateKey(day.date);
+                        const items = timelineByDay.get(dateKey) ?? [];
+                        const layout = layoutTimelineItems(items);
+                        return (
+                          <div
+                            key={`timeline-${dateKey}`}
+                            className={`relative border-r border-slate-200 last:border-r-0 ${
+                              day.isToday ? "bg-sky-50/50" : ""
+                            }`}
+                            style={{ height: timelineHeight }}
+                          >
+                            {hourSlots.map((hour, index) => (
+                              <div
+                                key={`line-${dateKey}-${hour}`}
+                                className="absolute left-0 right-0 border-t border-slate-100"
+                                style={{ top: index * hourRowHeight }}
+                              />
+                            ))}
+
+                            {layout.map((item) => {
+                              const company = companyById.get(
+                                item.appointment.companyId,
+                              );
+                              const title = company?.name || "Apontamento";
+                              const topMinutes =
+                                (item.start.getHours() - timelineHours.min) *
+                                  60 +
+                                item.start.getMinutes();
+                              const durationMinutes = Math.max(
+                                15,
+                                Math.round(
+                                  (item.end.getTime() - item.start.getTime()) /
+                                    60000,
+                                ),
+                              );
+                              const top = topMinutes * minuteHeight;
+                              const height = durationMinutes * minuteHeight;
+                              const isTiny = durationMinutes <= 20;
+                              const isCompact = durationMinutes <= 45;
+                              return (
+                                <Link
+                                  key={item.appointment.id}
+                                  href={`/cronograma/${item.appointment.id}`}
+                                  className={`absolute overflow-hidden rounded-lg border px-2 py-1 text-[10px] leading-tight shadow-sm transition hover:shadow ${
+                                    statusCardStyles[item.appointment.status]
+                                  }`}
+                                  style={{
+                                    top,
+                                    height,
+                                    left: `calc(${
+                                      (item.lane / item.lanes) * 100
+                                    }% + 2px)`,
+                                    width: `calc(${
+                                      100 / item.lanes
+                                    }% - 4px)`,
+                                  }}
+                                  title={`${title} • ${formatTime(
+                                    item.start,
+                                  )} - ${formatTime(item.end)}`}
+                                >
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="truncate font-semibold">
+                                      {title}
+                                    </span>
+                                    {!isTiny && item.isActual ? (
+                                      <span className="rounded bg-emerald-100 px-1 text-[9px] font-semibold text-emerald-700">
+                                        Real
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="mt-0.5 text-[9px] font-semibold text-slate-600">
+                                    {formatTime(item.start)} -{" "}
+                                    {formatTime(item.end)}
+                                  </div>
+                                  {!isCompact ? (
+                                    <div className="mt-0.5 text-[9px] text-slate-500">
+                                      {STATUS_LABELS[item.appointment.status]}
+                                    </div>
+                                  ) : null}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (

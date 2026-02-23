@@ -441,22 +441,43 @@ export default function AppointmentDetailClient() {
                           className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                         >
                           {item.signedUrl ? (
-                            <a
-                              href={item.signedUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block"
-                            >
-                              <img
-                                src={item.signedUrl}
-                                alt={`Imagem ${MEDIA_KIND_LABELS[item.kind]}`}
-                                className="h-48 w-full object-cover transition hover:scale-[1.01]"
-                                loading="lazy"
-                              />
-                            </a>
+                            item.mimeType?.startsWith("image/") ? (
+                              <a
+                                href={item.signedUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={item.signedUrl}
+                                  alt={`Imagem ${MEDIA_KIND_LABELS[item.kind]}`}
+                                  className="h-48 w-full object-cover transition hover:scale-[1.01]"
+                                  loading="lazy"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={item.signedUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex h-48 flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-600 transition hover:bg-slate-100"
+                              >
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                  Arquivo
+                                </div>
+                                <div className="text-sm font-semibold text-slate-800">
+                                  Abrir anexo
+                                </div>
+                                {item.mimeType ? (
+                                  <div className="text-[10px] text-slate-500">
+                                    {item.mimeType}
+                                  </div>
+                                ) : null}
+                              </a>
+                            )
                           ) : (
                             <div className="flex h-48 items-center justify-center px-4 text-xs text-slate-400">
-                              Imagem indisponivel
+                              Anexo indisponivel
                             </div>
                           )}
                           <div className="flex items-center justify-between px-2 py-1 text-[10px] text-slate-500">
