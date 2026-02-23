@@ -272,8 +272,8 @@ export const matchesConsultantCompany = (
   const csa = company.csa?.trim().toLowerCase() ?? "";
   if (!email && !csa) return false;
   return (
-    (email && email.includes(normalized)) ||
-    (csa && csa.includes(normalized))
+    (email !== "" && email.includes(normalized)) ||
+    (csa !== "" && csa.includes(normalized))
   );
 };
 
