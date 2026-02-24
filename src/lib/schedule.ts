@@ -1,10 +1,16 @@
 "use client";
 
 export const COMPANY_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, created_at, email_csa, qtd_ultimos_3_meses, vlr_ultimos_3_meses";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, qtd_ultimos_3_meses, vlr_ultimos_3_meses";
 
 export const APPOINTMENT_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_in_accuracy_m, check_out_lat, check_out_lng, check_out_accuracy_m, address_snapshot, absence_reason, absence_note, notes, oportunidades, created_by, created_at, updated_at";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, oportunidades";
+
+export const COMPANY_LIST_SELECT =
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, qtd_ultimos_3_meses, vlr_ultimos_3_meses";
+
+export const APPOINTMENT_LIST_SELECT =
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng";
 
 export type SupabaseAppointmentStatus =
   | "scheduled"

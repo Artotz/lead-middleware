@@ -12,8 +12,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import {
-  APPOINTMENT_SELECT,
-  COMPANY_SELECT,
+  APPOINTMENT_LIST_SELECT,
+  COMPANY_LIST_SELECT,
   type Appointment,
   type Company,
   type ScheduleRange,
@@ -85,6 +85,7 @@ const mergeConsultant = (
 export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const { user, loading: authLoading } = useAuth();
+  const [consultantsLoaded, setConsultantsLoaded] = useState(false);
   const [state, setState] = useState<ScheduleState>(() => {
     const range = normalizeRange(getWeekRange(new Date()));
     return {
@@ -99,21 +100,47 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
   });
   const requestIdRef = useRef(0);
   const consultantsRequestIdRef = useRef(0);
+  const companiesRequestIdRef = useRef(0);
+
+  const applyConsultantFilter = useCallback(
+    (query: any, consultantId: string | null) => {
+      const normalized = consultantId?.trim();
+      if (!normalized) return query;
+      const safe = normalized.replace(/,/g, "\\,");
+      if (normalized.includes("@")) {
+        return query.ilike("email_csa", `%${safe}%`);
+      }
+      return query.or(`csa.ilike.%${safe}%,email_csa.ilike.%${safe}%`);
+    },
+    [],
+  );
 
   const loadSchedule = useCallback(
     async (range: ScheduleRange, consultantId: string | null) => {
       const requestId = ++requestIdRef.current;
+      const companiesRequestId = ++companiesRequestIdRef.current;
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        const companiesQuery = supabase
+        if (!consultantId?.trim()) {
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            appointments: [],
+            companies: [],
+          }));
+          return;
+        }
+
+        let companiesQuery = supabase
           .from("companies")
-          .select(COMPANY_SELECT)
+          .select(COMPANY_LIST_SELECT)
           .order("name", { ascending: true });
+        companiesQuery = applyConsultantFilter(companiesQuery, consultantId);
 
         let appointmentsQuery = supabase
           .from("apontamentos")
-          .select(APPOINTMENT_SELECT)
+          .select(APPOINTMENT_LIST_SELECT)
           .gte("starts_at", range.startIso)
           .lte("starts_at", range.endIso)
           .order("starts_at", { ascending: true });
@@ -138,7 +165,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
           appointmentsQuery,
         ]);
 
-        if (requestId !== requestIdRef.current) return;
+        if (
+          requestId !== requestIdRef.current ||
+          companiesRequestId !== companiesRequestIdRef.current
+        ) {
+          return;
+        }
 
         if (companiesResp.error || appointmentsResp.error) {
           setState((prev) => ({
@@ -229,6 +261,10 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
       });
     } catch (error) {
       console.error(error);
+    } finally {
+      if (requestId === consultantsRequestIdRef.current) {
+        setConsultantsLoaded(true);
+      }
     }
   }, [supabase, user?.email]);
 
@@ -282,9 +318,11 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLoading) return;
+    if (!consultantsLoaded) return;
     void loadSchedule(state.range, state.selectedConsultantId ?? null);
   }, [
     authLoading,
+    consultantsLoaded,
     loadSchedule,
     state.range,
     state.selectedConsultantId,
