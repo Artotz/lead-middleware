@@ -49,6 +49,45 @@ type AppointmentRow = {
   updated_at: string | null;
 };
 
+type OrcamentoRow = {
+  csa: string | null;
+  definicao: string | null;
+  classe: string | null;
+  clientes: string | null;
+  vs1_numorc: number | string | null;
+  vs1_filial: number | string | null;
+  vs3_codite: string | null;
+  descricao: string | null;
+  vs3_qtdite: number | string | null;
+  vs3_valtot: number | string | null;
+  vs1_nclift: string | null;
+  vs1_datorc: number | string | null;
+  cnpj: number | string | null;
+  vs1_vtotnf: number | string | null;
+  consultor_bd: string | null;
+  consultor_codigo: number | string | null;
+  status: string | null;
+};
+
+type OrcamentoGroup = {
+  key: string;
+  numorc: string;
+  filial: string | null;
+  data: number | string | null;
+  status: string | null;
+  consultor: string | null;
+  total: number | null;
+  definicao: string | null;
+  classe: string | null;
+  clientes: string | null;
+  items: Array<{
+    codigo: string | null;
+    descricao: string | null;
+    qtd: number | null;
+    valor: number | null;
+  }>;
+};
+
 const formatAppointmentHeadline = (appointment: Appointment) => {
   const date = new Date(appointment.startAt);
   const dateLabel = formatDateLabel(date);
@@ -76,6 +115,29 @@ const formatQuantity = (value: number | null) =>
 const formatCurrency = (value: number | null) =>
   value == null ? "Sem dados" : currencyFormatter.format(value);
 
+const toNumber = (value: number | string | null | undefined): number | null => {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const formatOrcDate = (value: number | string | null) => {
+  if (value == null) return "Sem data";
+  const digits = String(value).replace(/\D/g, "");
+  if (digits.length === 8) {
+    const year = digits.slice(0, 4);
+    const month = digits.slice(4, 6);
+    const day = digits.slice(6, 8);
+    return `${day}/${month}/${year}`;
+  }
+  return String(value);
+};
+
+const normalizeCnpj = (value: string | null | undefined) => {
+  const digits = (value ?? "").replace(/\D/g, "");
+  return digits.length ? digits : null;
+};
+
 export default function CompanyDetailClient() {
   const params = useParams();
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -94,11 +156,15 @@ export default function CompanyDetailClient() {
     null,
   );
   const requestIdRef = useRef(0);
+  const orcRequestIdRef = useRef(0);
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createModalDate, setCreateModalDate] = useState(() => new Date());
+  const [orcamentos, setOrcamentos] = useState<OrcamentoRow[]>([]);
+  const [orcamentosLoading, setOrcamentosLoading] = useState(false);
+  const [orcamentosError, setOrcamentosError] = useState<string | null>(null);
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
@@ -147,11 +213,62 @@ export default function CompanyDetailClient() {
     [supabase],
   );
 
+  const loadOrcamentos = useCallback(
+    async (document: string | null | undefined) => {
+      const requestId = ++orcRequestIdRef.current;
+      setOrcamentosLoading(true);
+      setOrcamentosError(null);
+
+      const cnpj = normalizeCnpj(document);
+      if (!cnpj) {
+        setOrcamentos([]);
+        setOrcamentosLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("base_csa_orc")
+          .select(
+            "csa, definicao, classe, clientes, vs1_numorc, vs1_filial, vs3_codite, descricao, vs3_qtdite, vs3_valtot, vs1_nclift, vs1_datorc, cnpj, vs1_vtotnf, consultor_bd, consultor_codigo, status",
+          )
+          .eq("cnpj", cnpj)
+          .order("vs1_datorc", { ascending: false })
+          .order("vs1_numorc", { ascending: false });
+
+        if (requestId !== orcRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setOrcamentos([]);
+          setOrcamentosLoading(false);
+          setOrcamentosError("Nao foi possivel carregar os orcamentos.");
+          return;
+        }
+
+        setOrcamentos((data ?? []) as OrcamentoRow[]);
+        setOrcamentosLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== orcRequestIdRef.current) return;
+        setOrcamentos([]);
+        setOrcamentosLoading(false);
+        setOrcamentosError("Nao foi possivel carregar os orcamentos.");
+      }
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     if (!companyId) return;
     setAppointments([]);
     void loadAppointments(companyId);
   }, [companyId, loadAppointments]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    void loadOrcamentos(company?.document ?? null);
+  }, [company?.document, companyId, loadOrcamentos]);
 
   const stats = useMemo(() => {
     const total = appointments.length;
@@ -166,6 +283,59 @@ export default function CompanyDetailClient() {
     const pending = total - done - absent - inProgress;
     return { total, done, inProgress, absent, pending };
   }, [appointments]);
+
+  const groupedOrcamentos = useMemo<OrcamentoGroup[]>(() => {
+    if (!orcamentos.length) return [];
+
+    const grouped = new Map<string, OrcamentoGroup>();
+
+    orcamentos.forEach((row) => {
+      const numorc = row.vs1_numorc != null ? String(row.vs1_numorc) : "Sem";
+      const filial = row.vs1_filial != null ? String(row.vs1_filial) : null;
+      const key = `${numorc}-${filial ?? "sem"}`;
+      const item = {
+        codigo: row.vs3_codite ?? null,
+        descricao: row.descricao ?? null,
+        qtd: toNumber(row.vs3_qtdite),
+        valor: toNumber(row.vs3_valtot),
+      };
+
+      const entry = grouped.get(key);
+      if (entry) {
+        entry.items.push(item);
+        if (entry.total == null) {
+          entry.total = toNumber(row.vs1_vtotnf);
+        }
+        return;
+      }
+
+      grouped.set(key, {
+        key,
+        numorc,
+        filial,
+        data: row.vs1_datorc ?? null,
+        status: row.status ?? null,
+        consultor: row.consultor_bd ?? null,
+        total: toNumber(row.vs1_vtotnf),
+        definicao: row.definicao ?? null,
+        classe: row.classe ?? null,
+        clientes: row.clientes ?? null,
+        items: [item],
+      });
+    });
+
+    const toSortableDate = (value: number | string | null) => {
+      if (value == null) return 0;
+      const parsed = Number(String(value).replace(/\D/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    return Array.from(grouped.values()).sort((a, b) => {
+      const dateDiff = toSortableDate(b.data) - toSortableDate(a.data);
+      if (dateDiff !== 0) return dateDiff;
+      return a.numorc.localeCompare(b.numorc, "pt-BR");
+    });
+  }, [orcamentos]);
 
   const sortedAsc = useMemo(
     () => [...appointments].sort((a, b) => a.startAt.localeCompare(b.startAt)),
@@ -227,14 +397,6 @@ export default function CompanyDetailClient() {
     },
     { label: "Validacao", value: company.validacao ?? "Sem validacao" },
     { label: "Referencia", value: company.referencia ?? "Sem referencia" },
-    {
-      label: "Qtd ultimos 3 meses",
-      value: formatQuantity(company.qtdUltimos3Meses),
-    },
-    {
-      label: "Valor ultimos 3 meses",
-      value: formatCurrency(company.vlrUltimos3Meses),
-    },
     {
       label: "Coordenadas",
       value:
@@ -300,6 +462,138 @@ export default function CompanyDetailClient() {
                   </div>
                   <div className="truncate text-sm text-slate-700">
                     {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Orcamentos
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                <span>{groupedOrcamentos.length} orcamentos</span>
+                <span>{orcamentos.length} itens</span>
+                <button
+                  type="button"
+                  onClick={() => loadOrcamentos(company.document)}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  Atualizar
+                </button>
+              </div>
+            </div>
+
+            {orcamentosError ? (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {orcamentosError}
+              </div>
+            ) : null}
+
+            {orcamentosLoading ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                Carregando orcamentos...
+              </div>
+            ) : null}
+
+            {!orcamentosLoading &&
+            !orcamentosError &&
+            orcamentos.length === 0 ? (
+              <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
+                Nenhum orcamento encontrado para esta empresa.
+              </div>
+            ) : null}
+
+            <div className="mt-3 space-y-3">
+              {groupedOrcamentos.map((orcamento) => (
+                <div
+                  key={orcamento.key}
+                  className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">
+                        Orcamento {orcamento.numorc}
+                        {orcamento.filial ? ` • Filial ${orcamento.filial}` : ""}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Data: {formatOrcDate(orcamento.data)}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                      {orcamento.status ? (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold">
+                          {orcamento.status}
+                        </span>
+                      ) : null}
+                      {orcamento.total != null ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                          {formatCurrency(orcamento.total)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                    <div>
+                      <span className="font-semibold text-slate-700">
+                        Consultor:
+                      </span>{" "}
+                      {orcamento.consultor ?? "Nao informado"}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-700">
+                        Definicao:
+                      </span>{" "}
+                      {orcamento.definicao ?? "Sem definicao"}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-700">
+                        Classe:
+                      </span>{" "}
+                      {orcamento.classe ?? "Sem classe"}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-700">
+                        Cliente:
+                      </span>{" "}
+                      {orcamento.clientes ?? "Sem cliente"}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                    <div className="grid grid-cols-[1.2fr_0.3fr_0.5fr] gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      <span>Item</span>
+                      <span className="text-right">Qtd</span>
+                      <span className="text-right">Valor</span>
+                    </div>
+                    <div className="divide-y divide-slate-200">
+                      {orcamento.items.map((item, index) => (
+                        <div
+                          key={`${orcamento.key}-${index}`}
+                          className="grid grid-cols-[1.2fr_0.3fr_0.5fr] gap-3 px-3 py-2 text-xs text-slate-700"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-slate-800">
+                              {item.descricao ?? "Item sem descricao"}
+                            </div>
+                            {item.codigo ? (
+                              <div className="text-[11px] text-slate-500">
+                                {item.codigo}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="text-right">
+                            {formatQuantity(item.qtd)}
+                          </div>
+                          <div className="text-right">
+                            {formatCurrency(item.valor)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}

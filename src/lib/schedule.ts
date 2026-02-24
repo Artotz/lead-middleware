@@ -1,13 +1,13 @@
 "use client";
 
 export const COMPANY_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, qtd_ultimos_3_meses, vlr_ultimos_3_meses";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa";
 
 export const APPOINTMENT_SELECT =
   "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, oportunidades";
 
 export const COMPANY_LIST_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, qtd_ultimos_3_meses, vlr_ultimos_3_meses";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa";
 
 export const APPOINTMENT_LIST_SELECT =
   "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng";
@@ -42,8 +42,6 @@ export type Company = {
   validacao: string | null;
   referencia: string | null;
   emailCsa: string | null;
-  qtdUltimos3Meses: number | null;
-  vlrUltimos3Meses: number | null;
   createdAt: string | null;
 };
 
@@ -95,8 +93,6 @@ type SupabaseCompanyRow = {
   validacao: string | null;
   referencia: string | null;
   email_csa: string | null;
-  qtd_ultimos_3_meses: number | string | null;
-  vlr_ultimos_3_meses: number | string | null;
   created_at: string | null;
 };
 
@@ -173,12 +169,6 @@ const timeFormatter = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
-const toNumber = (value: number | string | null | undefined): number | null => {
-  if (value === null || value === undefined) return null;
-  const parsed = typeof value === "string" ? Number(value) : value;
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 export const STATUS_LABELS: Record<SupabaseAppointmentStatus, string> = {
   scheduled: "Agendado",
   in_progress: "Em execucao",
@@ -227,8 +217,6 @@ export const mapCompany = (row: SupabaseCompanyRow): Company => ({
   validacao: row.validacao ?? null,
   referencia: row.referencia ?? null,
   emailCsa: row.email_csa ?? null,
-  qtdUltimos3Meses: toNumber(row.qtd_ultimos_3_meses),
-  vlrUltimos3Meses: toNumber(row.vlr_ultimos_3_meses),
   createdAt: row.created_at ?? null,
 });
 

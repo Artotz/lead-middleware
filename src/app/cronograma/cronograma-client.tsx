@@ -40,18 +40,6 @@ type TimelineLayoutItem = TimelineItem & {
   lanes: number;
 };
 
-const numberFormatter = new Intl.NumberFormat("pt-BR");
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const formatQuantity = (value: number | null) =>
-  value == null ? "Sem dados" : numberFormatter.format(value);
-
-const formatCurrency = (value: number | null) =>
-  value == null ? "Sem dados" : currencyFormatter.format(value);
-
 const statusCardStyles: Record<keyof typeof STATUS_LABELS, string> = {
   scheduled: "border-amber-300 bg-amber-50 text-amber-900",
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
@@ -145,7 +133,6 @@ export default function CronogramaClient({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [companySearch, setCompanySearch] = useState("");
-  const [companySort, setCompanySort] = useState<"vlr-3m" | "qtd-3m">("vlr-3m");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const panelClass =
@@ -283,12 +270,6 @@ export default function CronogramaClient({
         company.classeCliente,
         company.validacao,
         company.referencia,
-        company.qtdUltimos3Meses != null
-          ? String(company.qtdUltimos3Meses)
-          : null,
-        company.vlrUltimos3Meses != null
-          ? String(company.vlrUltimos3Meses)
-          : null,
       ]
         .filter(Boolean)
         .join(" ")
@@ -300,24 +281,11 @@ export default function CronogramaClient({
   const sortedCompanies = useMemo(() => {
     const sorted = [...filteredCompanies];
     sorted.sort((a, b) => {
-      const aValue =
-        companySort === "vlr-3m"
-          ? (a.vlrUltimos3Meses ?? Number.NEGATIVE_INFINITY)
-          : (a.qtdUltimos3Meses ?? Number.NEGATIVE_INFINITY);
-      const bValue =
-        companySort === "vlr-3m"
-          ? (b.vlrUltimos3Meses ?? Number.NEGATIVE_INFINITY)
-          : (b.qtdUltimos3Meses ?? Number.NEGATIVE_INFINITY);
-
-      if (aValue === bValue) {
-        return a.name.localeCompare(b.name, "pt-BR");
-      }
-
-      return bValue - aValue;
+      return a.name.localeCompare(b.name, "pt-BR");
     });
 
     return sorted;
-  }, [filteredCompanies, companySort]);
+  }, [filteredCompanies]);
 
   const companyColumns = [
     { id: "empresa", label: "Empresa", width: "1.8fr" },
@@ -326,8 +294,6 @@ export default function CronogramaClient({
     { id: "carteira", label: "Carteira", width: "1.2fr" },
     { id: "classe", label: "Classe", width: "1.2fr" },
     { id: "referencia", label: "Referencia", width: "1.1fr" },
-    { id: "qtd-3m", label: "Qtd 3m", width: "0.7fr" },
-    { id: "vlr-3m", label: "Valor 3m", width: "0.9fr" },
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
@@ -788,23 +754,6 @@ export default function CronogramaClient({
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="uppercase text-[10px] text-slate-400">
-                      Ordenar
-                    </span>
-                    <select
-                      value={companySort}
-                      onChange={(event) =>
-                        setCompanySort(
-                          event.target.value === "qtd-3m" ? "qtd-3m" : "vlr-3m",
-                        )
-                      }
-                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      <option value="vlr-3m">Valor 3m</option>
-                      <option value="qtd-3m">Qtd 3m</option>
-                    </select>
-                  </label>
                   <button
                     type="button"
                     onClick={() => refresh()}
@@ -906,22 +855,6 @@ export default function CronogramaClient({
                         </div>
                         <div className="truncate text-xs text-slate-500">
                           {company.validacao ?? "Sem validacao"}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-slate-700">
-                          {formatQuantity(company.qtdUltimos3Meses)}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          Ultimos 3 meses
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-slate-700">
-                          {formatCurrency(company.vlrUltimos3Meses)}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          Ultimos 3 meses
                         </div>
                       </div>
                     </Link>
