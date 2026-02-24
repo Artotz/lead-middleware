@@ -102,6 +102,16 @@ const formatMediaTimestamp = (value: string | null) => {
   return `${formatDateLabel(date)} · ${formatTime(date)}`;
 };
 
+const getMediaFileName = (path: string) => {
+  const lastSegment = path.split("/").filter(Boolean).pop();
+  if (!lastSegment) return "Arquivo";
+  try {
+    return decodeURIComponent(lastSegment);
+  } catch {
+    return lastSegment;
+  }
+};
+
 export default function AppointmentDetailClient() {
   const params = useParams();
   const appointmentId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -435,7 +445,9 @@ export default function AppointmentDetailClient() {
                       <span>{items.length} imagem(ns)</span>
                     </div>
                     <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {items.map((item) => (
+                      {items.map((item) => {
+                        const fileName = getMediaFileName(item.path);
+                        return (
                         <div
                           key={item.id}
                           className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
@@ -450,7 +462,7 @@ export default function AppointmentDetailClient() {
                               >
                                 <img
                                   src={item.signedUrl}
-                                  alt={`Imagem ${MEDIA_KIND_LABELS[item.kind]}`}
+                                  alt={`${MEDIA_KIND_LABELS[item.kind]} - ${fileName}`}
                                   className="h-48 w-full object-cover transition hover:scale-[1.01]"
                                   loading="lazy"
                                 />
@@ -465,7 +477,10 @@ export default function AppointmentDetailClient() {
                                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                                   Arquivo
                                 </div>
-                                <div className="text-sm font-semibold text-slate-800">
+                                <div className="text-sm font-semibold text-slate-800 line-clamp-2">
+                                  {fileName}
+                                </div>
+                                <div className="text-[11px] font-semibold text-slate-500">
                                   Abrir anexo
                                 </div>
                                 {item.mimeType ? (
@@ -480,14 +495,20 @@ export default function AppointmentDetailClient() {
                               Anexo indisponivel
                             </div>
                           )}
-                          <div className="flex items-center justify-between px-2 py-1 text-[10px] text-slate-500">
-                            <span>{formatMediaTimestamp(item.createdAt)}</span>
-                            {item.mimeType ? (
-                              <span>{item.mimeType}</span>
-                            ) : null}
+                          <div className="px-2 py-1 text-[10px] text-slate-500">
+                            <div className="truncate text-[11px] font-semibold text-slate-600">
+                              {fileName}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>{formatMediaTimestamp(item.createdAt)}</span>
+                              {item.mimeType ? (
+                                <span>{item.mimeType}</span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );

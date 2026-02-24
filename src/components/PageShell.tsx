@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import bg from "@/assets/bg.png";
 
 type PageShellProps = {
   children: React.ReactNode;
@@ -19,17 +20,28 @@ export function PageShell({ children, title, subtitle }: PageShellProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div
+      className="min-h-screen text-slate-100"
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(10, 12, 14, 0.35) 0%, rgba(10, 12, 14, 0.55) 45%, rgba(10, 12, 14, 0.8) 100%), url(${bg.src})`,
+        backgroundPosition: "top center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+        backgroundColor: "#0b0d10",
+      }}
+    >
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
         {(title || subtitle) && (
           <header className="space-y-1">
             {title && (
-              <h1 className="text-2xl font-semibold text-slate-900">
+              <h1 className="text-2xl font-semibold text-slate-100 sm:text-3xl">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-sm text-slate-600">{subtitle}</p>
+              <p className="max-w-2xl text-sm text-slate-300">
+                {subtitle}
+              </p>
             )}
           </header>
         )}

@@ -53,10 +53,10 @@ const formatCurrency = (value: number | null) =>
   value == null ? "Sem dados" : currencyFormatter.format(value);
 
 const statusCardStyles: Record<keyof typeof STATUS_LABELS, string> = {
-  scheduled: "border-amber-200 bg-amber-50 text-amber-900",
-  in_progress: "border-sky-200 bg-sky-50 text-sky-900",
-  done: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  absent: "border-rose-200 bg-rose-50 text-rose-900",
+  scheduled: "border-amber-300 bg-amber-50 text-amber-900",
+  in_progress: "border-sky-300 bg-sky-50 text-sky-900",
+  done: "border-emerald-300 bg-emerald-50 text-emerald-900",
+  absent: "border-rose-300 bg-rose-50 text-rose-900",
 };
 
 const resolveTimelineRange = (
@@ -148,6 +148,18 @@ export default function CronogramaClient({
   const [companySort, setCompanySort] = useState<"vlr-3m" | "qtd-3m">("vlr-3m");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const panelClass =
+    "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
+  const toolbarCardClass =
+    "rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm";
+  const softButtonClass =
+    "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900";
+  const primaryButtonClass =
+    "rounded-lg border border-[#F2A900] bg-[#FFDE00] px-3 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/40 transition hover:brightness-95";
+  const toggleActiveClass =
+    "border-[#F2A900]/70 bg-[#FFDE00] text-slate-900";
+  const toggleInactiveClass =
+    "border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -339,7 +351,7 @@ export default function CronogramaClient({
               setActiveTab(id === "empresas" ? "empresas" : "cronograma")
             }
           />
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm">
             {activeTab === "cronograma"
               ? `${totalAppointments} agendamentos`
               : `${filteredCompanies.length} empresas`}
@@ -347,10 +359,12 @@ export default function CronogramaClient({
         </div>
 
         {activeTab === "cronograma" ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm sm:p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className={`${panelClass} p-3 sm:p-4`}>
+            <div className="flex flex-col gap-3">
+              <div
+                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <span>Semana selecionada</span>
                   <span>{totalAppointments} agendamentos</span>
                   <span>
@@ -360,7 +374,7 @@ export default function CronogramaClient({
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   {viewMode === "board" ? (
-                    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold text-slate-600">
+                    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-600 shadow-sm">
                       <button
                         type="button"
                         onClick={() =>
@@ -390,7 +404,7 @@ export default function CronogramaClient({
                       </button>
                     </div>
                   ) : null}
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
                       Consultor
                     </span>
@@ -401,7 +415,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
-                      className="min-w-[160px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
                         consultants.map((item) => (
@@ -417,19 +431,19 @@ export default function CronogramaClient({
                   <button
                     type="button"
                     onClick={() => refresh()}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
+                    className={`w-full sm:w-auto ${softButtonClass}`}
                   >
                     Atualizar
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowCreateModal((prev) => !prev)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
+                    className={`w-full sm:w-auto ${primaryButtonClass}`}
                     aria-expanded={showCreateModal}
                   >
                     {showCreateModal ? "Fechar criacao" : "Novo apontamento"}
                   </button>
-                  <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-0.5 text-[11px] font-semibold sm:w-auto sm:justify-start">
+                  <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold shadow-sm sm:w-auto sm:justify-start">
                     {[
                       { id: "board", label: "Agenda" },
                       { id: "map", label: "Mapa" },
@@ -442,7 +456,7 @@ export default function CronogramaClient({
                           onClick={() => setViewMode(tab.id as "board" | "map")}
                           className={`rounded-md px-2 py-1 transition ${
                             isActive
-                              ? "bg-sky-100 text-sky-800"
+                              ? "bg-[#FFDE00] text-slate-900"
                               : "bg-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                           }`}
                         >
@@ -454,19 +468,21 @@ export default function CronogramaClient({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+              >
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() =>
                       setSelectedMonth((prev) => addMonths(prev, -1))
                     }
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                    className={softButtonClass}
                   >
                     <span className="sr-only">Mes anterior</span>
                     &lt;
                   </button>
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-sm font-semibold text-slate-800">
                     {formatMonthLabel(selectedMonth)}
                   </span>
                   <button
@@ -474,14 +490,14 @@ export default function CronogramaClient({
                     onClick={() =>
                       setSelectedMonth((prev) => addMonths(prev, 1))
                     }
-                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                    className={softButtonClass}
                   >
                     <span className="sr-only">Proximo mes</span>
                     &gt;
                   </button>
                 </div>
 
-                <div className="flex w-full flex-nowrap gap-1 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
+                <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
                   {weeks.map((week, index) => {
                     const isActive = index === selectedWeekIndex;
                     return (
@@ -489,10 +505,8 @@ export default function CronogramaClient({
                         key={`${toDateKey(week.startAt)}-${index}`}
                         type="button"
                         onClick={() => setSelectedWeekIndex(index)}
-                        className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${
-                          isActive
-                            ? "border-sky-300 bg-sky-100 text-sky-800"
-                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                          isActive ? toggleActiveClass : toggleInactiveClass
                         }`}
                       >
                         {week.label}
@@ -515,10 +529,10 @@ export default function CronogramaClient({
               />
 
               {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                  {error}
-                </div>
-              ) : null}
+                    <div className="rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
+                      {error}
+                    </div>
+                  ) : null}
               {loading ? (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
                   Carregando cronograma...
@@ -529,9 +543,9 @@ export default function CronogramaClient({
             {viewMode === "board" ? (
               <div className="mt-3">
                 <div className="overflow-x-auto">
-                  <div className="min-w-[980px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="min-w-[980px] rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
                     <div
-                      className="grid border-b border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600"
+                      className="grid border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
                       style={{
                         gridTemplateColumns:
                           "64px repeat(7, minmax(0, 1fr))",
@@ -544,11 +558,11 @@ export default function CronogramaClient({
                         <div
                           key={day.dateLabel}
                           className={`border-r border-slate-200 px-2 py-2 last:border-r-0 ${
-                            day.isToday ? "bg-sky-50" : ""
+                            day.isToday ? "bg-amber-50" : ""
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            <Badge tone="sky">{day.shortLabel}</Badge>
+                            <Badge tone="amber">{day.shortLabel}</Badge>
                             {day.isToday ? (
                               <Badge tone="emerald">Hoje</Badge>
                             ) : null}
@@ -591,7 +605,7 @@ export default function CronogramaClient({
                           <div
                             key={`timeline-${dateKey}`}
                             className={`relative border-r border-slate-200 last:border-r-0 ${
-                              day.isToday ? "bg-sky-50/50" : ""
+                              day.isToday ? "bg-amber-50/60" : ""
                             }`}
                             style={{ height: timelineHeight }}
                           >
@@ -675,14 +689,12 @@ export default function CronogramaClient({
               </div>
             ) : (
               <div className="mt-3 space-y-3">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
                   <button
                     type="button"
                     onClick={() => setShowCompanies((prev) => !prev)}
-                    className={`rounded-lg border px-2 py-1 transition ${
-                      showCompanies
-                        ? "border-sky-300 bg-sky-100 text-sky-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    className={`rounded-lg border px-3 py-2 transition ${
+                      showCompanies ? toggleActiveClass : toggleInactiveClass
                     }`}
                   >
                     Empresas
@@ -690,10 +702,10 @@ export default function CronogramaClient({
                   <button
                     type="button"
                     onClick={() => setShowCheckIns((prev) => !prev)}
-                    className={`rounded-lg border px-2 py-1 transition ${
+                    className={`rounded-lg border px-3 py-2 transition ${
                       showCheckIns
                         ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        : toggleInactiveClass
                     }`}
                   >
                     Check-ins
@@ -701,10 +713,10 @@ export default function CronogramaClient({
                   <button
                     type="button"
                     onClick={() => setShowCheckOuts((prev) => !prev)}
-                    className={`rounded-lg border px-2 py-1 transition ${
+                    className={`rounded-lg border px-3 py-2 transition ${
                       showCheckOuts
                         ? "border-rose-200 bg-rose-50 text-rose-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        : toggleInactiveClass
                     }`}
                   >
                     Check-outs
@@ -725,15 +737,17 @@ export default function CronogramaClient({
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm sm:p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className={`${panelClass} p-3 sm:p-4`}>
+            <div className="flex flex-col gap-3">
+              <div
+                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <span>{filteredCompanies.length} empresas listadas</span>
                   <span>Fonte: Supabase</span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
                       Consultor
                     </span>
@@ -744,7 +758,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
-                      className="min-w-[160px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
                         consultants.map((item) => (
@@ -757,7 +771,7 @@ export default function CronogramaClient({
                       )}
                     </select>
                   </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
                       Busca
                     </span>
@@ -771,10 +785,10 @@ export default function CronogramaClient({
                           : "Selecione um consultor"
                       }
                       disabled={!selectedConsultantId}
-                      className="min-w-[200px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                      className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 sm:w-auto">
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="uppercase text-[10px] text-slate-400">
                       Ordenar
                     </span>
@@ -785,7 +799,7 @@ export default function CronogramaClient({
                           event.target.value === "qtd-3m" ? "qtd-3m" : "vlr-3m",
                         )
                       }
-                      className="min-w-[140px] bg-transparent text-[11px] font-semibold text-slate-700 focus:outline-none"
+                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       <option value="vlr-3m">Valor 3m</option>
                       <option value="qtd-3m">Qtd 3m</option>
@@ -794,7 +808,7 @@ export default function CronogramaClient({
                   <button
                     type="button"
                     onClick={() => refresh()}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 sm:w-auto"
+                    className={`w-full sm:w-auto ${softButtonClass}`}
                   >
                     Atualizar
                   </button>
@@ -808,7 +822,7 @@ export default function CronogramaClient({
               ) : null}
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
               <div
                 className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600"
                 style={{ gridTemplateColumns: companyGridTemplateColumns }}
@@ -844,7 +858,7 @@ export default function CronogramaClient({
                     <Link
                       key={company.id}
                       href={`/cronograma/empresa/${company.id}`}
-                      className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                      className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50"
                       style={{
                         gridTemplateColumns: companyGridTemplateColumns,
                       }}
