@@ -37,6 +37,24 @@ const MESSAGES = {
       signingIn: "Entrando...",
       signIn: "Entrar",
     },
+    header: {
+      brandName: "Veneza Field Service",
+      logoAlt: "Logo do Veneza Field Service",
+      menuOpen: "Abrir menu",
+      menuClose: "Fechar menu",
+      menuLabel: "Menu",
+      userGreeting: "Olá, {name}",
+      userFallback: "Usuário",
+      signOut: "Sair",
+      nav: {
+        schedule: "Cronograma",
+        metrics: "Métricas",
+      },
+    },
+    auth: {
+      logoutError: "Não foi possível encerrar a sessão. Tente novamente.",
+      logoutSuccess: "Você saiu da sua conta com segurança.",
+    },
     schedule: {
       title: "Cronograma semanal",
       subtitle: "Agendamentos reais carregados do Supabase por semana.",
@@ -350,8 +368,11 @@ const getMessageValue = (
 };
 
 export const createTranslator = (messages: Messages): Translate => {
+  const fallbackMessages = getMessages(DEFAULT_LOCALE);
   return (key, params, fallback) => {
-    const template = getMessageValue(messages, key);
+    const template =
+      getMessageValue(messages, key) ??
+      getMessageValue(fallbackMessages, key);
     if (!template) return fallback ?? key;
     if (!params) return template;
     return template.replace(/\{(\w+)\}/g, (_, token) =>

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import logo from "@/assets/logo.png";
+import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
+import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 
 type NavItem = {
   label: string;
@@ -10,21 +12,30 @@ type NavItem = {
   disabled?: boolean;
 };
 
-const navItems: NavItem[] = [
-  // { label: "Home", disabled: true },
-  // { label: "Dashboard", disabled: true },
-  { label: "Cronograma", href: "/cronograma" },
-  // { label: "Importar", disabled: true },
-  { label: "Métricas", disabled: true },
-];
-
 const disabledNavClass =
   "rounded-lg px-3 py-2 text-slate-600 bg-white/40 cursor-not-allowed";
 const enabledNavClass =
   "rounded-lg px-3 py-2 text-slate-900 transition hover:bg-white/60 hover:text-black";
 
-export function AppHeader() {
+type AppHeaderProps = {
+  locale: Locale;
+};
+
+export function AppHeader({ locale }: AppHeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { user } = useAuth();
+  const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
+  const displayName = getUserDisplayName(user, t("header.userFallback"));
+  const greeting = t("header.userGreeting", {
+    name: displayName ?? t("header.userFallback"),
+  });
+  const navItems = useMemo<NavItem[]>(
+    () => [
+      { label: t("header.nav.schedule"), href: "/cronograma" },
+      { label: t("header.nav.metrics"), disabled: true },
+    ],
+    [t],
+  );
 
   return (
     <header
@@ -36,12 +47,15 @@ export function AppHeader() {
           {/* <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-sm font-bold text-[#FFDE00]">
             VFS
           </div> */}
-          <img src={logo.src} alt="Logo" className="h-9 w-auto shrink-0" />
+          <img
+            src={logo.src}
+            alt={t("header.logoAlt")}
+            className="h-9 w-auto shrink-0"
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-black">
-              Veneza Field Service
+              {t("header.brandName")}
             </p>
-            <p className="hidden text-xs text-slate-700 sm:block"></p>
           </div>
         </div>
 
@@ -69,14 +83,28 @@ export function AppHeader() {
             )}
           </nav>
 
+          <div className="hidden items-center gap-3 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 sm:flex">
+            <span className="max-w-[180px] truncate">{greeting}</span>
+            <form action="/auth/logout" method="post">
+              <button
+                type="submit"
+                className="rounded-lg border border-amber-300/40 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-amber-400 hover:text-slate-900"
+              >
+                {t("header.signOut")}
+              </button>
+            </form>
+          </div>
+
           <button
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-amber-300/60 bg-white/60 text-slate-900 transition hover:bg-white sm:hidden"
-            aria-label={isOpen ? "Fechar menu" : "Abrir menu"}
+            aria-label={
+              isOpen ? t("header.menuClose") : t("header.menuOpen")
+            }
             aria-expanded={isOpen}
             onClick={() => setIsOpen((prev) => !prev)}
           >
-            <span className="sr-only">Menu</span>
+            <span className="sr-only">{t("header.menuLabel")}</span>
             <div className="flex flex-col gap-1.5">
               <span className="h-0.5 w-5 rounded-full bg-slate-900" />
               <span className="h-0.5 w-5 rounded-full bg-slate-900" />
@@ -110,6 +138,17 @@ export function AppHeader() {
                 </Link>
               ),
             )}
+            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700">
+              <span className="truncate">{greeting}</span>
+              <form action="/auth/logout" method="post">
+                <button
+                  type="submit"
+                  className="w-full rounded-lg border border-amber-300/40 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-amber-400 hover:text-slate-900"
+                >
+                  {t("header.signOut")}
+                </button>
+              </form>
+            </div>
           </div>
         </nav>
       </div>

@@ -1,8 +1,9 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppHeader } from "@/components/AppHeader";
 import { ToastProvider } from "@/components/ToastProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { DEFAULT_LOCALE } from "@/lib/i18n";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,14 +27,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang={DEFAULT_LOCALE}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-slate-100 text-slate-900 antialiased overflow-x-hidden`}
       >
         <AuthProvider>
           <ToastProvider>
             <div className="min-h-screen bg-slate-100">
-              <AppHeader />
+              <AppHeader locale={DEFAULT_LOCALE} />
               <main>{children}</main>
             </div>
           </ToastProvider>

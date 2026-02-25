@@ -108,7 +108,10 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-export function getUserDisplayName(user: User | null): string | null {
+export function getUserDisplayName(
+  user: User | null,
+  fallback: string = "User",
+): string | null {
   if (!user) return null;
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
   const fromMetadata =
@@ -119,5 +122,6 @@ export function getUserDisplayName(user: User | null): string | null {
     "";
 
   const fromEmail = user.email?.trim() ?? "";
-  return (fromMetadata || fromEmail || "User").trim();
+  const fallbackValue = fallback?.trim() || "User";
+  return (fromMetadata || fromEmail || fallbackValue).trim();
 }
