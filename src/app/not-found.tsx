@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
 import { createTranslator, getLocaleFromHeaders, getMessages } from "@/lib/i18n";
 
-export default function NotFound() {
-  const locale = getLocaleFromHeaders(headers());
+export default async function NotFound() {
+  const locale = getLocaleFromHeaders(await headers());
   const t = createTranslator(getMessages(locale));
 
   return (
@@ -27,3 +27,4 @@ export default function NotFound() {
     </div>
   );
 }
+

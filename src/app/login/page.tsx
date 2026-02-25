@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import LoginClient from "./login-client";
 import { createTranslator, getLocaleFromHeaders, getMessages } from "@/lib/i18n";
 
-export default function LoginPage() {
-  const locale = getLocaleFromHeaders(headers());
+export default async function LoginPage() {
+  const locale = getLocaleFromHeaders(await headers());
   const t = createTranslator(getMessages(locale));
 
   return (
@@ -19,3 +19,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+
