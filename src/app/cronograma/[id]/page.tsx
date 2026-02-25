@@ -1,6 +1,8 @@
-﻿import AppointmentDetailClient from "./detail-client";
+import { headers } from "next/headers";
+import AppointmentDetailClient from "./detail-client";
+import { getLocaleFromHeaders } from "@/lib/i18n";
 
 export default function AppointmentDetailPage() {
-  return <AppointmentDetailClient />;
+  const locale = getLocaleFromHeaders(headers());
+  return <AppointmentDetailClient locale={locale} />;
 }
-

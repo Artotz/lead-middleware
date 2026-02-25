@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useAuth, getUserDisplayName } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
+import { type Translate } from "@/lib/i18n";
 import {
   type Company,
   formatDuration,
@@ -25,6 +26,7 @@ type CreateAppointmentModalProps = {
   defaultDate: Date;
   onClose: () => void;
   onCreated?: () => void | Promise<void>;
+  t: Translate;
 };
 
 const padTime = (value: number) => String(value).padStart(2, "0");
@@ -61,6 +63,7 @@ export function CreateAppointmentModal({
   defaultDate,
   onClose,
   onCreated,
+  t,
 }: CreateAppointmentModalProps) {
   const { user } = useAuth();
   const toast = useToast();
@@ -169,16 +172,16 @@ export function CreateAppointmentModal({
 
   const timeError = useMemo(() => {
     if (!dateValue || !startTime || !endTime) {
-      return "Informe data e horario.";
+      return t("createAppointment.timeRequired");
     }
     if (!startDateTime || !endDateTime) {
-      return "Horario invalido.";
+      return t("createAppointment.timeInvalid");
     }
     if (endDateTime <= startDateTime) {
-      return "Horario final deve ser maior que o inicial.";
+      return t("createAppointment.timeEndAfterStart");
     }
     return null;
-  }, [dateValue, endDateTime, endTime, startDateTime, startTime]);
+  }, [dateValue, endDateTime, endTime, startDateTime, startTime, t]);
 
   const durationLabel = useMemo(() => {
     if (!startDateTime || !endDateTime) return "--";
@@ -226,10 +229,10 @@ export function CreateAppointmentModal({
 
       if (insertError) {
         console.error(insertError);
-        setError("Nao foi possivel criar o apontamento.");
+        setError(t("createAppointment.createError"));
         toast.push({
           variant: "error",
-          message: "Nao foi possivel criar o apontamento.",
+          message: t("createAppointment.createError"),
         });
         setLoading(false);
         return;
@@ -237,16 +240,16 @@ export function CreateAppointmentModal({
 
       toast.push({
         variant: "success",
-        message: "Apontamento criado com sucesso.",
+        message: t("createAppointment.createSuccess"),
       });
       await onCreated?.();
       onClose();
     } catch (err) {
       console.error(err);
-      setError("Nao foi possivel criar o apontamento.");
+      setError(t("createAppointment.createError"));
       toast.push({
         variant: "error",
-        message: "Nao foi possivel criar o apontamento.",
+        message: t("createAppointment.createError"),
       });
     } finally {
       setLoading(false);
@@ -266,16 +269,16 @@ export function CreateAppointmentModal({
       onClick={(e) => e.stopPropagation()}
       role="dialog"
       aria-modal="true"
-      aria-label="Criar apontamento"
+      aria-label={t("createAppointment.dialogLabel")}
     >
       <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-slate-900">
-              Criar apontamento
+              {t("createAppointment.title")}
             </h2>
             <p className="text-xs text-slate-500">
-              Preencha os dados basicos para criar um apontamento no cronograma.
+              {t("createAppointment.subtitle")}
             </p>
           </div>
           <button
@@ -284,24 +287,24 @@ export function CreateAppointmentModal({
             onClick={onClose}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
           >
-            Fechar
+            {t("createAppointment.close")}
           </button>
         </div>
 
         <div className="grid gap-4 p-5 lg:grid-cols-[1.1fr_1fr]">
           <div className="space-y-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Empresa
+              {t("createAppointment.companySection")}
             </div>
 
             {!selectedConsultant ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Selecione um consultor para listar as empresas.
+                {t("createAppointment.selectConsultantToListCompanies")}
               </div>
             ) : null}
 
             <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Empresa selecionada</span>
+              <span>{t("createAppointment.selectedCompany")}</span>
               <select
                 value={selectedCompanyId}
                 onChange={(event) => setSelectedCompanyId(event.target.value)}
@@ -310,8 +313,8 @@ export function CreateAppointmentModal({
               >
                 <option value="">
                   {selectedConsultant
-                    ? "Selecione a empresa"
-                    : "Selecione o consultor primeiro"}
+                    ? t("createAppointment.selectCompany")
+                    : t("createAppointment.selectConsultantFirst")}
                 </option>
                 {availableCompanies.map((company) => (
                   <option key={company.id} value={company.id}>
@@ -328,17 +331,28 @@ export function CreateAppointmentModal({
                 </div>
                 <div className="mt-1 grid gap-1 sm:grid-cols-2">
                   <span>
-                    Documento: {selectedCompany.document ?? "Nao informado"}
+                    {t("createAppointment.companyDocument")}:{" "}
+                    {selectedCompany.document ??
+                      t("createAppointment.notInformed")}
                   </span>
                   <span>
-                    Estado: {selectedCompany.state ?? "Nao informado"}
-                  </span>
-                  <span>CSA: {selectedCompany.csa ?? "Nao informado"}</span>
-                  <span>
-                    Email CSA: {selectedCompany.emailCsa ?? "Nao informado"}
+                    {t("createAppointment.companyState")}:{" "}
+                    {selectedCompany.state ??
+                      t("createAppointment.notInformed")}
                   </span>
                   <span>
-                    Carteira: {selectedCompany.carteiraDef ?? "Nao informado"}
+                    {t("createAppointment.companyCsa")}:{" "}
+                    {selectedCompany.csa ?? t("createAppointment.notInformed")}
+                  </span>
+                  <span>
+                    {t("createAppointment.companyEmail")}:{" "}
+                    {selectedCompany.emailCsa ??
+                      t("createAppointment.notInformed")}
+                  </span>
+                  <span>
+                    {t("createAppointment.companyPortfolio")}:{" "}
+                    {selectedCompany.carteiraDef ??
+                      t("createAppointment.notInformed")}
                   </span>
                 </div>
               </div>
@@ -347,11 +361,11 @@ export function CreateAppointmentModal({
 
           <div className="space-y-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Agenda
+              {t("createAppointment.scheduleSection")}
             </div>
 
             <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Consultor</span>
+              <span>{t("createAppointment.consultant")}</span>
               <select
                 value={consultantId}
                 onChange={(event) => {
@@ -361,7 +375,7 @@ export function CreateAppointmentModal({
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               >
-                <option value="">Selecione o consultor</option>
+                <option value="">{t("createAppointment.selectConsultant")}</option>
                 {consultants.map((consultant) => (
                   <option key={consultant.id} value={consultant.id}>
                     {consultant.name}
@@ -372,7 +386,7 @@ export function CreateAppointmentModal({
 
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1 text-xs font-semibold text-slate-600">
-                <span>Data</span>
+                <span>{t("createAppointment.date")}</span>
                 <input
                   type="date"
                   value={dateValue}
@@ -384,7 +398,7 @@ export function CreateAppointmentModal({
 
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1 text-xs font-semibold text-slate-600">
-                <span>Horario inicio</span>
+                <span>{t("createAppointment.startTime")}</span>
                 <input
                   type="time"
                   value={startTime}
@@ -393,7 +407,7 @@ export function CreateAppointmentModal({
                 />
               </label>
               <label className="space-y-1 text-xs font-semibold text-slate-600">
-                <span>Horario fim</span>
+                <span>{t("createAppointment.endTime")}</span>
                 <input
                   type="time"
                   value={endTime}
@@ -404,7 +418,7 @@ export function CreateAppointmentModal({
             </div>
 
             <div className="text-xs text-slate-500">
-              Duracao estimada:{" "}
+              {t("createAppointment.duration")}:{" "}
               <span className="font-semibold">{durationLabel}</span>
             </div>
 
@@ -425,8 +439,10 @@ export function CreateAppointmentModal({
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-5 py-4">
           <div className="text-xs text-slate-500">
             {selectedConsultant
-              ? `${availableCompanies.length} empresa(s) disponiveis`
-              : "Selecione um consultor para listar empresas."}
+              ? t("createAppointment.availableCompanies", {
+                  count: availableCompanies.length,
+                })
+              : t("createAppointment.selectConsultantToList")}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -435,7 +451,7 @@ export function CreateAppointmentModal({
               disabled={loading}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
             >
-              Cancelar
+              {t("createAppointment.cancel")}
             </button>
             <button
               type="button"
@@ -443,7 +459,7 @@ export function CreateAppointmentModal({
               disabled={!canCreate}
               className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Criando..." : "Criar apontamento"}
+              {loading ? t("createAppointment.creating") : t("createAppointment.create")}
             </button>
           </div>
         </div>

@@ -6,14 +6,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { useSchedule } from "@/contexts/ScheduleContext";
+import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
   APPOINTMENT_SELECT,
   formatDateLabel,
   formatDuration,
   formatTime,
-  getOpportunityLabel,
   mapAppointment,
-  STATUS_LABELS,
   STATUS_TONES,
   type Appointment,
 } from "@/lib/schedule";
@@ -69,13 +68,6 @@ type AppointmentMediaItem = {
   signedUrl: string | null;
 };
 
-const MEDIA_KIND_LABELS: Record<AppointmentMediaKind, string> = {
-  checkin: "Check-in",
-  checkout: "Check-out",
-  absence: "Ausencia",
-  other: "Outros",
-};
-
 const MEDIA_KIND_TONES: Record<
   AppointmentMediaKind,
   "emerald" | "rose" | "amber" | "slate"
@@ -95,16 +87,16 @@ const normalizeMediaKind = (
   return "other";
 };
 
-const formatMediaTimestamp = (value: string | null) => {
-  if (!value) return "Data nao informada";
+const formatMediaTimestamp = (value: string | null, fallback: string) => {
+  if (!value) return fallback;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Data nao informada";
+  if (Number.isNaN(date.getTime())) return fallback;
   return `${formatDateLabel(date)} · ${formatTime(date)}`;
 };
 
-const getMediaFileName = (path: string) => {
+const getMediaFileName = (path: string, fallback: string) => {
   const lastSegment = path.split("/").filter(Boolean).pop();
-  if (!lastSegment) return "Arquivo";
+  if (!lastSegment) return fallback;
   try {
     return decodeURIComponent(lastSegment);
   } catch {
@@ -112,11 +104,18 @@ const getMediaFileName = (path: string) => {
   }
 };
 
-export default function AppointmentDetailClient() {
+type AppointmentDetailClientProps = {
+  locale: Locale;
+};
+
+export default function AppointmentDetailClient({
+  locale,
+}: AppointmentDetailClientProps) {
   const params = useParams();
   const appointmentId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const { companies } = useSchedule();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [appointmentLoading, setAppointmentLoading] = useState(false);
   const [appointmentError, setAppointmentError] = useState<string | null>(null);
@@ -153,7 +152,7 @@ export default function AppointmentDetailClient() {
           console.error(error);
           setAppointment(null);
           setAppointmentLoading(false);
-          setAppointmentError("Nao foi possivel carregar o apontamento.");
+          setAppointmentError(t("appointment.loadError"));
           return;
         }
 
@@ -170,10 +169,10 @@ export default function AppointmentDetailClient() {
         if (requestId !== appointmentRequestIdRef.current) return;
         setAppointment(null);
         setAppointmentLoading(false);
-        setAppointmentError("Nao foi possivel carregar o apontamento.");
+        setAppointmentError(t("appointment.loadError"));
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   useEffect(() => {
@@ -201,7 +200,7 @@ export default function AppointmentDetailClient() {
           console.error(error);
           setMedia([]);
           setMediaLoading(false);
-          setMediaError("Nao foi possivel carregar as imagens.");
+          setMediaError(t("appointment.mediaLoadError"));
           return;
         }
 
@@ -239,10 +238,10 @@ export default function AppointmentDetailClient() {
         if (requestId !== mediaRequestIdRef.current) return;
         setMedia([]);
         setMediaLoading(false);
-        setMediaError("Nao foi possivel carregar as imagens.");
+        setMediaError(t("appointment.mediaLoadError"));
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   useEffect(() => {
@@ -274,6 +273,16 @@ export default function AppointmentDetailClient() {
     return ordered.filter((kind) => mediaGroups.has(kind));
   }, [mediaGroups]);
 
+  const mediaKindLabels = useMemo(
+    () => ({
+      checkin: t("appointment.mediaKind.checkin"),
+      checkout: t("appointment.mediaKind.checkout"),
+      absence: t("appointment.mediaKind.absence"),
+      other: t("appointment.mediaKind.other"),
+    }),
+    [t],
+  );
+
   const handleRefreshMedia = useCallback(() => {
     if (!appointmentId) return;
     void loadMedia(appointmentId);
@@ -281,9 +290,12 @@ export default function AppointmentDetailClient() {
 
   if (appointmentLoading && !appointment) {
     return (
-      <PageShell title="Apontamento" subtitle="Carregando detalhes...">
+      <PageShell
+        title={t("appointment.title")}
+        subtitle={t("appointment.loadingDetails")}
+      >
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          Carregando apontamento...
+          {t("appointment.loading")}
         </div>
       </PageShell>
     );
@@ -292,23 +304,27 @@ export default function AppointmentDetailClient() {
   if (!appointment) {
     return (
       <PageShell
-        title="Apontamento"
-        subtitle={appointmentError ? "Erro ao carregar" : "Nao encontrado"}
+        title={t("appointment.title")}
+        subtitle={
+          appointmentError
+            ? t("appointment.errorLoading")
+            : t("appointment.notFoundShort")
+        }
       >
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          {appointmentError ?? "Apontamento nao encontrado."}
+          {appointmentError ?? t("appointment.notFound")}
         </div>
         <Link
           href="/cronograma"
           className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
         >
-          Voltar ao cronograma
+          {t("appointment.backToSchedule")}
         </Link>
       </PageShell>
     );
   }
 
-  const statusLabel = STATUS_LABELS[appointment.status];
+  const statusLabel = t(`schedule.status.${appointment.status}`);
   const statusTone = STATUS_TONES[appointment.status];
   const dateLabel = formatDateLabel(new Date(appointment.startAt));
   const timeLabel = `${formatTime(appointment.startAt)} - ${formatTime(
@@ -317,13 +333,16 @@ export default function AppointmentDetailClient() {
   const durationLabel = formatDuration(appointment.startAt, appointment.endAt);
 
   return (
-    <PageShell title="Detalhe do apontamento" subtitle={company?.name ?? ""}>
+    <PageShell
+      title={t("appointment.detailsTitle")}
+      subtitle={company?.name ?? ""}
+    >
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 sm:text-xs">
         <Link
           href="/cronograma"
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
         >
-          Voltar ao cronograma
+          {t("appointment.backToSchedule")}
         </Link>
       </div>
 
@@ -333,7 +352,7 @@ export default function AppointmentDetailClient() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-lg font-semibold text-slate-900">
-                  {company?.name ?? "Empresa nao informada"}
+                  {company?.name ?? t("appointment.companyMissing")}
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
                   {dateLabel} · {timeLabel} · {durationLabel}
@@ -343,23 +362,28 @@ export default function AppointmentDetailClient() {
             </div>
             <div className="mt-3 grid gap-2 text-sm text-slate-700">
               <div>
-                <span className="font-semibold text-slate-600">Endereco: </span>
+                <span className="font-semibold text-slate-600">
+                  {t("appointment.address")}:{" "}
+                </span>
                 {appointment.addressSnapshot?.trim() ||
                   company?.state ||
-                  "Nao informado"}
+                  t("appointment.notInformed")}
               </div>
               <div>
                 <span className="font-semibold text-slate-600">
-                  Consultor:{" "}
+                  {t("appointment.consultant")}:{" "}
                 </span>
-                {appointment.consultantName?.trim() || "Nao informado"}
+                {appointment.consultantName?.trim() ||
+                  t("appointment.notInformed")}
               </div>
             </div>
           </div>
 
           {appointment.notes?.trim() ? (
             <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-              <h2 className="text-sm font-semibold text-slate-900">Notas</h2>
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t("appointment.notes")}
+              </h2>
               <div className="mt-2 text-sm text-slate-600">
                 {appointment.notes}
               </div>
@@ -369,12 +393,12 @@ export default function AppointmentDetailClient() {
           {appointment.oportunidades?.length ? (
             <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
               <h2 className="text-sm font-semibold text-slate-900">
-                Oportunidades percebidas
+                {t("appointment.opportunities")}
               </h2>
               <div className="mt-2 flex flex-wrap gap-2">
                 {appointment.oportunidades.map((item) => (
                   <Badge key={item} tone="sky">
-                    {getOpportunityLabel(item)}
+                    {t(`schedule.opportunity.${item}`, undefined, item)}
                   </Badge>
                 ))}
               </div>
@@ -383,14 +407,20 @@ export default function AppointmentDetailClient() {
 
           {appointment.absenceReason ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 sm:p-4">
-              <div className="font-semibold">Ausencia registrada</div>
+              <div className="font-semibold">
+                {t("appointment.absenceRegistered")}
+              </div>
               <div className="mt-1">
-                <span className="font-semibold">Motivo: </span>
+                <span className="font-semibold">
+                  {t("appointment.reason")}:{" "}
+                </span>
                 {appointment.absenceReason}
               </div>
               {appointment.absenceNote ? (
                 <div className="mt-1">
-                  <span className="font-semibold">Obs: </span>
+                  <span className="font-semibold">
+                    {t("appointment.notesShort")}:{" "}
+                  </span>
                   {appointment.absenceNote}
                 </div>
               ) : null}
@@ -400,16 +430,16 @@ export default function AppointmentDetailClient() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">
-                Imagens do apontamento
+                {t("appointment.mediaTitle")}
               </h2>
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                <span>URLs expiram em 60s</span>
+                <span>{t("appointment.mediaExpire")}</span>
                 <button
                   type="button"
                   onClick={handleRefreshMedia}
                   className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                 >
-                  Atualizar imagens
+                  {t("appointment.mediaRefresh")}
                 </button>
               </div>
             </div>
@@ -422,13 +452,13 @@ export default function AppointmentDetailClient() {
 
             {mediaLoading ? (
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                Carregando imagens...
+                {t("appointment.mediaLoading")}
               </div>
             ) : null}
 
             {!mediaLoading && !mediaError && media.length === 0 ? (
               <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
-                Nenhuma imagem registrada neste apontamento.
+                {t("appointment.mediaEmpty")}
               </div>
             ) : null}
 
@@ -440,13 +470,18 @@ export default function AppointmentDetailClient() {
                   <div key={kind} className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                       <Badge tone={MEDIA_KIND_TONES[kind]}>
-                        {MEDIA_KIND_LABELS[kind]}
+                        {mediaKindLabels[kind]}
                       </Badge>
-                      <span>{items.length} imagem(ns)</span>
+                      <span>
+                        {t("appointment.mediaCount", { count: items.length })}
+                      </span>
                     </div>
                     <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 xl:grid-cols-3">
                       {items.map((item) => {
-                        const fileName = getMediaFileName(item.path);
+                        const fileName = getMediaFileName(
+                          item.path,
+                          t("appointment.attachment"),
+                        );
                         return (
                         <div
                           key={item.id}
@@ -462,7 +497,7 @@ export default function AppointmentDetailClient() {
                               >
                                 <img
                                   src={item.signedUrl}
-                                  alt={`${MEDIA_KIND_LABELS[item.kind]} - ${fileName}`}
+                                  alt={`${mediaKindLabels[item.kind]} - ${fileName}`}
                                   className="h-48 w-full object-cover transition hover:scale-[1.01]"
                                   loading="lazy"
                                 />
@@ -475,13 +510,13 @@ export default function AppointmentDetailClient() {
                                 className="flex h-48 flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-600 transition hover:bg-slate-100"
                               >
                                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                  Arquivo
+                                  {t("appointment.attachment")}
                                 </div>
                                 <div className="text-sm font-semibold text-slate-800 line-clamp-2">
                                   {fileName}
                                 </div>
                                 <div className="text-[11px] font-semibold text-slate-500">
-                                  Abrir anexo
+                                  {t("appointment.openAttachment")}
                                 </div>
                                 {item.mimeType ? (
                                   <div className="text-[10px] text-slate-500">
@@ -492,7 +527,7 @@ export default function AppointmentDetailClient() {
                             )
                           ) : (
                             <div className="flex h-48 items-center justify-center px-4 text-xs text-slate-400">
-                              Anexo indisponivel
+                              {t("appointment.attachmentUnavailable")}
                             </div>
                           )}
                           <div className="px-2 py-1 text-[10px] text-slate-500">
@@ -500,7 +535,12 @@ export default function AppointmentDetailClient() {
                               {fileName}
                             </div>
                             <div className="flex items-center justify-between">
-                              <span>{formatMediaTimestamp(item.createdAt)}</span>
+                              <span>
+                                {formatMediaTimestamp(
+                                  item.createdAt,
+                                  t("appointment.timestampUnknown"),
+                                )}
+                              </span>
                               {item.mimeType ? (
                                 <span>{item.mimeType}</span>
                               ) : null}
@@ -520,31 +560,37 @@ export default function AppointmentDetailClient() {
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">
-              Linha do tempo
+              {t("schedule.timeline.title")}
             </h2>
             <div className="mt-3 space-y-3 text-sm text-slate-600">
               <div>
-                <div className="font-semibold text-slate-700">Agendado</div>
+                <div className="font-semibold text-slate-700">
+                  {t("schedule.timeline.scheduled")}
+                </div>
                 <div>
                   {dateLabel} · {formatTime(appointment.startAt)}
                 </div>
               </div>
               <div>
-                <div className="font-semibold text-slate-700">Check-in</div>
+                <div className="font-semibold text-slate-700">
+                  {t("schedule.timeline.checkIn")}
+                </div>
                 <div>
                   {appointment.checkInAt
                     ? `${formatDateLabel(new Date(appointment.checkInAt))} · ${formatTime(appointment.checkInAt)}`
-                    : "Pendente"}
+                    : t("schedule.timeline.pending")}
                 </div>
               </div>
               <div>
-                <div className="font-semibold text-slate-700">Check-out</div>
+                <div className="font-semibold text-slate-700">
+                  {t("schedule.timeline.checkOut")}
+                </div>
                 <div>
                   {appointment.checkOutAt
                     ? `${formatDateLabel(new Date(appointment.checkOutAt))} · ${formatTime(appointment.checkOutAt)}`
                     : appointment.absenceReason
-                      ? "Ausente"
-                      : "Pendente"}
+                      ? t("schedule.timeline.absent")
+                      : t("schedule.timeline.pending")}
                 </div>
               </div>
             </div>
@@ -561,7 +607,7 @@ export default function AppointmentDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Empresas
+                {t("schedule.map.companies")}
               </button>
               <button
                 type="button"
@@ -572,7 +618,7 @@ export default function AppointmentDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Check-ins
+                {t("schedule.map.checkIns")}
               </button>
               <button
                 type="button"
@@ -583,7 +629,7 @@ export default function AppointmentDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Check-outs
+                {t("schedule.map.checkOuts")}
               </button>
             </div>
             <ScheduleMapView
@@ -593,6 +639,7 @@ export default function AppointmentDetailClient() {
               showCheckIns={showCheckIns}
               showCheckOuts={showCheckOuts}
               visible
+              t={t}
             />
           </div>
         </div>

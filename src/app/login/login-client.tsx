@@ -3,16 +3,22 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
+import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 
 type BannerState =
   | { variant: "error"; message: string }
   | { variant: "success"; message: string }
   | null;
 
-export default function LoginClient() {
+type LoginClientProps = {
+  locale: Locale;
+};
+
+export default function LoginClient({ locale }: LoginClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
 
   const queryBanner = useMemo<BannerState | null>(() => {
     const error = searchParams.get("error");
@@ -44,9 +50,7 @@ export default function LoginClient() {
     if (error) {
       setBanner({
         variant: "error",
-        message:
-          error.message ||
-          "Não foi possível entrar com email e senha. Verifique os dados e tente novamente.",
+        message: error.message || t("login.errorDefault"),
       });
       return;
     }
@@ -62,19 +66,17 @@ export default function LoginClient() {
           <div className="flex flex-col justify-between gap-6">
             <div className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">
-                Leads & Tickets
+                {t("login.brand")}
               </p>
               <h1 className="text-3xl font-semibold leading-tight">
-                Acesse o painel seguro
+                {t("login.heading")}
               </h1>
               <p className="text-sm text-white/80">
-                Entre para visualizar dashboards e métricas privadas sem
-                flicker.
+                {t("login.subheading")}
               </p>
             </div>
             <div className="rounded-2xl bg-white/10 p-4 text-sm text-white/90 shadow-inner">
-              Sessões são preservadas com cookies seguros. Faça login para
-              acessar o dashboard.
+              {t("login.sessionHint")}
             </div>
           </div>
 
@@ -82,9 +84,11 @@ export default function LoginClient() {
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  Faça login
+                  {t("login.title")}
                 </p>
-                <p className="text-xs text-slate-500">Entre com email e senha.</p>
+                <p className="text-xs text-slate-500">
+                  {t("login.subtitle")}
+                </p>
               </div>
 
               {activeBanner && (
@@ -101,25 +105,25 @@ export default function LoginClient() {
 
               <form className="space-y-4" onSubmit={handlePasswordSignIn}>
                 <label className="space-y-2 text-sm font-medium text-slate-700">
-                  <span>Email</span>
+                  <span>{t("login.emailLabel")}</span>
                   <input
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 shadow-inner shadow-slate-50 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    placeholder="seu@email.com"
+                    placeholder={t("login.emailPlaceholder")}
                     required
                   />
                 </label>
 
                 <label className="space-y-2 text-sm font-medium text-slate-700">
-                  <span>Senha</span>
+                  <span>{t("login.passwordLabel")}</span>
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 shadow-inner shadow-slate-50 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    placeholder="********"
+                    placeholder={t("login.passwordPlaceholder")}
                     required
                   />
                 </label>
@@ -129,7 +133,7 @@ export default function LoginClient() {
                   disabled={loading}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-300 transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {loading ? "Entrando..." : "Entrar"}
+                  {loading ? t("login.signingIn") : t("login.signIn")}
                 </button>
               </form>
             </div>
@@ -139,4 +143,3 @@ export default function LoginClient() {
     </div>
   );
 }
-

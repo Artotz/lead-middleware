@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import { latLngBounds } from "leaflet";
 import { formatDateLabel, formatTime } from "@/lib/schedule";
+import { type Translate } from "@/lib/i18n";
 import type { Appointment, Company } from "@/lib/schedule";
 
 type MapPointType = "company" | "check_in" | "check_out";
@@ -29,6 +30,7 @@ type ScheduleMapViewProps = {
   loading?: boolean;
   error?: string | null;
   emptyMessage?: string;
+  t: Translate;
 };
 
 const DEFAULT_CENTER: [number, number] = [-14.235, -51.9253];
@@ -90,9 +92,11 @@ export function ScheduleMapView({
   visible = false,
   loading = false,
   error = null,
-  emptyMessage = "Sem coordenadas para exibir no mapa.",
+  emptyMessage,
+  t,
 }: ScheduleMapViewProps) {
   const router = useRouter();
+  const resolvedEmptyMessage = emptyMessage ?? t("map.empty");
   const points = useMemo<MapPoint[]>(() => {
     const list: MapPoint[] = [];
     const companyById = new Map(companies.map((company) => [company.id, company]));
@@ -112,7 +116,9 @@ export function ScheduleMapView({
           lat: company.lat,
           lng: company.lng,
           companyName: company.name,
-          subtitle: scheduleDateTime ? `Agendamento: ${scheduleDateTime}` : null,
+          subtitle: scheduleDateTime
+            ? `${t("map.schedulePrefix")}: ${scheduleDateTime}`
+            : null,
           appointmentId: appointment.id,
         });
       });
@@ -133,8 +139,10 @@ export function ScheduleMapView({
           type: "check_in",
           lat: appointment.checkInLat,
           lng: appointment.checkInLng,
-          companyName: company?.name ?? "Empresa",
-          subtitle: checkInDateTime ? `Check-in: ${checkInDateTime}` : "Check-in",
+          companyName: company?.name ?? t("map.companyFallback"),
+          subtitle: checkInDateTime
+            ? `${t("map.checkInPrefix")}: ${checkInDateTime}`
+            : t("map.checkInPrefix"),
           appointmentId: appointment.id,
         });
       });
@@ -155,22 +163,24 @@ export function ScheduleMapView({
           type: "check_out",
           lat: appointment.checkOutLat,
           lng: appointment.checkOutLng,
-          companyName: company?.name ?? "Empresa",
-          subtitle: checkOutDateTime ? `Check-out: ${checkOutDateTime}` : "Check-out",
+          companyName: company?.name ?? t("map.companyFallback"),
+          subtitle: checkOutDateTime
+            ? `${t("map.checkOutPrefix")}: ${checkOutDateTime}`
+            : t("map.checkOutPrefix"),
           appointmentId: appointment.id,
         });
       });
     }
 
     return list;
-  }, [appointments, companies, showCompanies, showCheckIns, showCheckOuts]);
+  }, [appointments, companies, showCompanies, showCheckIns, showCheckOuts, t]);
 
   const overlayMessage = error
     ? error
     : loading
-      ? "Carregando mapa..."
+      ? t("map.loading")
       : points.length === 0
-        ? emptyMessage
+        ? resolvedEmptyMessage
         : null;
 
   return (

@@ -1,5 +1,8 @@
-﻿import CompanyDetailClient from "./detail-client";
+import { headers } from "next/headers";
+import CompanyDetailClient from "./detail-client";
+import { getLocaleFromHeaders } from "@/lib/i18n";
 
 export default function CompanyDetailPage() {
-  return <CompanyDetailClient />;
+  const locale = getLocaleFromHeaders(headers());
+  return <CompanyDetailClient locale={locale} />;
 }

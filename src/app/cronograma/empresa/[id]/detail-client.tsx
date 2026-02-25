@@ -7,6 +7,7 @@ import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { useSchedule } from "@/contexts/ScheduleContext";
+import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
   buildDocumentVariants,
   splitProtheusSeries,
@@ -21,7 +22,6 @@ import {
   isAppointmentDone,
   isAppointmentInProgress,
   mapAppointment,
-  STATUS_LABELS,
   STATUS_TONES,
   type Appointment,
 } from "@/lib/schedule";
@@ -109,26 +109,14 @@ const formatAppointmentShort = (appointment: Appointment) => {
   return `${formatDateLabel(date)} · ${formatTime(appointment.startAt)}`;
 };
 
-const numberFormatter = new Intl.NumberFormat("pt-BR");
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const formatQuantity = (value: number | null) =>
-  value == null ? "Sem dados" : numberFormatter.format(value);
-
-const formatCurrency = (value: number | null) =>
-  value == null ? "Sem dados" : currencyFormatter.format(value);
-
 const toNumber = (value: number | string | null | undefined): number | null => {
   if (value === null || value === undefined) return null;
   const parsed = typeof value === "string" ? Number(value) : value;
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const formatOrcDate = (value: number | string | null) => {
-  if (value == null) return "Sem data";
+const formatOrcDate = (value: number | string | null, noDateLabel: string) => {
+  if (value == null) return noDateLabel;
   const digits = String(value).replace(/\D/g, "");
   if (digits.length === 8) {
     const year = digits.slice(0, 4);
@@ -144,7 +132,11 @@ const normalizeCnpj = (value: string | null | undefined) => {
   return digits.length ? digits : null;
 };
 
-export default function CompanyDetailClient() {
+type CompanyDetailClientProps = {
+  locale: Locale;
+};
+
+export default function CompanyDetailClient({ locale }: CompanyDetailClientProps) {
   const params = useParams();
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const {
@@ -155,6 +147,30 @@ export default function CompanyDetailClient() {
     loading: scheduleLoading,
   } = useSchedule();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
+
+  const numberFormatter = useMemo(
+    () => new Intl.NumberFormat(locale),
+    [locale],
+  );
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: "BRL",
+      }),
+    [locale],
+  );
+  const formatQuantity = useMemo(
+    () => (value: number | null) =>
+      value == null ? t("schedule.noData") : numberFormatter.format(value),
+    [numberFormatter, t],
+  );
+  const formatCurrency = useMemo(
+    () => (value: number | null) =>
+      value == null ? t("schedule.noData") : currencyFormatter.format(value),
+    [currencyFormatter, t],
+  );
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
@@ -211,7 +227,7 @@ export default function CompanyDetailClient() {
           console.error(error);
           setAppointments([]);
           setAppointmentsLoading(false);
-          setAppointmentsError("Nao foi possivel carregar os apontamentos.");
+          setAppointmentsError(t("company.appointmentsLoadError"));
           return;
         }
 
@@ -223,10 +239,10 @@ export default function CompanyDetailClient() {
         if (requestId !== requestIdRef.current) return;
         setAppointments([]);
         setAppointmentsLoading(false);
-        setAppointmentsError("Nao foi possivel carregar os apontamentos.");
+        setAppointmentsError(t("company.appointmentsLoadError"));
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   const loadOrcamentos = useCallback(
@@ -258,7 +274,7 @@ export default function CompanyDetailClient() {
           console.error(error);
           setOrcamentos([]);
           setOrcamentosLoading(false);
-          setOrcamentosError("Nao foi possivel carregar os orcamentos.");
+          setOrcamentosError(t("company.quotesLoadError"));
           return;
         }
 
@@ -269,10 +285,10 @@ export default function CompanyDetailClient() {
         if (requestId !== orcRequestIdRef.current) return;
         setOrcamentos([]);
         setOrcamentosLoading(false);
-        setOrcamentosError("Nao foi possivel carregar os orcamentos.");
+        setOrcamentosError(t("company.quotesLoadError"));
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   const loadProtheusSeries = useCallback(
@@ -300,7 +316,7 @@ export default function CompanyDetailClient() {
           console.error(error);
           setProtheusSeries({ preventivas: [], reconexoes: [] });
           setProtheusLoading(false);
-          setProtheusError("Nao foi possivel carregar oportunidades.");
+          setProtheusError(t("company.opportunitiesLoadError"));
           return;
         }
 
@@ -312,10 +328,10 @@ export default function CompanyDetailClient() {
         if (requestId !== protheusRequestIdRef.current) return;
         setProtheusSeries({ preventivas: [], reconexoes: [] });
         setProtheusLoading(false);
-        setProtheusError("Nao foi possivel carregar oportunidades.");
+        setProtheusError(t("company.opportunitiesLoadError"));
       }
     },
-    [supabase],
+    [supabase, t],
   );
 
   useEffect(() => {
@@ -354,7 +370,8 @@ export default function CompanyDetailClient() {
     const grouped = new Map<string, OrcamentoGroup>();
 
     orcamentos.forEach((row) => {
-      const numorc = row.vs1_numorc != null ? String(row.vs1_numorc) : "Sem";
+      const numorc =
+        row.vs1_numorc != null ? String(row.vs1_numorc) : t("company.quoteFallback");
       const filial = row.vs1_filial != null ? String(row.vs1_filial) : null;
       const key = `${numorc}-${filial ?? "sem"}`;
       const item = {
@@ -399,7 +416,7 @@ export default function CompanyDetailClient() {
       if (dateDiff !== 0) return dateDiff;
       return a.numorc.localeCompare(b.numorc, "pt-BR");
     });
-  }, [orcamentos]);
+  }, [orcamentos, t]);
 
   const sortedAsc = useMemo(
     () => [...appointments].sort((a, b) => a.startAt.localeCompare(b.startAt)),
@@ -420,9 +437,12 @@ export default function CompanyDetailClient() {
 
   if (scheduleLoading && !company) {
     return (
-      <PageShell title="Empresa" subtitle="Carregando dados...">
+      <PageShell
+        title={t("company.title")}
+        subtitle={t("company.loadingData")}
+      >
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          Carregando empresa...
+          {t("company.loading")}
         </div>
       </PageShell>
     );
@@ -430,15 +450,15 @@ export default function CompanyDetailClient() {
 
   if (!company || !companyId) {
     return (
-      <PageShell title="Empresa" subtitle="Nao encontrada">
+      <PageShell title={t("company.title")} subtitle={t("company.notFound")}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-          Empresa nao encontrada.
+          {t("company.notFound")}
         </div>
         <Link
           href="/cronograma"
           className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
         >
-          Voltar ao cronograma
+          {t("company.backToSchedule")}
         </Link>
       </PageShell>
     );
@@ -446,45 +466,60 @@ export default function CompanyDetailClient() {
 
   const infoItems = [
     {
-      label: "Documento",
-      value: company.document ?? "Documento nao informado",
+      label: t("company.info.document"),
+      value: company.document ?? t("company.documentMissing"),
     },
-    { label: "Estado", value: company.state ?? "Sem estado" },
-    { label: "CSA", value: company.csa ?? "Sem CSA" },
-    { label: "Email CSA", value: company.emailCsa ?? "Sem email CSA" },
-    { label: "Carteira", value: company.carteiraDef ?? "Sem carteira" },
-    { label: "Carteira 2", value: company.carteiraDef2 ?? "Sem carteira 2" },
-    { label: "Classe", value: company.clientClass ?? "Sem classe" },
+    { label: t("company.info.state"), value: company.state ?? t("company.noState") },
+    { label: t("company.info.csa"), value: company.csa ?? t("company.noCsa") },
     {
-      label: "Classe cliente",
-      value: company.classeCliente ?? "Sem classe cliente",
+      label: t("company.info.emailCsa"),
+      value: company.emailCsa ?? t("company.noEmailCsa"),
     },
-    { label: "Validacao", value: company.validacao ?? "Sem validacao" },
-    { label: "Referencia", value: company.referencia ?? "Sem referencia" },
     {
-      label: "Coordenadas",
+      label: t("company.info.carteira"),
+      value: company.carteiraDef ?? t("company.noCarteira"),
+    },
+    {
+      label: t("company.info.carteira2"),
+      value: company.carteiraDef2 ?? t("company.noCarteira2"),
+    },
+    { label: t("company.info.class"), value: company.clientClass ?? t("company.noClass") },
+    {
+      label: t("company.info.clientClass"),
+      value: company.classeCliente ?? t("company.noClientClass"),
+    },
+    {
+      label: t("company.info.validation"),
+      value: company.validacao ?? t("company.noValidation"),
+    },
+    {
+      label: t("company.info.reference"),
+      value: company.referencia ?? t("company.noReference"),
+    },
+    {
+      label: t("company.info.coordinates"),
       value:
         company.lat != null && company.lng != null
           ? `${company.lat.toFixed(5)}, ${company.lng.toFixed(5)}`
-          : "Nao informado",
+          : t("company.noCoordinates"),
     },
   ];
 
   return (
-    <PageShell title="Empresa" subtitle={company.name}>
+    <PageShell title={t("company.title")} subtitle={company.name}>
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 sm:text-xs">
         <Link
           href="/cronograma"
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
         >
-          Voltar ao cronograma
+          {t("company.backToSchedule")}
         </Link>
         <button
           type="button"
           onClick={openCreateModal}
           className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
         >
-          Criar apontamento
+          {t("company.createAppointment")}
         </button>
       </div>
 
@@ -495,6 +530,7 @@ export default function CompanyDetailClient() {
         defaultConsultantId={selectedConsultantId}
         defaultCompanyId={company.id}
         defaultDate={createModalDate}
+        t={t}
         onClose={() => setCreateModalOpen(false)}
         onCreated={async () => {
           await refresh();
@@ -513,10 +549,12 @@ export default function CompanyDetailClient() {
                   {company.name}
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
-                  {company.document ?? "Documento nao informado"}
+                  {company.document ?? t("company.documentMissing")}
                 </div>
               </div>
-              <Badge tone="sky">{stats.total} apontamentos</Badge>
+              <Badge tone="sky">
+                {t("company.appointmentsCount", { count: stats.total })}
+              </Badge>
             </div>
             <div className="mt-3 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
               {infoItems.map((item) => (
@@ -535,21 +573,21 @@ export default function CompanyDetailClient() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">
-                Oportunidades
+                {t("company.opportunities")}
               </h2>
               <Tabs
                 tabs={[
                   {
                     id: "cotacao",
-                    label: `Cotacao (${groupedOrcamentos.length})`,
+                    label: `${t("company.opportunityTabQuotes")} (${groupedOrcamentos.length})`,
                   },
                   {
                     id: "preventiva",
-                    label: `Preventiva (${protheusSeries.preventivas.length})`,
+                    label: `${t("company.opportunityTabPreventive")} (${protheusSeries.preventivas.length})`,
                   },
                   {
                     id: "reconexao",
-                    label: `Reconexao (${protheusSeries.reconexoes.length})`,
+                    label: `${t("company.opportunityTabReconnect")} (${protheusSeries.reconexoes.length})`,
                   },
                 ]}
                 activeTabId={opportunityTab}
@@ -566,14 +604,16 @@ export default function CompanyDetailClient() {
             {opportunityTab === "cotacao" ? (
               <>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                  <span>{groupedOrcamentos.length} orcamentos</span>
-                  <span>{orcamentos.length} itens</span>
+                  <span>
+                    {t("company.quotesCount", { count: groupedOrcamentos.length })}
+                  </span>
+                  <span>{t("company.itemsCount", { count: orcamentos.length })}</span>
                   <button
                     type="button"
                     onClick={() => loadOrcamentos(company.document)}
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Atualizar
+                    {t("company.refresh")}
                   </button>
                 </div>
 
@@ -585,7 +625,7 @@ export default function CompanyDetailClient() {
 
                 {orcamentosLoading ? (
                   <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                    Carregando orcamentos...
+                    {t("company.loadingQuotes")}
                   </div>
                 ) : null}
 
@@ -593,7 +633,7 @@ export default function CompanyDetailClient() {
                 !orcamentosError &&
                 orcamentos.length === 0 ? (
                   <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
-                    Nenhum orcamento encontrado para esta empresa.
+                    {t("company.noQuotes")}
                   </div>
                 ) : null}
 
@@ -606,13 +646,14 @@ export default function CompanyDetailClient() {
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-slate-900">
-                            Orcamento {orcamento.numorc}
+                            {t("company.quote")} {orcamento.numorc}
                             {orcamento.filial
-                              ? ` • Filial ${orcamento.filial}`
+                              ? ` • ${t("company.branch")} ${orcamento.filial}`
                               : ""}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            Data: {formatOrcDate(orcamento.data)}
+                            {t("company.date")}:{" "}
+                            {formatOrcDate(orcamento.data, t("company.noDate"))}
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
@@ -632,43 +673,45 @@ export default function CompanyDetailClient() {
                       <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
                         <div>
                           <span className="font-semibold text-slate-700">
-                            Consultor:
+                            {t("company.consultant")}:
                           </span>{" "}
-                          {orcamento.consultor ?? "Nao informado"}
+                          {orcamento.consultor ?? t("company.noConsultant")}
                         </div>
                         <div>
                           <span className="font-semibold text-slate-700">
-                            Definicao:
+                            {t("company.definition")}:
                           </span>{" "}
-                          {orcamento.definicao ?? "Sem definicao"}
+                          {orcamento.definicao ?? t("company.noDefinition")}
                         </div>
                         <div>
                           <span className="font-semibold text-slate-700">
-                            Classe:
+                            {t("company.class")}:
                           </span>{" "}
-                          {orcamento.classe ?? "Sem classe"}
+                          {orcamento.classe ?? t("company.noClassValue")}
                         </div>
                         <div>
                           <span className="font-semibold text-slate-700">
-                            Cliente:
+                            {t("company.client")}:
                           </span>{" "}
-                          {orcamento.clientes ?? "Sem cliente"}
+                          {orcamento.clientes ?? t("company.noClient")}
                         </div>
                       </div>
 
                       <details className="mt-3 overflow-hidden rounded-lg border border-slate-200">
                         <summary className="cursor-pointer select-none bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          Itens do orcamento ({orcamento.items.length})
+                          {t("company.itemsTitle")} ({orcamento.items.length})
                         </summary>
                         <div className="overflow-x-auto">
                           <div className="min-w-[520px]">
                             <div className="flex items-center gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              <span className="flex-1 min-w-0">Item</span>
+                              <span className="flex-1 min-w-0">
+                                {t("company.item")}
+                              </span>
                               <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
-                                Qtd
+                                {t("company.quantity")}
                               </span>
                               <span className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
-                                Valor
+                                {t("company.value")}
                               </span>
                             </div>
                             <div className="divide-y divide-slate-200">
@@ -679,7 +722,8 @@ export default function CompanyDetailClient() {
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate font-semibold text-slate-800">
-                                      {item.descricao ?? "Item sem descricao"}
+                                      {item.descricao ??
+                                        t("company.itemNoDescription")}
                                     </div>
                                     {item.codigo ? (
                                       <div className="text-[11px] text-slate-500">
@@ -706,13 +750,13 @@ export default function CompanyDetailClient() {
             ) : (
               <>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                  <span>Fonte: Protheus</span>
+                  <span>{t("company.sourceProtheus")}</span>
                   <button
                     type="button"
                     onClick={() => loadProtheusSeries(company.document)}
                     className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                   >
-                    Atualizar
+                    {t("company.refresh")}
                   </button>
                 </div>
 
@@ -724,7 +768,7 @@ export default function CompanyDetailClient() {
 
                 {protheusLoading ? (
                   <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                    Carregando oportunidades...
+                    {t("company.loadingOpportunities")}
                   </div>
                 ) : null}
 
@@ -734,7 +778,7 @@ export default function CompanyDetailClient() {
                   ? protheusSeries.preventivas.length === 0
                   : protheusSeries.reconexoes.length === 0) ? (
                   <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
-                    Nenhuma oportunidade encontrada para esta empresa.
+                    {t("company.noOpportunities")}
                   </div>
                 ) : null}
 
@@ -747,7 +791,7 @@ export default function CompanyDetailClient() {
                       key={serie}
                       tone={opportunityTab === "preventiva" ? "amber" : "slate"}
                     >
-                      Serie {serie}
+                      {t("company.serie")} {serie}
                     </Badge>
                   ))}
                 </div>
@@ -758,16 +802,18 @@ export default function CompanyDetailClient() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">
-                Apontamentos
+                {t("company.appointmentsTitle")}
               </h2>
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                <span>{appointments.length} registros</span>
+                <span>
+                  {t("company.recordsCount", { count: appointments.length })}
+                </span>
                 <button
                   type="button"
                   onClick={() => loadAppointments(companyId)}
                   className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
                 >
-                  Atualizar
+                  {t("company.refresh")}
                 </button>
               </div>
             </div>
@@ -780,7 +826,7 @@ export default function CompanyDetailClient() {
 
             {appointmentsLoading ? (
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                Carregando apontamentos...
+                {t("company.loadingAppointments")}
               </div>
             ) : null}
 
@@ -788,7 +834,7 @@ export default function CompanyDetailClient() {
             !appointmentsError &&
             appointments.length === 0 ? (
               <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
-                Nenhum apontamento registrado para esta empresa.
+                {t("company.noAppointments")}
               </div>
             ) : null}
 
@@ -802,31 +848,33 @@ export default function CompanyDetailClient() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-slate-900 line-clamp-2">
-                        {appointment.notes?.trim() || "Apontamento"}
+                        {appointment.notes?.trim() ||
+                          t("company.appointmentFallback")}
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {formatAppointmentHeadline(appointment)}
                       </div>
                     </div>
                     <Badge tone={STATUS_TONES[appointment.status]}>
-                      {STATUS_LABELS[appointment.status]}
+                      {t(`schedule.status.${appointment.status}`)}
                     </Badge>
                   </div>
                   <div className="mt-2 space-y-1 text-[11px] text-slate-600">
                     <div>
-                      Consultor:{" "}
-                      {appointment.consultantName?.trim() || "Nao informado"}
+                      {t("company.consultant")}:{" "}
+                      {appointment.consultantName?.trim() ||
+                        t("company.noConsultant")}
                     </div>
                     <div>
-                      Endereco:{" "}
+                      {t("company.address")}:{" "}
                       {appointment.addressSnapshot?.trim() ||
                         company.state ||
-                        "Nao informado"}
+                        t("company.noCoordinates")}
                     </div>
                   </div>
                   {appointment.absenceReason ? (
                     <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700">
-                      Ausencia: {appointment.absenceReason}
+                      {t("company.absence")}: {appointment.absenceReason}
                     </div>
                   ) : null}
                 </Link>
@@ -838,14 +886,24 @@ export default function CompanyDetailClient() {
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">
-              Resumo dos apontamentos
+              {t("company.appointmentSummary")}
             </h2>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone="slate">{stats.total} total</Badge>
-              <Badge tone="emerald">{stats.done} concluidos</Badge>
-              <Badge tone="sky">{stats.inProgress} em execucao</Badge>
-              <Badge tone="amber">{stats.pending} pendentes</Badge>
-              <Badge tone="rose">{stats.absent} ausentes</Badge>
+              <Badge tone="slate">
+                {t("company.summaryTotal", { count: stats.total })}
+              </Badge>
+              <Badge tone="emerald">
+                {t("company.summaryDone", { count: stats.done })}
+              </Badge>
+              <Badge tone="sky">
+                {t("company.summaryInProgress", { count: stats.inProgress })}
+              </Badge>
+              <Badge tone="amber">
+                {t("company.summaryPending", { count: stats.pending })}
+              </Badge>
+              <Badge tone="rose">
+                {t("company.summaryAbsent", { count: stats.absent })}
+              </Badge>
             </div>
             {/* <div className="mt-3 space-y-3 text-sm text-slate-600">
               <div>
@@ -855,7 +913,7 @@ export default function CompanyDetailClient() {
                 <div>
                   {lastAppointment
                     ? formatAppointmentShort(lastAppointment)
-                    : "Sem registros"}
+                    : t("company.noAppointments")}
                 </div>
               </div>
               <div>
@@ -865,7 +923,7 @@ export default function CompanyDetailClient() {
                 <div>
                   {nextAppointment
                     ? formatAppointmentShort(nextAppointment)
-                    : "Sem agenda futura"}
+                    : t("company.noFutureSchedule")}
                 </div>
               </div>
             </div> */}
@@ -882,7 +940,7 @@ export default function CompanyDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Empresas
+                {t("schedule.map.companies")}
               </button>
               <button
                 type="button"
@@ -893,7 +951,7 @@ export default function CompanyDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Check-ins
+                {t("schedule.map.checkIns")}
               </button>
               <button
                 type="button"
@@ -904,7 +962,7 @@ export default function CompanyDetailClient() {
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                Check-outs
+                {t("schedule.map.checkOuts")}
               </button>
             </div>
             <ScheduleMapView
@@ -916,7 +974,8 @@ export default function CompanyDetailClient() {
               visible
               loading={appointmentsLoading}
               error={appointmentsError}
-              emptyMessage="Sem coordenadas deste cliente."
+              emptyMessage={t("company.emptyMap")}
+              t={t}
             />
           </div>
         </div>

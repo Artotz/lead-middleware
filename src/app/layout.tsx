@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Leads & Tickets Middleware",
-  description: "Painel mockado para leads e tickets",
+  title: "Veneza Service Field",
+  description: "Painel de consulta do Veneza Service Field.",
 };
 
 export default function RootLayout({

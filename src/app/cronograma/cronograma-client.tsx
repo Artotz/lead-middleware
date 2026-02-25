@@ -25,16 +25,18 @@ import {
   isSameDay,
   isAppointmentDone,
   matchesConsultantCompany,
-  STATUS_LABELS,
+  type SupabaseAppointmentStatus,
   type Appointment,
   toDateKey,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
+import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
 type CronogramaClientProps = {
   initialTab?: "cronograma" | "empresas";
+  locale: Locale;
 };
 
 type TimelineItem = {
@@ -57,20 +59,12 @@ type OrcamentoResumoRow = {
   status: string | null;
 };
 
-const statusCardStyles: Record<keyof typeof STATUS_LABELS, string> = {
+const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
   scheduled: "border-amber-300 bg-amber-50 text-amber-900",
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
   done: "border-emerald-300 bg-emerald-50 text-emerald-900",
   absent: "border-rose-300 bg-rose-50 text-rose-900",
 };
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const formatCurrency = (value: number | null | undefined) =>
-  value == null ? "Sem dados" : currencyFormatter.format(value);
 
 const toNumber = (value: number | string | null | undefined): number | null => {
   if (value === null || value === undefined) return null;
@@ -135,6 +129,7 @@ const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
 
 export default function CronogramaClient({
   initialTab = "cronograma",
+  locale,
 }: CronogramaClientProps) {
   const {
     appointments,
@@ -147,8 +142,23 @@ export default function CronogramaClient({
     refresh,
     setSelectedConsultantId,
   } = useSchedule();
+  const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: "BRL",
+      }),
+    [locale],
+  );
+  const formatCurrency = useMemo(
+    () => (value: number | null | undefined) =>
+      value == null ? t("schedule.noData") : currencyFormatter.format(value),
+    [currencyFormatter, t],
+  );
 
   const [viewMode, setViewMode] = useState<"board" | "map">("board");
   const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
@@ -380,7 +390,7 @@ export default function CronogramaClient({
             console.error(error);
             setProtheusCounts(new Map());
             setProtheusLoading(false);
-            setProtheusError("Nao foi possivel carregar oportunidades.");
+            setProtheusError(t("schedule.protheusLoadError"));
             return;
           }
 
@@ -395,7 +405,7 @@ export default function CronogramaClient({
           if (requestId !== protheusRequestIdRef.current) return;
           setProtheusCounts(new Map());
           setProtheusLoading(false);
-          setProtheusError("Nao foi possivel carregar oportunidades.");
+          setProtheusError(t("schedule.protheusLoadError"));
           return;
         }
       }
@@ -406,7 +416,7 @@ export default function CronogramaClient({
     };
 
     void loadCounts();
-  }, [protheusLookup, selectedConsultantId, supabase]);
+  }, [protheusLookup, selectedConsultantId, supabase, t]);
 
   useEffect(() => {
     if (!selectedConsultantId) {
@@ -450,9 +460,7 @@ export default function CronogramaClient({
             console.error(error);
             setOpenQuotesTotals(new Map());
             setOpenQuotesLoading(false);
-            setOpenQuotesError(
-              "Nao foi possivel carregar os valores de cotacao.",
-            );
+            setOpenQuotesError(t("schedule.quotesLoadError"));
             return;
           }
 
@@ -477,9 +485,7 @@ export default function CronogramaClient({
           if (requestId !== openQuotesRequestIdRef.current) return;
           setOpenQuotesTotals(new Map());
           setOpenQuotesLoading(false);
-          setOpenQuotesError(
-            "Nao foi possivel carregar os valores de cotacao.",
-          );
+          setOpenQuotesError(t("schedule.quotesLoadError"));
           return;
         }
       }
@@ -490,7 +496,7 @@ export default function CronogramaClient({
     };
 
     void loadOpenQuotes();
-  }, [openQuotesLookup, selectedConsultantId, supabase]);
+  }, [openQuotesLookup, selectedConsultantId, supabase, t]);
 
   const filteredCompanies = useMemo(() => {
     if (!normalizedCompanySearch) return companiesByConsultant;
@@ -537,21 +543,21 @@ export default function CronogramaClient({
               : getOpenQuotes(b.id) - getOpenQuotes(a.id);
         if (diff !== 0) return diff;
       }
-      return a.name.localeCompare(b.name, "pt-BR");
+      return a.name.localeCompare(b.name, locale);
     });
 
     return sorted;
   }, [filteredCompanies, companySort, protheusCounts]);
 
   const companyColumns = [
-    { id: "empresa", label: "Empresa", width: "1.8fr" },
-    { id: "estado", label: "Estado", width: "0.7fr" },
-    { id: "csa", label: "CSA", width: "0.9fr" },
-    { id: "carteira", label: "Carteira", width: "1.2fr" },
-    { id: "classe", label: "Classe", width: "1.2fr" },
-    { id: "referencia", label: "Referencia", width: "1.1fr" },
-    { id: "oportunidades", label: "Oportunidades", width: "1fr" },
-    { id: "cotacoes", label: "Cotações abertas", width: "1.2fr" },
+    { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
+    { id: "estado", label: t("company.info.state"), width: "0.7fr" },
+    { id: "csa", label: t("company.info.csa"), width: "0.9fr" },
+    { id: "carteira", label: t("company.info.carteira"), width: "1.2fr" },
+    { id: "classe", label: t("company.info.class"), width: "1.2fr" },
+    { id: "referencia", label: t("company.info.reference"), width: "1.1fr" },
+    { id: "oportunidades", label: t("company.opportunities"), width: "1fr" },
+    { id: "cotacoes", label: t("schedule.orderByQuotes"), width: "1.2fr" },
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
@@ -559,16 +565,13 @@ export default function CronogramaClient({
     .join(" ");
 
   return (
-    <PageShell
-      title="Cronograma semanal"
-      subtitle="Agendamentos reais carregados do Supabase por semana."
-    >
+    <PageShell title={t("schedule.title")} subtitle={t("schedule.subtitle")}>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Tabs
             tabs={[
-              { id: "cronograma", label: "Cronograma" },
-              { id: "empresas", label: "Empresas" },
+              { id: "cronograma", label: t("schedule.tabSchedule") },
+              { id: "empresas", label: t("schedule.tabCompanies") },
             ]}
             activeTabId={activeTab}
             onTabChange={(id) =>
@@ -584,7 +587,11 @@ export default function CronogramaClient({
                 className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  <span>{totalAppointments} agendamentos</span>
+                  <span>
+                    {t("schedule.appointmentsCount", {
+                      count: totalAppointments,
+                    })}
+                  </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   {viewMode === "board" ? (
@@ -596,12 +603,12 @@ export default function CronogramaClient({
                         }
                         disabled={zoomLevel === 0}
                         className="rounded-md px-2 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Diminuir zoom da semana"
+                        aria-label={t("schedule.zoomOut")}
                       >
                         -
                       </button>
                       <span className="px-1 text-[10px] uppercase tracking-wide text-slate-400">
-                        Zoom
+                        {t("schedule.zoomLabel")}
                       </span>
                       <button
                         type="button"
@@ -612,14 +619,14 @@ export default function CronogramaClient({
                         }
                         disabled={zoomLevel >= zoomLevels.length - 1}
                         className="rounded-md px-2 py-1 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Aumentar zoom da semana"
+                        aria-label={t("schedule.zoomIn")}
                       >
                         +
                       </button>
                     </div>
                   ) : null}
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">Consultor</span>
+                    <span className="sr-only">{t("schedule.consultant")}</span>
                     <select
                       value={selectedConsultantId ?? ""}
                       onChange={(event) => {
@@ -627,7 +634,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
-                      aria-label="Consultor"
+                      aria-label={t("schedule.consultant")}
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
@@ -637,7 +644,7 @@ export default function CronogramaClient({
                           </option>
                         ))
                       ) : (
-                        <option value="">Nenhum consultor</option>
+                        <option value="">{t("schedule.emptyConsultant")}</option>
                       )}
                     </select>
                   </label>
@@ -654,12 +661,14 @@ export default function CronogramaClient({
                     className={`w-full sm:w-auto ${primaryButtonClass}`}
                     aria-expanded={showCreateModal}
                   >
-                    {showCreateModal ? "Fechar criacao" : "Novo apontamento"}
+                    {showCreateModal
+                      ? t("schedule.closeCreate")
+                      : t("schedule.createAppointment")}
                   </button>
                   <Tabs
                     tabs={[
-                      { id: "board", label: "Agenda" },
-                      { id: "map", label: "Mapa" },
+                      { id: "board", label: t("schedule.viewBoard") },
+                      { id: "map", label: t("schedule.viewMap") },
                     ]}
                     activeTabId={viewMode}
                     onTabChange={(id) =>
@@ -680,7 +689,7 @@ export default function CronogramaClient({
                     }
                     className={softButtonClass}
                   >
-                    <span className="sr-only">Mes anterior</span>
+                    <span className="sr-only">{t("schedule.prevMonth")}</span>
                     &lt;
                   </button>
                   <span className="text-sm font-semibold text-slate-800">
@@ -693,7 +702,7 @@ export default function CronogramaClient({
                     }
                     className={softButtonClass}
                   >
-                    <span className="sr-only">Proximo mes</span>
+                    <span className="sr-only">{t("schedule.nextMonth")}</span>
                     &gt;
                   </button>
                 </div>
@@ -723,6 +732,7 @@ export default function CronogramaClient({
                 consultants={consultants}
                 defaultConsultantId={selectedConsultantId}
                 defaultDate={defaultCreateDate}
+                t={t}
                 onClose={() => setShowCreateModal(false)}
                 onCreated={async () => {
                   await refresh();
@@ -736,7 +746,7 @@ export default function CronogramaClient({
               ) : null}
               {loading ? (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
-                  Carregando cronograma...
+                  {t("schedule.loadingSchedule")}
                 </div>
               ) : null}
             </div>
@@ -752,7 +762,7 @@ export default function CronogramaClient({
                       }}
                     >
                       <div className="border-r border-slate-200 px-2 py-2 text-[10px] uppercase tracking-wide text-slate-400">
-                        Hora
+                        {t("schedule.timeLabel")}
                       </div>
                       {weekDays.map((day) => (
                         <div
@@ -764,7 +774,7 @@ export default function CronogramaClient({
                           <div className="flex items-center gap-2">
                             <Badge tone="amber">{day.shortLabel}</Badge>
                             {day.isToday ? (
-                              <Badge tone="emerald">Hoje</Badge>
+                              <Badge tone="emerald">{t("schedule.today")}</Badge>
                             ) : null}
                           </div>
                           <div className="mt-0.5 text-[10px] text-slate-500">
@@ -820,7 +830,8 @@ export default function CronogramaClient({
                               const company = companyById.get(
                                 item.appointment.companyId,
                               );
-                              const title = company?.name || "Apontamento";
+                              const title =
+                                company?.name || t("company.appointmentFallback");
                               const topMinutes =
                                 (item.start.getHours() - timelineHours.min) *
                                   60 +
@@ -861,7 +872,7 @@ export default function CronogramaClient({
                                     </span>
                                     {!isTiny && item.isActual ? (
                                       <span className="rounded bg-emerald-100 px-1 text-[9px] font-semibold text-emerald-700">
-                                        Real
+                                        {t("schedule.actual")}
                                       </span>
                                     ) : null}
                                   </div>
@@ -871,7 +882,9 @@ export default function CronogramaClient({
                                   </div>
                                   {!isCompact ? (
                                     <div className="mt-0.5 text-[9px] text-slate-500">
-                                      {STATUS_LABELS[item.appointment.status]}
+                                      {t(
+                                        `schedule.status.${item.appointment.status}`,
+                                      )}
                                     </div>
                                   ) : null}
                                 </Link>
@@ -894,7 +907,7 @@ export default function CronogramaClient({
                       showCompanies ? toggleActiveClass : toggleInactiveClass
                     }`}
                   >
-                    Empresas
+                    {t("schedule.map.companies")}
                   </button>
                   <button
                     type="button"
@@ -905,7 +918,7 @@ export default function CronogramaClient({
                         : toggleInactiveClass
                     }`}
                   >
-                    Check-ins
+                    {t("schedule.map.checkIns")}
                   </button>
                   <button
                     type="button"
@@ -916,7 +929,7 @@ export default function CronogramaClient({
                         : toggleInactiveClass
                     }`}
                   >
-                    Check-outs
+                    {t("schedule.map.checkOuts")}
                   </button>
                 </div>
 
@@ -929,6 +942,7 @@ export default function CronogramaClient({
                   visible={viewMode === "map"}
                   loading={loading}
                   error={error}
+                  t={t}
                 />
               </div>
             )}
@@ -940,11 +954,15 @@ export default function CronogramaClient({
                 className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  <span>{filteredCompanies.length} empresas</span>
+                  <span>
+                    {t("schedule.companiesCount", {
+                      count: filteredCompanies.length,
+                    })}
+                  </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">Consultor</span>
+                    <span className="sr-only">{t("schedule.consultant")}</span>
                     <select
                       value={selectedConsultantId ?? ""}
                       onChange={(event) => {
@@ -952,7 +970,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
-                      aria-label="Consultor"
+                      aria-label={t("schedule.consultant")}
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
@@ -962,28 +980,28 @@ export default function CronogramaClient({
                           </option>
                         ))
                       ) : (
-                        <option value="">Nenhum consultor</option>
+                        <option value="">{t("schedule.emptyConsultant")}</option>
                       )}
                     </select>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">Busca</span>
+                    <span className="sr-only">{t("schedule.search")}</span>
                     <input
                       type="search"
                       value={companySearch}
                       onChange={(event) => setCompanySearch(event.target.value)}
                       placeholder={
                         selectedConsultantId
-                          ? "Buscar por empresa, documento ou carteira"
-                          : "Selecione um consultor"
+                          ? t("schedule.searchPlaceholderWithConsultant")
+                          : t("schedule.searchPlaceholderNoConsultant")
                       }
                       disabled={!selectedConsultantId}
-                      aria-label="Busca"
+                      aria-label={t("schedule.search")}
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">Ordenar</span>
+                    <span className="sr-only">{t("schedule.orderBy")}</span>
                     <select
                       value={companySort}
                       onChange={(event) => {
@@ -998,13 +1016,19 @@ export default function CronogramaClient({
                         }
                         setCompanySort("name");
                       }}
-                      aria-label="Ordenar"
+                      aria-label={t("schedule.orderBy")}
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
-                      <option value="name">Nome</option>
-                      <option value="preventivas">Preventivas</option>
-                      <option value="reconexoes">Reconexoes</option>
-                      <option value="cotacoes">Cotações abertas</option>
+                      <option value="name">{t("schedule.orderByName")}</option>
+                      <option value="preventivas">
+                        {t("schedule.orderByPreventivas")}
+                      </option>
+                      <option value="reconexoes">
+                        {t("schedule.orderByReconexoes")}
+                      </option>
+                      <option value="cotacoes">
+                        {t("schedule.orderByQuotes")}
+                      </option>
                     </select>
                   </label>
                   {/* <button
@@ -1047,7 +1071,7 @@ export default function CronogramaClient({
               <div className="divide-y divide-slate-200">
                 {!selectedConsultant ? (
                   <div className="px-5 py-4 text-sm text-slate-500">
-                    Selecione um consultor para ver as empresas.
+                    {t("schedule.selectConsultantToViewCompanies")}
                   </div>
                 ) : loading ? (
                   companySkeletonRows.map((index) => (
@@ -1080,12 +1104,13 @@ export default function CronogramaClient({
                           {company.name}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {company.document ?? "Documento nao informado"}
+                          {company.document ??
+                            t("schedule.companyDocumentMissing")}
                         </div>
                       </div>
                       <div className="min-w-0">
                         <Badge tone="sky" className="max-w-[120px] truncate">
-                          {company.state ?? "Sem estado"}
+                          {company.state ?? t("schedule.noState")}
                         </Badge>
                       </div>
                       <div className="min-w-0">
@@ -1093,31 +1118,31 @@ export default function CronogramaClient({
                           tone="emerald"
                           className="max-w-[140px] truncate"
                         >
-                          {company.csa ?? "Sem CSA"}
+                          {company.csa ?? t("schedule.noCsa")}
                         </Badge>
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-slate-700">
-                          {company.carteiraDef ?? "Sem carteira"}
+                          {company.carteiraDef ?? t("schedule.noCarteira")}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {company.carteiraDef2 ?? "Sem carteira 2"}
+                          {company.carteiraDef2 ?? t("schedule.noCarteira2")}
                         </div>
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-slate-700">
-                          {company.clientClass ?? "Sem classe"}
+                          {company.clientClass ?? t("schedule.noClass")}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {company.classeCliente ?? "Sem classe cliente"}
+                          {company.classeCliente ?? t("schedule.noClientClass")}
                         </div>
                       </div>
                       <div className="min-w-0">
                         <div className="truncate text-slate-700">
-                          {company.referencia ?? "Sem referencia"}
+                          {company.referencia ?? t("schedule.noReference")}
                         </div>
                         <div className="truncate text-xs text-slate-500">
-                          {company.validacao ?? "Sem validacao"}
+                          {company.validacao ?? t("schedule.noValidation")}
                         </div>
                       </div>
                       <div className="min-w-0">
@@ -1136,12 +1161,12 @@ export default function CronogramaClient({
                       <div className="min-w-0">
                         {openQuotesError ? (
                           <span className="text-xs text-slate-400">
-                            Sem dados
+                            {t("schedule.noData")}
                           </span>
                         ) : openQuotesLoading &&
                           !openQuotesTotals.has(company.id) ? (
                           <span className="text-xs text-slate-400">
-                            Carregando...
+                            {t("schedule.loading")}
                           </span>
                         ) : (
                           <span className="text-xs font-semibold text-slate-700">
@@ -1159,7 +1184,7 @@ export default function CronogramaClient({
                   !loading &&
                   filteredCompanies.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
-                      Nenhuma empresa encontrada com esses filtros.
+                      {t("schedule.noCompaniesFound")}
                     </div>
                   )}
               </div>
