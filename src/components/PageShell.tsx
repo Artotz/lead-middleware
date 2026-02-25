@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import bg from "@/assets/bg.png";
+import logo from "@/assets/logo.png";
+import cscLogo from "@/assets/csc_logo.png";
 
 type PageShellProps = {
   children: React.ReactNode;
@@ -33,11 +35,18 @@ export function PageShell({ children, title, subtitle }: PageShellProps) {
     >
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
         {(title || subtitle) && (
-          <header className="space-y-1">
+          <header className="space-y-2">
             {title && (
-              <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-                {title}
-              </h1>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+                  {title}
+                </h1>
+                <img
+                  src={cscLogo.src}
+                  alt="CSC"
+                  className="h-12 w-auto sm:h-14"
+                />
+              </div>
             )}
             {subtitle && (
               <p className="max-w-2xl text-sm text-slate-200">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 
 type NavItem = {
   label: string;
@@ -35,6 +36,7 @@ export function AppHeader() {
           {/* <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black text-sm font-bold text-[#FFDE00]">
             VFS
           </div> */}
+          <img src={logo.src} alt="Logo" className="h-9 w-auto shrink-0" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-black">
               Veneza Field Service
