@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { useSchedule } from "@/contexts/ScheduleContext";
+import {
+  buildDocumentVariants,
+  buildEmptyProtheusCounts,
+  buildProtheusCounts,
+  mergeProtheusCounts,
+  type ProtheusCounts,
+  type ProtheusLeadRow,
+} from "@/lib/protheus";
 import {
   addDays,
   addMonths,
@@ -21,6 +29,7 @@ import {
   type Appointment,
   toDateKey,
 } from "@/lib/schedule";
+import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
@@ -106,12 +115,16 @@ export default function CronogramaClient({
     refresh,
     setSelectedConsultantId,
   } = useSchedule();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
 
   const [viewMode, setViewMode] = useState<"board" | "map">("board");
   const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
     initialTab,
   );
+  const [companySort, setCompanySort] = useState<
+    "name" | "preventivas" | "reconexoes"
+  >("name");
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
@@ -122,6 +135,12 @@ export default function CronogramaClient({
   const [companySearch, setCompanySearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [protheusCounts, setProtheusCounts] = useState<
+    Map<string, ProtheusCounts>
+  >(new Map());
+  const [protheusLoading, setProtheusLoading] = useState(false);
+  const [protheusError, setProtheusError] = useState<string | null>(null);
+  const protheusRequestIdRef = useRef(0);
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -243,6 +262,98 @@ export default function CronogramaClient({
     );
   }, [companies, selectedConsultant]);
 
+  const protheusLookup = useMemo(() => {
+    const variantToCompany = new Map<string, string>();
+    const variants: string[] = [];
+
+    companiesByConsultant.forEach((company) => {
+      const docs = buildDocumentVariants(company.document);
+      docs.forEach((doc) => {
+        if (!doc) return;
+        if (!variantToCompany.has(doc)) {
+          variantToCompany.set(doc, company.id);
+        }
+        variants.push(doc);
+      });
+    });
+
+    return {
+      variantToCompany,
+      variants: Array.from(new Set(variants)),
+    };
+  }, [companiesByConsultant]);
+
+  useEffect(() => {
+    if (!selectedConsultantId) {
+      setProtheusCounts(new Map());
+      setProtheusError(null);
+      setProtheusLoading(false);
+      return;
+    }
+
+    if (protheusLookup.variants.length === 0) {
+      setProtheusCounts(new Map());
+      setProtheusError(null);
+      setProtheusLoading(false);
+      return;
+    }
+
+    const requestId = ++protheusRequestIdRef.current;
+    const loadCounts = async () => {
+      setProtheusLoading(true);
+      setProtheusError(null);
+      let aggregated = new Map<string, ProtheusCounts>();
+
+      const chunkSize = 200;
+      for (
+        let index = 0;
+        index < protheusLookup.variants.length;
+        index += chunkSize
+      ) {
+        const chunk = protheusLookup.variants.slice(
+          index,
+          index + chunkSize,
+        );
+        try {
+          const { data, error } = await supabase
+            .from("base_protheus")
+            .select("a1_cgc, tipo_lead")
+            .in("a1_cgc", chunk);
+
+          if (requestId !== protheusRequestIdRef.current) return;
+
+          if (error) {
+            console.error(error);
+            setProtheusCounts(new Map());
+            setProtheusLoading(false);
+            setProtheusError("Nao foi possivel carregar oportunidades.");
+            return;
+          }
+
+          const rows = (data ?? []) as ProtheusLeadRow[];
+          const counts = buildProtheusCounts(
+            rows,
+            protheusLookup.variantToCompany,
+          );
+          aggregated = mergeProtheusCounts(aggregated, counts);
+        } catch (error) {
+          console.error(error);
+          if (requestId !== protheusRequestIdRef.current) return;
+          setProtheusCounts(new Map());
+          setProtheusLoading(false);
+          setProtheusError("Nao foi possivel carregar oportunidades.");
+          return;
+        }
+      }
+
+      if (requestId !== protheusRequestIdRef.current) return;
+      setProtheusCounts(aggregated);
+      setProtheusLoading(false);
+    };
+
+    void loadCounts();
+  }, [protheusLookup, selectedConsultantId, supabase]);
+
   const filteredCompanies = useMemo(() => {
     if (!normalizedCompanySearch) return companiesByConsultant;
     return companiesByConsultant.filter((company) => {
@@ -267,12 +378,24 @@ export default function CronogramaClient({
 
   const sortedCompanies = useMemo(() => {
     const sorted = [...filteredCompanies];
+    const getCounts = (companyId: string) =>
+      protheusCounts.get(companyId) ?? buildEmptyProtheusCounts();
+
     sorted.sort((a, b) => {
+      if (companySort === "preventivas" || companySort === "reconexoes") {
+        const aCounts = getCounts(a.id);
+        const bCounts = getCounts(b.id);
+        const diff =
+          companySort === "preventivas"
+            ? bCounts.preventivas - aCounts.preventivas
+            : bCounts.reconexoes - aCounts.reconexoes;
+        if (diff !== 0) return diff;
+      }
       return a.name.localeCompare(b.name, "pt-BR");
     });
 
     return sorted;
-  }, [filteredCompanies]);
+  }, [filteredCompanies, companySort, protheusCounts]);
 
   const companyColumns = [
     { id: "empresa", label: "Empresa", width: "1.8fr" },
@@ -281,6 +404,7 @@ export default function CronogramaClient({
     { id: "carteira", label: "Carteira", width: "1.2fr" },
     { id: "classe", label: "Classe", width: "1.2fr" },
     { id: "referencia", label: "Referencia", width: "1.1fr" },
+    { id: "oportunidades", label: "Oportunidades", width: "1fr" },
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
@@ -686,6 +810,14 @@ export default function CronogramaClient({
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
                   <span>{filteredCompanies.length} empresas listadas</span>
                   <span>Fonte: Supabase</span>
+                  <span>
+                    Oportunidades:{" "}
+                    {protheusLoading
+                      ? "carregando"
+                      : protheusError
+                        ? "erro"
+                        : "Protheus"}
+                  </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
@@ -729,6 +861,30 @@ export default function CronogramaClient({
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="uppercase text-[10px] text-slate-400">
+                      Ordenar
+                    </span>
+                    <select
+                      value={companySort}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (
+                          value === "preventivas" ||
+                          value === "reconexoes"
+                        ) {
+                          setCompanySort(value);
+                          return;
+                        }
+                        setCompanySort("name");
+                      }}
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      <option value="name">Nome</option>
+                      <option value="preventivas">Preventivas</option>
+                      <option value="reconexoes">Reconexoes</option>
+                    </select>
+                  </label>
                   {/* <button
                     type="button"
                     onClick={() => refresh()}
@@ -742,6 +898,11 @@ export default function CronogramaClient({
               {error ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
                   {error}
+                </div>
+              ) : null}
+              {protheusError ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {protheusError}
                 </div>
               ) : null}
             </div>
@@ -831,6 +992,23 @@ export default function CronogramaClient({
                         <div className="truncate text-xs text-slate-500">
                           {company.validacao ?? "Sem validacao"}
                         </div>
+                      </div>
+                      <div className="min-w-0">
+                        {(() => {
+                          const counts =
+                            protheusCounts.get(company.id) ??
+                            buildEmptyProtheusCounts();
+                          return (
+                            <div className="flex flex-wrap items-center gap-1 text-xs">
+                              <Badge tone="amber">
+                                P {counts.preventivas}
+                              </Badge>
+                              <Badge tone="slate">
+                                R {counts.reconexoes}
+                              </Badge>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </Link>
                   ))

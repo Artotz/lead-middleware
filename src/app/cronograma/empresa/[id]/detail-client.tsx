@@ -5,7 +5,13 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
+import { Tabs } from "@/components/Tabs";
 import { useSchedule } from "@/contexts/ScheduleContext";
+import {
+  buildDocumentVariants,
+  splitProtheusSeries,
+  type ProtheusSerieRow,
+} from "@/lib/protheus";
 import {
   APPOINTMENT_SELECT,
   formatDateLabel,
@@ -165,6 +171,16 @@ export default function CompanyDetailClient() {
   const [orcamentos, setOrcamentos] = useState<OrcamentoRow[]>([]);
   const [orcamentosLoading, setOrcamentosLoading] = useState(false);
   const [orcamentosError, setOrcamentosError] = useState<string | null>(null);
+  const [opportunityTab, setOpportunityTab] = useState<
+    "cotacao" | "preventiva" | "reconexao"
+  >("cotacao");
+  const [protheusSeries, setProtheusSeries] = useState(() => ({
+    preventivas: [] as string[],
+    reconexoes: [] as string[],
+  }));
+  const [protheusLoading, setProtheusLoading] = useState(false);
+  const [protheusError, setProtheusError] = useState<string | null>(null);
+  const protheusRequestIdRef = useRef(0);
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
@@ -259,6 +275,49 @@ export default function CompanyDetailClient() {
     [supabase],
   );
 
+  const loadProtheusSeries = useCallback(
+    async (document: string | null | undefined) => {
+      const requestId = ++protheusRequestIdRef.current;
+      setProtheusLoading(true);
+      setProtheusError(null);
+
+      const variants = buildDocumentVariants(document);
+      if (!variants.length) {
+        setProtheusSeries({ preventivas: [], reconexoes: [] });
+        setProtheusLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("base_protheus")
+          .select("serie, tipo_lead")
+          .in("a1_cgc", variants);
+
+        if (requestId !== protheusRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setProtheusSeries({ preventivas: [], reconexoes: [] });
+          setProtheusLoading(false);
+          setProtheusError("Nao foi possivel carregar oportunidades.");
+          return;
+        }
+
+        const rows = (data ?? []) as ProtheusSerieRow[];
+        setProtheusSeries(splitProtheusSeries(rows));
+        setProtheusLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== protheusRequestIdRef.current) return;
+        setProtheusSeries({ preventivas: [], reconexoes: [] });
+        setProtheusLoading(false);
+        setProtheusError("Nao foi possivel carregar oportunidades.");
+      }
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     if (!companyId) return;
     setAppointments([]);
@@ -269,6 +328,11 @@ export default function CompanyDetailClient() {
     if (!companyId) return;
     void loadOrcamentos(company?.document ?? null);
   }, [company?.document, companyId, loadOrcamentos]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    void loadProtheusSeries(company?.document ?? null);
+  }, [company?.document, companyId, loadProtheusSeries]);
 
   const stats = useMemo(() => {
     const total = appointments.length;
@@ -471,144 +535,224 @@ export default function CompanyDetailClient() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-slate-900">
-                Orcamentos
+                Oportunidades
               </h2>
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                <span>{groupedOrcamentos.length} orcamentos</span>
-                <span>{orcamentos.length} itens</span>
-                <button
-                  type="button"
-                  onClick={() => loadOrcamentos(company.document)}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                >
-                  Atualizar
-                </button>
-              </div>
+              <Tabs
+                tabs={[
+                  {
+                    id: "cotacao",
+                    label: `Cotacao (${groupedOrcamentos.length})`,
+                  },
+                  {
+                    id: "preventiva",
+                    label: `Preventiva (${protheusSeries.preventivas.length})`,
+                  },
+                  {
+                    id: "reconexao",
+                    label: `Reconexao (${protheusSeries.reconexoes.length})`,
+                  },
+                ]}
+                activeTabId={opportunityTab}
+                onTabChange={(id) => {
+                  if (id === "preventiva" || id === "reconexao") {
+                    setOpportunityTab(id);
+                    return;
+                  }
+                  setOpportunityTab("cotacao");
+                }}
+              />
             </div>
 
-            {orcamentosError ? (
-              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                {orcamentosError}
-              </div>
-            ) : null}
-
-            {orcamentosLoading ? (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
-                Carregando orcamentos...
-              </div>
-            ) : null}
-
-            {!orcamentosLoading &&
-            !orcamentosError &&
-            orcamentos.length === 0 ? (
-              <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
-                Nenhum orcamento encontrado para esta empresa.
-              </div>
-            ) : null}
-
-            <div className="mt-3 space-y-3">
-              {groupedOrcamentos.map((orcamento) => (
-                <div
-                  key={orcamento.key}
-                  className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-900">
-                        Orcamento {orcamento.numorc}
-                        {orcamento.filial ? ` • Filial ${orcamento.filial}` : ""}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        Data: {formatOrcDate(orcamento.data)}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-                      {orcamento.status ? (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold">
-                          {orcamento.status}
-                        </span>
-                      ) : null}
-                      {orcamento.total != null ? (
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                          {formatCurrency(orcamento.total)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Consultor:
-                      </span>{" "}
-                      {orcamento.consultor ?? "Nao informado"}
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Definicao:
-                      </span>{" "}
-                      {orcamento.definicao ?? "Sem definicao"}
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Classe:
-                      </span>{" "}
-                      {orcamento.classe ?? "Sem classe"}
-                    </div>
-                    <div>
-                      <span className="font-semibold text-slate-700">
-                        Cliente:
-                      </span>{" "}
-                      {orcamento.clientes ?? "Sem cliente"}
-                    </div>
-                  </div>
-
-                  <details className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                    <summary className="cursor-pointer select-none bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Itens do orcamento ({orcamento.items.length})
-                    </summary>
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[520px]">
-                        <div className="flex items-center gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                          <span className="flex-1 min-w-0">Item</span>
-                          <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
-                            Qtd
-                          </span>
-                          <span className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
-                            Valor
-                          </span>
-                        </div>
-                        <div className="divide-y divide-slate-200">
-                          {orcamento.items.map((item, index) => (
-                            <div
-                              key={`${orcamento.key}-${index}`}
-                              className="flex items-center gap-3 px-3 py-2 text-xs text-slate-700"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="truncate font-semibold text-slate-800">
-                                  {item.descricao ?? "Item sem descricao"}
-                                </div>
-                                {item.codigo ? (
-                                  <div className="text-[11px] text-slate-500">
-                                    {item.codigo}
-                                  </div>
-                                ) : null}
-                              </div>
-                              <div className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
-                                {formatQuantity(item.qtd)}
-                              </div>
-                              <div className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
-                                {formatCurrency(item.valor)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </details>
+            {opportunityTab === "cotacao" ? (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  <span>{groupedOrcamentos.length} orcamentos</span>
+                  <span>{orcamentos.length} itens</span>
+                  <button
+                    type="button"
+                    onClick={() => loadOrcamentos(company.document)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    Atualizar
+                  </button>
                 </div>
-              ))}
-            </div>
+
+                {orcamentosError ? (
+                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                    {orcamentosError}
+                  </div>
+                ) : null}
+
+                {orcamentosLoading ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                    Carregando orcamentos...
+                  </div>
+                ) : null}
+
+                {!orcamentosLoading &&
+                !orcamentosError &&
+                orcamentos.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
+                    Nenhum orcamento encontrado para esta empresa.
+                  </div>
+                ) : null}
+
+                <div className="mt-3 space-y-3">
+                  {groupedOrcamentos.map((orcamento) => (
+                    <div
+                      key={orcamento.key}
+                      className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-900">
+                            Orcamento {orcamento.numorc}
+                            {orcamento.filial
+                              ? ` • Filial ${orcamento.filial}`
+                              : ""}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Data: {formatOrcDate(orcamento.data)}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                          {orcamento.status ? (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold">
+                              {orcamento.status}
+                            </span>
+                          ) : null}
+                          {orcamento.total != null ? (
+                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                              {formatCurrency(orcamento.total)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
+                        <div>
+                          <span className="font-semibold text-slate-700">
+                            Consultor:
+                          </span>{" "}
+                          {orcamento.consultor ?? "Nao informado"}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">
+                            Definicao:
+                          </span>{" "}
+                          {orcamento.definicao ?? "Sem definicao"}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">
+                            Classe:
+                          </span>{" "}
+                          {orcamento.classe ?? "Sem classe"}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-700">
+                            Cliente:
+                          </span>{" "}
+                          {orcamento.clientes ?? "Sem cliente"}
+                        </div>
+                      </div>
+
+                      <details className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                        <summary className="cursor-pointer select-none bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Itens do orcamento ({orcamento.items.length})
+                        </summary>
+                        <div className="overflow-x-auto">
+                          <div className="min-w-[520px]">
+                            <div className="flex items-center gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              <span className="flex-1 min-w-0">Item</span>
+                              <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                Qtd
+                              </span>
+                              <span className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                Valor
+                              </span>
+                            </div>
+                            <div className="divide-y divide-slate-200">
+                              {orcamento.items.map((item, index) => (
+                                <div
+                                  key={`${orcamento.key}-${index}`}
+                                  className="flex items-center gap-3 px-3 py-2 text-xs text-slate-700"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="truncate font-semibold text-slate-800">
+                                      {item.descricao ?? "Item sem descricao"}
+                                    </div>
+                                    {item.codigo ? (
+                                      <div className="text-[11px] text-slate-500">
+                                        {item.codigo}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <div className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                    {formatQuantity(item.qtd)}
+                                  </div>
+                                  <div className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                    {formatCurrency(item.valor)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  <span>Fonte: Protheus</span>
+                  <button
+                    type="button"
+                    onClick={() => loadProtheusSeries(company.document)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    Atualizar
+                  </button>
+                </div>
+
+                {protheusError ? (
+                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                    {protheusError}
+                  </div>
+                ) : null}
+
+                {protheusLoading ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                    Carregando oportunidades...
+                  </div>
+                ) : null}
+
+                {!protheusLoading &&
+                !protheusError &&
+                (opportunityTab === "preventiva"
+                  ? protheusSeries.preventivas.length === 0
+                  : protheusSeries.reconexoes.length === 0) ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
+                    Nenhuma oportunidade encontrada para esta empresa.
+                  </div>
+                ) : null}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(opportunityTab === "preventiva"
+                    ? protheusSeries.preventivas
+                    : protheusSeries.reconexoes
+                  ).map((serie) => (
+                    <Badge
+                      key={serie}
+                      tone={opportunityTab === "preventiva" ? "amber" : "slate"}
+                    >
+                      Serie {serie}
+                    </Badge>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
