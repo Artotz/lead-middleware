@@ -49,12 +49,42 @@ type TimelineLayoutItem = TimelineItem & {
   lanes: number;
 };
 
+type OrcamentoResumoRow = {
+  cnpj: string | number | null;
+  vs1_numorc: number | string | null;
+  vs1_filial: number | string | null;
+  vs1_vtotnf: number | string | null;
+  status: string | null;
+};
+
 const statusCardStyles: Record<keyof typeof STATUS_LABELS, string> = {
   scheduled: "border-amber-300 bg-amber-50 text-amber-900",
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
   done: "border-emerald-300 bg-emerald-50 text-emerald-900",
   absent: "border-rose-300 bg-rose-50 text-rose-900",
 };
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const formatCurrency = (value: number | null | undefined) =>
+  value == null ? "Sem dados" : currencyFormatter.format(value);
+
+const toNumber = (value: number | string | null | undefined): number | null => {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeCnpj = (value: string | number | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits.length ? digits : null;
+};
+
+const isOpenQuoteStatus = (status: string | null | undefined) =>
+  status?.trim().toUpperCase() === "ABERTO";
 
 const resolveTimelineRange = (
   appointment: Appointment,
@@ -123,7 +153,7 @@ export default function CronogramaClient({
     initialTab,
   );
   const [companySort, setCompanySort] = useState<
-    "name" | "preventivas" | "reconexoes"
+    "name" | "preventivas" | "reconexoes" | "cotacoes"
   >("name");
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
@@ -141,6 +171,12 @@ export default function CronogramaClient({
   const [protheusLoading, setProtheusLoading] = useState(false);
   const [protheusError, setProtheusError] = useState<string | null>(null);
   const protheusRequestIdRef = useRef(0);
+  const [openQuotesTotals, setOpenQuotesTotals] = useState<
+    Map<string, number>
+  >(new Map());
+  const [openQuotesLoading, setOpenQuotesLoading] = useState(false);
+  const [openQuotesError, setOpenQuotesError] = useState<string | null>(null);
+  const openQuotesRequestIdRef = useRef(0);
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -283,6 +319,25 @@ export default function CronogramaClient({
     };
   }, [companiesByConsultant]);
 
+  const openQuotesLookup = useMemo(() => {
+    const cnpjToCompany = new Map<string, string>();
+    const cnpjs: string[] = [];
+
+    companiesByConsultant.forEach((company) => {
+      const cnpj = normalizeCnpj(company.document);
+      if (!cnpj) return;
+      if (!cnpjToCompany.has(cnpj)) {
+        cnpjToCompany.set(cnpj, company.id);
+      }
+      cnpjs.push(cnpj);
+    });
+
+    return {
+      cnpjToCompany,
+      cnpjs: Array.from(new Set(cnpjs)),
+    };
+  }, [companiesByConsultant]);
+
   useEffect(() => {
     if (!selectedConsultantId) {
       setProtheusCounts(new Map());
@@ -354,6 +409,91 @@ export default function CronogramaClient({
     void loadCounts();
   }, [protheusLookup, selectedConsultantId, supabase]);
 
+  useEffect(() => {
+    if (!selectedConsultantId) {
+      setOpenQuotesTotals(new Map());
+      setOpenQuotesError(null);
+      setOpenQuotesLoading(false);
+      return;
+    }
+
+    if (openQuotesLookup.cnpjs.length === 0) {
+      setOpenQuotesTotals(new Map());
+      setOpenQuotesError(null);
+      setOpenQuotesLoading(false);
+      return;
+    }
+
+    const requestId = ++openQuotesRequestIdRef.current;
+    const loadOpenQuotes = async () => {
+      setOpenQuotesLoading(true);
+      setOpenQuotesError(null);
+
+      const totals = new Map<string, number>();
+      const seenQuotes = new Set<string>();
+      const chunkSize = 200;
+
+      for (
+        let index = 0;
+        index < openQuotesLookup.cnpjs.length;
+        index += chunkSize
+      ) {
+        const chunk = openQuotesLookup.cnpjs.slice(index, index + chunkSize);
+        try {
+          const { data, error } = await supabase
+            .from("base_csa_orc")
+            .select("cnpj, vs1_numorc, vs1_filial, vs1_vtotnf, status")
+            .in("cnpj", chunk);
+
+          if (requestId !== openQuotesRequestIdRef.current) return;
+
+          if (error) {
+            console.error(error);
+            setOpenQuotesTotals(new Map());
+            setOpenQuotesLoading(false);
+            setOpenQuotesError(
+              "Nao foi possivel carregar os valores de cotacao.",
+            );
+            return;
+          }
+
+          const rows = (data ?? []) as OrcamentoResumoRow[];
+          rows.forEach((row) => {
+            if (!isOpenQuoteStatus(row.status)) return;
+            const cnpj = normalizeCnpj(row.cnpj);
+            if (!cnpj) return;
+            const companyId = openQuotesLookup.cnpjToCompany.get(cnpj);
+            if (!companyId) return;
+            const numorc = row.vs1_numorc != null ? String(row.vs1_numorc) : "";
+            const filial =
+              row.vs1_filial != null ? String(row.vs1_filial) : "";
+            const quoteKey = `${cnpj}-${numorc}-${filial}`;
+            if (seenQuotes.has(quoteKey)) return;
+            seenQuotes.add(quoteKey);
+            const value = toNumber(row.vs1_vtotnf);
+            if (value == null) return;
+            totals.set(companyId, (totals.get(companyId) ?? 0) + value);
+          });
+        } catch (error) {
+          console.error(error);
+          if (requestId !== openQuotesRequestIdRef.current) return;
+          setOpenQuotesTotals(new Map());
+          setOpenQuotesLoading(false);
+          setOpenQuotesError(
+            "Nao foi possivel carregar os valores de cotacao.",
+          );
+          return;
+        }
+      }
+
+      if (requestId !== openQuotesRequestIdRef.current) return;
+      setOpenQuotesTotals(totals);
+      setOpenQuotesLoading(false);
+    };
+
+    void loadOpenQuotes();
+  }, [openQuotesLookup, selectedConsultantId, supabase]);
+
   const filteredCompanies = useMemo(() => {
     if (!normalizedCompanySearch) return companiesByConsultant;
     return companiesByConsultant.filter((company) => {
@@ -380,15 +520,23 @@ export default function CronogramaClient({
     const sorted = [...filteredCompanies];
     const getCounts = (companyId: string) =>
       protheusCounts.get(companyId) ?? buildEmptyProtheusCounts();
+    const getOpenQuotes = (companyId: string) =>
+      openQuotesTotals.get(companyId) ?? 0;
 
     sorted.sort((a, b) => {
-      if (companySort === "preventivas" || companySort === "reconexoes") {
+      if (
+        companySort === "preventivas" ||
+        companySort === "reconexoes" ||
+        companySort === "cotacoes"
+      ) {
         const aCounts = getCounts(a.id);
         const bCounts = getCounts(b.id);
         const diff =
           companySort === "preventivas"
             ? bCounts.preventivas - aCounts.preventivas
-            : bCounts.reconexoes - aCounts.reconexoes;
+            : companySort === "reconexoes"
+              ? bCounts.reconexoes - aCounts.reconexoes
+              : getOpenQuotes(b.id) - getOpenQuotes(a.id);
         if (diff !== 0) return diff;
       }
       return a.name.localeCompare(b.name, "pt-BR");
@@ -405,6 +553,7 @@ export default function CronogramaClient({
     { id: "classe", label: "Classe", width: "1.2fr" },
     { id: "referencia", label: "Referencia", width: "1.1fr" },
     { id: "oportunidades", label: "Oportunidades", width: "1fr" },
+    { id: "cotacoes", label: "Cotações abertas", width: "1.2fr" },
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
@@ -818,6 +967,14 @@ export default function CronogramaClient({
                         ? "erro"
                         : "Protheus"}
                   </span>
+                  <span>
+                    Cotacoes:{" "}
+                    {openQuotesLoading
+                      ? "carregando"
+                      : openQuotesError
+                        ? "erro"
+                        : "CSA"}
+                  </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
@@ -871,7 +1028,8 @@ export default function CronogramaClient({
                         const value = event.target.value;
                         if (
                           value === "preventivas" ||
-                          value === "reconexoes"
+                          value === "reconexoes" ||
+                          value === "cotacoes"
                         ) {
                           setCompanySort(value);
                           return;
@@ -883,6 +1041,7 @@ export default function CronogramaClient({
                       <option value="name">Nome</option>
                       <option value="preventivas">Preventivas</option>
                       <option value="reconexoes">Reconexoes</option>
+                      <option value="cotacoes">Cotações abertas</option>
                     </select>
                   </label>
                   {/* <button
@@ -903,6 +1062,11 @@ export default function CronogramaClient({
               {protheusError ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                   {protheusError}
+                </div>
+              ) : null}
+              {openQuotesError ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {openQuotesError}
                 </div>
               ) : null}
             </div>
@@ -1009,6 +1173,24 @@ export default function CronogramaClient({
                             </div>
                           );
                         })()}
+                      </div>
+                      <div className="min-w-0">
+                        {openQuotesError ? (
+                          <span className="text-xs text-slate-400">
+                            Sem dados
+                          </span>
+                        ) : openQuotesLoading &&
+                          !openQuotesTotals.has(company.id) ? (
+                          <span className="text-xs text-slate-400">
+                            Carregando...
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-700">
+                            {formatCurrency(
+                              openQuotesTotals.get(company.id) ?? 0,
+                            )}
+                          </span>
+                        )}
                       </div>
                     </Link>
                   ))

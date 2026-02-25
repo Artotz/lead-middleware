@@ -93,7 +93,7 @@ type SupabaseCompanyRow = {
   validacao: string | null;
   referencia: string | null;
   email_csa: string | null;
-  created_at: string | null;
+  created_at?: string | null;
 };
 
 type SupabaseAppointmentRow = {
@@ -108,18 +108,18 @@ type SupabaseAppointmentRow = {
   check_out_at: string | null;
   check_in_lat: number | null;
   check_in_lng: number | null;
-  check_in_accuracy_m: number | null;
+  check_in_accuracy_m?: number | null;
   check_out_lat: number | null;
   check_out_lng: number | null;
-  check_out_accuracy_m: number | null;
-  address_snapshot: string | null;
-  absence_reason: string | null;
-  absence_note: string | null;
-  notes: string | null;
-  oportunidades: string[] | null;
-  created_by: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  check_out_accuracy_m?: number | null;
+  address_snapshot?: string | null;
+  absence_reason?: string | null;
+  absence_note?: string | null;
+  notes?: string | null;
+  oportunidades?: string[] | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 const MONTHS_SHORT = [
