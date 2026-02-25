@@ -92,7 +92,9 @@ const resolveTimelineRange = (
   const scheduledStart = new Date(appointment.startAt);
   const scheduledEnd = new Date(appointment.endAt);
   const isDone = isAppointmentDone(appointment);
-  const checkIn = appointment.checkInAt ? new Date(appointment.checkInAt) : null;
+  const checkIn = appointment.checkInAt
+    ? new Date(appointment.checkInAt)
+    : null;
   const checkOut = appointment.checkOutAt
     ? new Date(appointment.checkOutAt)
     : null;
@@ -171,9 +173,9 @@ export default function CronogramaClient({
   const [protheusLoading, setProtheusLoading] = useState(false);
   const [protheusError, setProtheusError] = useState<string | null>(null);
   const protheusRequestIdRef = useRef(0);
-  const [openQuotesTotals, setOpenQuotesTotals] = useState<
-    Map<string, number>
-  >(new Map());
+  const [openQuotesTotals, setOpenQuotesTotals] = useState<Map<string, number>>(
+    new Map(),
+  );
   const [openQuotesLoading, setOpenQuotesLoading] = useState(false);
   const [openQuotesError, setOpenQuotesError] = useState<string | null>(null);
   const openQuotesRequestIdRef = useRef(0);
@@ -365,10 +367,7 @@ export default function CronogramaClient({
         index < protheusLookup.variants.length;
         index += chunkSize
       ) {
-        const chunk = protheusLookup.variants.slice(
-          index,
-          index + chunkSize,
-        );
+        const chunk = protheusLookup.variants.slice(index, index + chunkSize);
         try {
           const { data, error } = await supabase
             .from("base_protheus")
@@ -465,8 +464,7 @@ export default function CronogramaClient({
             const companyId = openQuotesLookup.cnpjToCompany.get(cnpj);
             if (!companyId) return;
             const numorc = row.vs1_numorc != null ? String(row.vs1_numorc) : "";
-            const filial =
-              row.vs1_filial != null ? String(row.vs1_filial) : "";
+            const filial = row.vs1_filial != null ? String(row.vs1_filial) : "";
             const quoteKey = `${cnpj}-${numorc}-${filial}`;
             if (seenQuotes.has(quoteKey)) return;
             seenQuotes.add(quoteKey);
@@ -577,11 +575,6 @@ export default function CronogramaClient({
               setActiveTab(id === "empresas" ? "empresas" : "cronograma")
             }
           />
-          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm">
-            {activeTab === "cronograma"
-              ? `${totalAppointments} agendamentos`
-              : `${filteredCompanies.length} empresas`}
-          </div>
         </div>
 
         {activeTab === "cronograma" ? (
@@ -591,12 +584,7 @@ export default function CronogramaClient({
                 className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  <span>Semana selecionada</span>
                   <span>{totalAppointments} agendamentos</span>
-                  <span>
-                    Consultor:{" "}
-                    {selectedConsultant?.name ?? "Consultor nao selecionado"}
-                  </span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   {viewMode === "board" ? (
@@ -631,9 +619,7 @@ export default function CronogramaClient({
                     </div>
                   ) : null}
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="uppercase text-[10px] text-slate-400">
-                      Consultor
-                    </span>
+                    <span className="sr-only">Consultor</span>
                     <select
                       value={selectedConsultantId ?? ""}
                       onChange={(event) => {
@@ -641,6 +627,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
+                      aria-label="Consultor"
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
@@ -743,10 +730,10 @@ export default function CronogramaClient({
               />
 
               {error ? (
-                    <div className="rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
-                      {error}
-                    </div>
-                  ) : null}
+                <div className="rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200">
+                  {error}
+                </div>
+              ) : null}
               {loading ? (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
                   Carregando cronograma...
@@ -761,8 +748,7 @@ export default function CronogramaClient({
                     <div
                       className="grid border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
                       style={{
-                        gridTemplateColumns:
-                          "64px repeat(7, minmax(0, 1fr))",
+                        gridTemplateColumns: "64px repeat(7, minmax(0, 1fr))",
                       }}
                     >
                       <div className="border-r border-slate-200 px-2 py-2 text-[10px] uppercase tracking-wide text-slate-400">
@@ -791,8 +777,7 @@ export default function CronogramaClient({
                     <div
                       className="grid"
                       style={{
-                        gridTemplateColumns:
-                          "64px repeat(7, minmax(0, 1fr))",
+                        gridTemplateColumns: "64px repeat(7, minmax(0, 1fr))",
                       }}
                     >
                       <div className="relative border-r border-slate-200 bg-slate-50">
@@ -864,9 +849,7 @@ export default function CronogramaClient({
                                     left: `calc(${
                                       (item.lane / item.lanes) * 100
                                     }% + 2px)`,
-                                    width: `calc(${
-                                      100 / item.lanes
-                                    }% - 4px)`,
+                                    width: `calc(${100 / item.lanes}% - 4px)`,
                                   }}
                                   title={`${title} • ${formatTime(
                                     item.start,
@@ -957,30 +940,11 @@ export default function CronogramaClient({
                 className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  <span>{filteredCompanies.length} empresas listadas</span>
-                  <span>Fonte: Supabase</span>
-                  <span>
-                    Oportunidades:{" "}
-                    {protheusLoading
-                      ? "carregando"
-                      : protheusError
-                        ? "erro"
-                        : "Protheus"}
-                  </span>
-                  <span>
-                    Cotacoes:{" "}
-                    {openQuotesLoading
-                      ? "carregando"
-                      : openQuotesError
-                        ? "erro"
-                        : "CSA"}
-                  </span>
+                  <span>{filteredCompanies.length} empresas</span>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="uppercase text-[10px] text-slate-400">
-                      Consultor
-                    </span>
+                    <span className="sr-only">Consultor</span>
                     <select
                       value={selectedConsultantId ?? ""}
                       onChange={(event) => {
@@ -988,6 +952,7 @@ export default function CronogramaClient({
                         setSelectedConsultantId(next);
                       }}
                       disabled={!consultants.length}
+                      aria-label="Consultor"
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       {consultants.length ? (
@@ -1002,9 +967,7 @@ export default function CronogramaClient({
                     </select>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="uppercase text-[10px] text-slate-400">
-                      Busca
-                    </span>
+                    <span className="sr-only">Busca</span>
                     <input
                       type="search"
                       value={companySearch}
@@ -1015,13 +978,12 @@ export default function CronogramaClient({
                           : "Selecione um consultor"
                       }
                       disabled={!selectedConsultantId}
+                      aria-label="Busca"
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="uppercase text-[10px] text-slate-400">
-                      Ordenar
-                    </span>
+                    <span className="sr-only">Ordenar</span>
                     <select
                       value={companySort}
                       onChange={(event) => {
@@ -1036,6 +998,7 @@ export default function CronogramaClient({
                         }
                         setCompanySort("name");
                       }}
+                      aria-label="Ordenar"
                       className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
                       <option value="name">Nome</option>
@@ -1164,12 +1127,8 @@ export default function CronogramaClient({
                             buildEmptyProtheusCounts();
                           return (
                             <div className="flex flex-wrap items-center gap-1 text-xs">
-                              <Badge tone="amber">
-                                P {counts.preventivas}
-                              </Badge>
-                              <Badge tone="slate">
-                                R {counts.reconexoes}
-                              </Badge>
+                              <Badge tone="amber">P {counts.preventivas}</Badge>
+                              <Badge tone="slate">R {counts.reconexoes}</Badge>
                             </div>
                           );
                         })()}
