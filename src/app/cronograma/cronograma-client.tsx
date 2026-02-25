@@ -89,20 +89,7 @@ const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
   const sorted = [...items].sort(
     (a, b) => a.start.getTime() - b.start.getTime(),
   );
-  const laneEnds: number[] = [];
-  const placed = sorted.map((item) => {
-    const startTime = item.start.getTime();
-    let laneIndex = laneEnds.findIndex((end) => startTime >= end);
-    if (laneIndex === -1) {
-      laneIndex = laneEnds.length;
-      laneEnds.push(item.end.getTime());
-    } else {
-      laneEnds[laneIndex] = item.end.getTime();
-    }
-    return { ...item, lane: laneIndex, lanes: 0 };
-  });
-  const lanes = Math.max(1, laneEnds.length);
-  return placed.map((item) => ({ ...item, lanes }));
+  return sorted.map((item) => ({ ...item, lane: 0, lanes: 1 }));
 };
 
 export default function CronogramaClient({
@@ -142,11 +129,11 @@ export default function CronogramaClient({
   const softButtonClass =
     "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900";
   const primaryButtonClass =
-    "rounded-lg border border-[#F2A900] bg-[#FFDE00] px-3 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/40 transition hover:brightness-95";
+    "rounded-lg border border-slate-200 bg-[#FFDE00] px-3 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/40 transition hover:brightness-95";
   const toggleActiveClass =
-    "border-[#F2A900]/70 bg-[#FFDE00] text-slate-900";
+    "!bg-[#FFDE00] border-[#F2A900] text-slate-900 shadow-sm";
   const toggleInactiveClass =
-    "border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
+    "border-slate-200 text-slate-600 hover:bg-slate-50";
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -394,13 +381,13 @@ export default function CronogramaClient({
                       )}
                     </select>
                   </label>
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => refresh()}
                     className={`w-full sm:w-auto ${softButtonClass}`}
                   >
                     Atualizar
-                  </button>
+                  </button> */}
                   <button
                     type="button"
                     onClick={() => setShowCreateModal((prev) => !prev)}
@@ -409,28 +396,16 @@ export default function CronogramaClient({
                   >
                     {showCreateModal ? "Fechar criacao" : "Novo apontamento"}
                   </button>
-                  <div className="inline-flex w-full items-center justify-between gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold shadow-sm sm:w-auto sm:justify-start">
-                    {[
+                  <Tabs
+                    tabs={[
                       { id: "board", label: "Agenda" },
                       { id: "map", label: "Mapa" },
-                    ].map((tab) => {
-                      const isActive = viewMode === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setViewMode(tab.id as "board" | "map")}
-                          className={`rounded-md px-2 py-1 transition ${
-                            isActive
-                              ? "bg-[#FFDE00] text-slate-900"
-                              : "bg-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                          }`}
-                        >
-                          {tab.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                    ]}
+                    activeTabId={viewMode}
+                    onTabChange={(id) =>
+                      setViewMode(id === "map" ? "map" : "board")
+                    }
+                  />
                 </div>
               </div>
 
@@ -552,7 +527,7 @@ export default function CronogramaClient({
                           {hourSlots.map((hour, index) => (
                             <div
                               key={`time-${hour}`}
-                              className="absolute left-0 right-0 border-t border-slate-200 text-[10px] text-slate-400"
+                              className="absolute left-0 right-0 border-t border-slate-300 text-[10px] text-slate-500"
                               style={{ top: index * hourRowHeight }}
                             >
                               <span className="-translate-y-1/2 transform px-2">
@@ -578,7 +553,7 @@ export default function CronogramaClient({
                             {hourSlots.map((hour, index) => (
                               <div
                                 key={`line-${dateKey}-${hour}`}
-                                className="absolute left-0 right-0 border-t border-slate-100"
+                                className="absolute left-0 right-0 border-t border-slate-200/80"
                                 style={{ top: index * hourRowHeight }}
                               />
                             ))}
@@ -754,13 +729,13 @@ export default function CronogramaClient({
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => refresh()}
                     className={`w-full sm:w-auto ${softButtonClass}`}
                   >
                     Atualizar
-                  </button>
+                  </button> */}
                 </div>
               </div>
 

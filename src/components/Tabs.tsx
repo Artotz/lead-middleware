@@ -21,15 +21,15 @@ export function Tabs({ tabs, activeTabId, onTabChange }: TabsProps) {
             key={tab.id}
             type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50 focus-visible:z-10 first:rounded-l-full last:rounded-r-full ${
+            className={`border border-transparent px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50 focus-visible:z-10 first:rounded-l-full last:rounded-r-full ${
               isActive
-                ? "bg-[#FFDE00] text-slate-900 shadow-sm"
+                ? "border-[#F2A900] bg-[#FFDE00] text-slate-900 shadow-sm"
                 : "bg-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             }`}
           >
             {tab.label}
           </button>
-      );
+        );
       })}
     </div>
   );

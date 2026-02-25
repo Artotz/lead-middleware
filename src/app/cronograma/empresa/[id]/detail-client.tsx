@@ -563,38 +563,49 @@ export default function CompanyDetailClient() {
                     </div>
                   </div>
 
-                  <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                    <div className="grid grid-cols-[1.2fr_0.3fr_0.5fr] gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      <span>Item</span>
-                      <span className="text-right">Qtd</span>
-                      <span className="text-right">Valor</span>
-                    </div>
-                    <div className="divide-y divide-slate-200">
-                      {orcamento.items.map((item, index) => (
-                        <div
-                          key={`${orcamento.key}-${index}`}
-                          className="grid grid-cols-[1.2fr_0.3fr_0.5fr] gap-3 px-3 py-2 text-xs text-slate-700"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate font-semibold text-slate-800">
-                              {item.descricao ?? "Item sem descricao"}
-                            </div>
-                            {item.codigo ? (
-                              <div className="text-[11px] text-slate-500">
-                                {item.codigo}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="text-right">
-                            {formatQuantity(item.qtd)}
-                          </div>
-                          <div className="text-right">
-                            {formatCurrency(item.valor)}
-                          </div>
+                  <details className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                    <summary className="cursor-pointer select-none bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Itens do orcamento ({orcamento.items.length})
+                    </summary>
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[520px]">
+                        <div className="flex items-center gap-3 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          <span className="flex-1 min-w-0">Item</span>
+                          <span className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
+                            Qtd
+                          </span>
+                          <span className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
+                            Valor
+                          </span>
                         </div>
-                      ))}
+                        <div className="divide-y divide-slate-200">
+                          {orcamento.items.map((item, index) => (
+                            <div
+                              key={`${orcamento.key}-${index}`}
+                              className="flex items-center gap-3 px-3 py-2 text-xs text-slate-700"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="truncate font-semibold text-slate-800">
+                                  {item.descricao ?? "Item sem descricao"}
+                                </div>
+                                {item.codigo ? (
+                                  <div className="text-[11px] text-slate-500">
+                                    {item.codigo}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="w-20 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                {formatQuantity(item.qtd)}
+                              </div>
+                              <div className="w-28 shrink-0 text-right whitespace-nowrap tabular-nums">
+                                {formatCurrency(item.valor)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </details>
                 </div>
               ))}
             </div>
