@@ -1,41 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import logo from "@/assets/logo.png";
 import { getUserDisplayName, useAuth } from "@/contexts/AuthContext";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
-
-type NavItem = {
-  label: string;
-  href?: string;
-  disabled?: boolean;
-};
-
-const disabledNavClass =
-  "rounded-lg px-3 py-2 text-slate-600 bg-white/40 cursor-not-allowed";
-const enabledNavClass =
-  "rounded-lg px-3 py-2 text-slate-900 transition hover:bg-white/60 hover:text-black";
 
 type AppHeaderProps = {
   locale: Locale;
 };
 
 export function AppHeader({ locale }: AppHeaderProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const displayName = getUserDisplayName(user, t("header.userFallback"));
   const greeting = t("header.userGreeting", {
     name: displayName ?? t("header.userFallback"),
   });
-  const navItems = useMemo<NavItem[]>(
-    () => [
-      { label: t("header.nav.schedule"), href: "/cronograma" },
-      { label: t("header.nav.metrics"), disabled: true },
-    ],
-    [t],
-  );
 
   return (
     <header
@@ -60,29 +41,6 @@ export function AppHeader({ locale }: AppHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <nav className="hidden items-center gap-2 text-sm font-semibold sm:flex">
-            {navItems.map((item) =>
-              item.disabled ? (
-                <button
-                  key={item.label}
-                  type="button"
-                  disabled
-                  className={disabledNavClass}
-                >
-                  {item.label}
-                </button>
-              ) : (
-                <Link
-                  key={item.label}
-                  href={item.href ?? "#"}
-                  className={enabledNavClass}
-                >
-                  {item.label}
-                </Link>
-              ),
-            )}
-          </nav>
-
           <div className="hidden items-center gap-3 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 sm:flex">
             <span>{greeting}</span>
             <form action="/auth/logout" method="post">
@@ -95,50 +53,13 @@ export function AppHeader({ locale }: AppHeaderProps) {
             </form>
           </div>
 
-          <button
-            type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-amber-300/60 bg-white/60 text-slate-900 transition hover:bg-white sm:hidden"
-            aria-label={
-              isOpen ? t("header.menuClose") : t("header.menuOpen")
-            }
-            aria-expanded={isOpen}
-            onClick={() => setIsOpen((prev) => !prev)}
-          >
-            <span className="sr-only">{t("header.menuLabel")}</span>
-            <div className="flex flex-col gap-1.5">
-              <span className="h-0.5 w-5 rounded-full bg-slate-900" />
-              <span className="h-0.5 w-5 rounded-full bg-slate-900" />
-              <span className="h-0.5 w-5 rounded-full bg-slate-900" />
-            </div>
-          </button>
         </div>
       </div>
 
-      <div className={`sm:hidden ${isOpen ? "block" : "hidden"}`}>
+      <div className="sm:hidden">
         <nav className="mx-auto max-w-screen-2xl px-4 pb-4">
           <div className="flex flex-col gap-2 rounded-xl border border-amber-300/60 bg-white p-2 shadow-sm">
-            {navItems.map((item) =>
-              item.disabled ? (
-                <button
-                  key={item.label}
-                  type="button"
-                  disabled
-                  className={`${disabledNavClass} w-full text-left`}
-                >
-                  {item.label}
-                </button>
-              ) : (
-                <Link
-                  key={item.label}
-                  href={item.href ?? "#"}
-                  className={`${enabledNavClass} w-full`}
-                  onClick={() => setIsOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ),
-            )}
-            <div className="mt-1 flex flex-col gap-2 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700">
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700">
               <span>{greeting}</span>
               <form action="/auth/logout" method="post">
                 <button

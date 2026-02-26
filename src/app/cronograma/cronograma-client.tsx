@@ -1,7 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
@@ -15,6 +27,8 @@ import {
   type ProtheusLeadRow,
 } from "@/lib/protheus";
 import {
+  APPOINTMENT_LIST_SELECT,
+  COMPANY_LIST_SELECT,
   addDays,
   addMonths,
   formatDateLabel,
@@ -27,8 +41,11 @@ import {
   STATUS_TONES,
   matchesConsultantCompany,
   startOfDay,
+  mapAppointment,
+  mapCompany,
   type SupabaseAppointmentStatus,
   type Appointment,
+  type Company,
   toDateKey,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -37,7 +54,7 @@ import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
 type CronogramaClientProps = {
-  initialTab?: "cronograma" | "empresas";
+  initialTab?: "cronograma" | "empresas" | "dashboard";
   locale: Locale;
 };
 
@@ -51,6 +68,8 @@ type TimelineLayoutItem = TimelineItem & {
   lane: number;
   lanes: number;
 };
+
+type DashboardScope = "general" | "individual";
 
 type OrcamentoResumoRow = {
   cnpj: string | number | null;
@@ -73,6 +92,13 @@ const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
   done: "border-emerald-300 bg-emerald-50 text-emerald-900",
   absent: "border-rose-300 bg-rose-50 text-rose-900",
+};
+
+const statusChartColors: Record<SupabaseAppointmentStatus, string> = {
+  scheduled: "#F59E0B",
+  in_progress: "#0EA5E9",
+  done: "#10B981",
+  absent: "#F43F5E",
 };
 
 const toNumber = (value: number | string | null | undefined): number | null => {
@@ -147,6 +173,7 @@ export default function CronogramaClient({
   locale,
 }: CronogramaClientProps) {
   const {
+    range,
     appointments,
     companies,
     consultants,
@@ -176,9 +203,18 @@ export default function CronogramaClient({
   );
 
   const [viewMode, setViewMode] = useState<"board" | "grid" | "map">("board");
-  const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
-    initialTab,
+  const [activeTab, setActiveTab] = useState<
+    "cronograma" | "empresas" | "dashboard"
+  >(initialTab);
+  const [dashboardScope, setDashboardScope] =
+    useState<DashboardScope>("general");
+  const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
+    [],
   );
+  const [generalCompanies, setGeneralCompanies] = useState<Company[]>([]);
+  const [generalLoading, setGeneralLoading] = useState(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const generalRequestIdRef = useRef(0);
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
@@ -281,6 +317,133 @@ export default function CronogramaClient({
       };
     });
   }, [selectedWeek, today]);
+
+  const dashboardAppointments =
+    dashboardScope === "general" ? generalAppointments : appointments;
+  const dashboardCompanies =
+    dashboardScope === "general" ? generalCompanies : companies;
+  const dashboardLoading =
+    dashboardScope === "general" ? generalLoading : loading;
+  const dashboardError = dashboardScope === "general" ? generalError : error;
+
+  const dashboardMetrics = useMemo(() => {
+    const statusTotals: Record<SupabaseAppointmentStatus, number> = {
+      scheduled: 0,
+      in_progress: 0,
+      done: 0,
+      absent: 0,
+    };
+    let checkIns = 0;
+    let checkOuts = 0;
+
+    const byConsultant = new Map<string, number>();
+    const byDay = new Map<string, number>();
+
+    dashboardAppointments.forEach((appointment) => {
+      statusTotals[appointment.status] += 1;
+      if (appointment.checkInAt) checkIns += 1;
+      if (appointment.checkOutAt) checkOuts += 1;
+
+      const consultantLabel =
+        appointment.consultantName?.trim() ||
+        appointment.consultantId?.trim() ||
+        t("schedule.dashboard.unknownConsultant");
+      byConsultant.set(
+        consultantLabel,
+        (byConsultant.get(consultantLabel) ?? 0) + 1,
+      );
+
+      const startDate = new Date(appointment.startAt);
+      if (Number.isNaN(startDate.getTime())) return;
+      const dayKey = toDateKey(startDate);
+      byDay.set(dayKey, (byDay.get(dayKey) ?? 0) + 1);
+    });
+
+    const appointmentsByDay = weekDays.map((day) => {
+      const key = toDateKey(day.date);
+      return {
+        key,
+        label: day.shortLabel,
+        total: byDay.get(key) ?? 0,
+      };
+    });
+
+    const companiesByState = (() => {
+      const map = new Map<string, number>();
+      dashboardCompanies.forEach((company) => {
+        const state =
+          company.state?.trim() || t("schedule.dashboard.noState");
+        map.set(state, (map.get(state) ?? 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([state, count]) => ({ state, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 6);
+    })();
+
+    const topConsultants = Array.from(byConsultant.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+
+    const totalAppointments = dashboardAppointments.length;
+    const totalCompanies = dashboardCompanies.length;
+    const doneRate = totalAppointments
+      ? Math.round((statusTotals.done / totalAppointments) * 100)
+      : 0;
+    const absentRate = totalAppointments
+      ? Math.round((statusTotals.absent / totalAppointments) * 100)
+      : 0;
+    const checkInRate = totalAppointments
+      ? Math.round((checkIns / totalAppointments) * 100)
+      : 0;
+    const checkOutRate = totalAppointments
+      ? Math.round((checkOuts / totalAppointments) * 100)
+      : 0;
+
+    return {
+      totalAppointments,
+      totalCompanies,
+      statusTotals,
+      appointmentsByDay,
+      companiesByState,
+      topConsultants,
+      doneRate,
+      absentRate,
+      checkInRate,
+      checkOutRate,
+    };
+  }, [dashboardAppointments, dashboardCompanies, t, weekDays]);
+
+  const dashboardStatusData = useMemo(
+    () => [
+      {
+        id: "scheduled",
+        label: t("schedule.status.scheduled"),
+        count: dashboardMetrics.statusTotals.scheduled,
+        color: statusChartColors.scheduled,
+      },
+      {
+        id: "in_progress",
+        label: t("schedule.status.in_progress"),
+        count: dashboardMetrics.statusTotals.in_progress,
+        color: statusChartColors.in_progress,
+      },
+      {
+        id: "done",
+        label: t("schedule.status.done"),
+        count: dashboardMetrics.statusTotals.done,
+        color: statusChartColors.done,
+      },
+      {
+        id: "absent",
+        label: t("schedule.status.absent"),
+        count: dashboardMetrics.statusTotals.absent,
+        color: statusChartColors.absent,
+      },
+    ],
+    [dashboardMetrics.statusTotals, t],
+  );
 
   const timelineByDay = useMemo(() => {
     const map = new Map<string, TimelineItem[]>();
@@ -622,6 +785,83 @@ export default function CronogramaClient({
     void loadLastVisits();
   }, [companyIdsByConsultant, selectedConsultantId, supabase, t]);
 
+  const loadGeneralDashboard = useCallback(async () => {
+    const requestId = ++generalRequestIdRef.current;
+    setGeneralLoading(true);
+    setGeneralError(null);
+    try {
+      const { data, error: appointmentsError } = await supabase
+        .from("apontamentos")
+        .select(APPOINTMENT_LIST_SELECT)
+        .gte("starts_at", range.startIso)
+        .lte("starts_at", range.endIso)
+        .order("starts_at", { ascending: true });
+
+      if (requestId !== generalRequestIdRef.current) return;
+
+      if (appointmentsError) {
+        console.error(appointmentsError);
+        setGeneralAppointments([]);
+        setGeneralCompanies([]);
+        setGeneralError(t("schedule.dashboard.loadError"));
+        setGeneralLoading(false);
+        return;
+      }
+
+      const appointmentItems = (data ?? []).map(mapAppointment);
+      setGeneralAppointments(appointmentItems);
+
+      const companyIds = Array.from(
+        new Set(appointmentItems.map((item) => item.companyId).filter(Boolean)),
+      );
+
+      if (!companyIds.length) {
+        setGeneralCompanies([]);
+        setGeneralLoading(false);
+        return;
+      }
+
+      const chunkSize = 200;
+      const collected: Company[] = [];
+
+      for (let index = 0; index < companyIds.length; index += chunkSize) {
+        const chunk = companyIds.slice(index, index + chunkSize);
+        const { data: companyData, error: companyError } = await supabase
+          .from("companies")
+          .select(COMPANY_LIST_SELECT)
+          .in("id", chunk);
+
+        if (requestId !== generalRequestIdRef.current) return;
+
+        if (companyError) {
+          console.error(companyError);
+          setGeneralCompanies([]);
+          setGeneralError(t("schedule.dashboard.loadCompaniesError"));
+          setGeneralLoading(false);
+          return;
+        }
+
+        collected.push(...(companyData ?? []).map(mapCompany));
+      }
+
+      if (requestId !== generalRequestIdRef.current) return;
+      setGeneralCompanies(collected);
+      setGeneralLoading(false);
+    } catch (err) {
+      console.error(err);
+      if (requestId !== generalRequestIdRef.current) return;
+      setGeneralAppointments([]);
+      setGeneralCompanies([]);
+      setGeneralError(t("schedule.dashboard.loadError"));
+      setGeneralLoading(false);
+    }
+  }, [range.endIso, range.startIso, supabase, t]);
+
+  useEffect(() => {
+    if (activeTab !== "dashboard" || dashboardScope !== "general") return;
+    void loadGeneralDashboard();
+  }, [activeTab, dashboardScope, loadGeneralDashboard]);
+
   const filteredCompanies = useMemo(() => {
     if (!normalizedCompanySearch) return companiesByConsultant;
     return companiesByConsultant.filter((company) => {
@@ -773,6 +1013,299 @@ export default function CronogramaClient({
     .map((column) => column.width)
     .join(" ");
 
+  const renderDashboard = () => {
+    if (dashboardScope === "individual" && !selectedConsultantId) {
+      return (
+        <div className={`${panelClass} p-4 text-sm text-slate-600`}>
+          {t("schedule.dashboard.selectConsultant")}
+        </div>
+      );
+    }
+
+    if (dashboardLoading) {
+      return (
+        <div className={`${panelClass} p-4 text-sm text-slate-600`}>
+          {t("schedule.dashboard.loading")}
+        </div>
+      );
+    }
+
+    if (dashboardError) {
+      return (
+        <div className={`${panelClass} p-4`}>
+          <div className="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 shadow-sm">
+            <span>{dashboardError}</span>
+            <button
+              type="button"
+              onClick={() =>
+                dashboardScope === "general"
+                  ? void loadGeneralDashboard()
+                  : void refresh()
+              }
+              className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
+            >
+              {t("schedule.dashboard.retry")}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (
+      dashboardMetrics.totalAppointments === 0 &&
+      dashboardMetrics.totalCompanies === 0
+    ) {
+      return (
+        <div className={`${panelClass} p-4 text-sm text-slate-600`}>
+          {t("schedule.dashboard.noData")}
+        </div>
+      );
+    }
+
+    const periodLabel = selectedWeek
+      ? t("schedule.dashboard.period", {
+          start: formatDateLabel(selectedWeek.startAt),
+          end: formatDateLabel(selectedWeek.endAt),
+        })
+      : "";
+
+    const cards = [
+      {
+        label: t("schedule.dashboard.cards.appointments"),
+        value: dashboardMetrics.totalAppointments,
+      },
+      {
+        label: t("schedule.dashboard.cards.companies"),
+        value: dashboardMetrics.totalCompanies,
+      },
+      {
+        label: t("schedule.dashboard.cards.doneRate"),
+        value: `${dashboardMetrics.doneRate}%`,
+      },
+      {
+        label: t("schedule.dashboard.cards.absentRate"),
+        value: `${dashboardMetrics.absentRate}%`,
+      },
+      {
+        label: t("schedule.dashboard.cards.checkInRate"),
+        value: `${dashboardMetrics.checkInRate}%`,
+      },
+      {
+        label: t("schedule.dashboard.cards.checkOutRate"),
+        value: `${dashboardMetrics.checkOutRate}%`,
+      },
+    ];
+
+    return (
+      <div className={`${panelClass} p-4`}>
+        <div className="flex flex-col gap-3">
+          <div
+            className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+          >
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {periodLabel}
+            </div>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                <span className="sr-only">
+                  {t("schedule.dashboard.scopeLabel")}
+                </span>
+                <select
+                  value={dashboardScope}
+                  onChange={(event) =>
+                    setDashboardScope(event.target.value as DashboardScope)
+                  }
+                  aria-label={t("schedule.dashboard.scopeLabel")}
+                  className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                >
+                  <option value="general">
+                    {t("schedule.dashboard.scopeGeneral")}
+                  </option>
+                  <option value="individual">
+                    {t("schedule.dashboard.scopeIndividual")}
+                  </option>
+                </select>
+              </label>
+              {dashboardScope === "individual" ? (
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                  <span className="sr-only">{t("schedule.consultant")}</span>
+                  <select
+                    value={selectedConsultantId ?? ""}
+                    onChange={(event) => {
+                      const next = event.target.value || null;
+                      setSelectedConsultantId(next);
+                    }}
+                    disabled={!consultants.length}
+                    aria-label={t("schedule.consultant")}
+                    className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                  >
+                    {consultants.length ? (
+                      consultants.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">
+                        {t("schedule.emptyConsultant")}
+                      </option>
+                    )}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-500">
+            {dashboardScope === "general"
+              ? t("schedule.dashboard.scopeHintGeneral")
+              : t("schedule.dashboard.scopeHintIndividual")}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {card.label}
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-slate-900">
+                {card.value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.appointmentsByDay")}
+            </div>
+            {dashboardMetrics.appointmentsByDay.some((item) => item.total > 0) ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dashboardMetrics.appointmentsByDay}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.appointments"),
+                      ]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="total"
+                      stroke="#0EA5E9"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.statusDistribution")}
+            </div>
+            {dashboardStatusData.some((item) => item.count > 0) ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardStatusData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.appointments"),
+                      ]}
+                    />
+                    <Bar dataKey="count">
+                      {dashboardStatusData.map((item) => (
+                        <Cell key={item.id} fill={item.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.topConsultants")}
+            </div>
+            {dashboardMetrics.topConsultants.length ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardMetrics.topConsultants}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" hide />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.appointments"),
+                      ]}
+                    />
+                    <Bar dataKey="count" fill="#0EA5E9" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.companiesByState")}
+            </div>
+            {dashboardMetrics.companiesByState.length ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardMetrics.companiesByState}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="state" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.companies"),
+                      ]}
+                    />
+                    <Bar dataKey="count" fill="#10B981" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <PageShell title={t("schedule.title")} subtitle={t("schedule.subtitle")}>
       <div className="flex flex-col gap-4">
@@ -781,11 +1314,16 @@ export default function CronogramaClient({
             tabs={[
               { id: "cronograma", label: t("schedule.tabSchedule") },
               { id: "empresas", label: t("schedule.tabCompanies") },
+              { id: "dashboard", label: t("schedule.tabDashboard") },
             ]}
             activeTabId={activeTab}
-            onTabChange={(id) =>
-              setActiveTab(id === "empresas" ? "empresas" : "cronograma")
-            }
+            onTabChange={(id) => {
+              if (id === "empresas" || id === "dashboard") {
+                setActiveTab(id);
+                return;
+              }
+              setActiveTab("cronograma");
+            }}
           />
         </div>
 
@@ -1385,6 +1923,8 @@ export default function CronogramaClient({
               </div>
             )}
           </div>
+        ) : activeTab === "dashboard" ? (
+          renderDashboard()
         ) : (
           <div className={`${panelClass} p-3 sm:p-4`}>
             <div className="flex flex-col gap-3">
