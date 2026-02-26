@@ -1309,23 +1309,6 @@ export default function CronogramaClient({
   return (
     <PageShell title={t("schedule.title")} subtitle={t("schedule.subtitle")}>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Tabs
-            tabs={[
-              { id: "cronograma", label: t("schedule.tabSchedule") },
-              { id: "empresas", label: t("schedule.tabCompanies") },
-              { id: "dashboard", label: t("schedule.tabDashboard") },
-            ]}
-            activeTabId={activeTab}
-            onTabChange={(id) => {
-              if (id === "empresas" || id === "dashboard") {
-                setActiveTab(id);
-                return;
-              }
-              setActiveTab("cronograma");
-            }}
-          />
-        </div>
 
         {activeTab === "cronograma" ? (
           <div className={`${panelClass} p-3 sm:p-4`}>

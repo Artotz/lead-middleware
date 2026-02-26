@@ -9,9 +9,11 @@ type PageShellProps = {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+  headerNav?: React.ReactNode;
 };
 
-export function PageShell({ children, title, subtitle }: PageShellProps) {
+export function PageShell(props: PageShellProps) {
+  const { children, title, headerNav } = props;
   useEffect(() => {
     document.body.classList.add("hide-scrollbar");
     document.documentElement.classList.add("hide-scrollbar");
@@ -34,13 +36,17 @@ export function PageShell({ children, title, subtitle }: PageShellProps) {
       }}
     >
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-10">
-        {(title || subtitle) && (
-          <header className="space-y-2">
-            {title && (
+        {(title || headerNav) && (
+          <header className="space-y-3">
+            {(title || headerNav) && (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-                  {title}
-                </h1>
+                {title ? (
+                  <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+                    {title}
+                  </h1>
+                ) : (
+                  <span />
+                )}
                 <img
                   src={cscLogo.src}
                   alt="CSC"
@@ -48,10 +54,10 @@ export function PageShell({ children, title, subtitle }: PageShellProps) {
                 />
               </div>
             )}
-            {subtitle && (
-              <p className="max-w-2xl text-sm text-slate-200">
-                {subtitle}
-              </p>
+            {headerNav && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {headerNav}
+              </div>
             )}
           </header>
         )}

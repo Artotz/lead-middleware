@@ -48,6 +48,8 @@ const MESSAGES = {
       signOut: "Sair",
       nav: {
         schedule: "Cronograma",
+        companies: "Empresas",
+        dashboard: "Dashboard",
         metrics: "Métricas",
       },
     },
