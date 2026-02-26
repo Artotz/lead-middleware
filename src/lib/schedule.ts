@@ -10,7 +10,7 @@ export const COMPANY_LIST_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa";
 
 export const APPOINTMENT_LIST_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, oportunidades";
 
 export type SupabaseAppointmentStatus =
   | "scheduled"

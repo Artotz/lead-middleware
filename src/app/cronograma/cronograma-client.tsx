@@ -24,6 +24,7 @@ import {
   getWeeksForMonth,
   isSameDay,
   isAppointmentDone,
+  STATUS_TONES,
   matchesConsultantCompany,
   startOfDay,
   type SupabaseAppointmentStatus,
@@ -126,6 +127,13 @@ const resolveTimelineRange = (
   return { start, end };
 };
 
+const isExpiredAppointment = (appointment: Appointment, todayStart: Date) => {
+  if (appointment.status !== "scheduled") return false;
+  const start = new Date(appointment.startAt);
+  if (Number.isNaN(start.getTime())) return false;
+  return start < todayStart;
+};
+
 const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
   if (!items.length) return [];
   const sorted = [...items].sort(
@@ -167,7 +175,7 @@ export default function CronogramaClient({
     [currencyFormatter, t],
   );
 
-  const [viewMode, setViewMode] = useState<"board" | "map">("board");
+  const [viewMode, setViewMode] = useState<"board" | "grid" | "map">("board");
   const [activeTab, setActiveTab] = useState<"cronograma" | "empresas">(
     initialTab,
   );
@@ -219,6 +227,7 @@ export default function CronogramaClient({
     "!bg-[#FFDE00] border-[#F2A900] text-slate-900 shadow-sm";
   const toggleInactiveClass =
     "border-slate-200 text-slate-600 hover:bg-slate-50";
+  const opportunityBadgeLimit = 2;
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: companiesPerPage }, (_, index) => index),
@@ -636,6 +645,7 @@ export default function CronogramaClient({
   }, [companiesByConsultant, normalizedCompanySearch]);
 
   const todayStart = useMemo(() => startOfDay(today), [today]);
+  const expiredCardClass = "border-slate-300 bg-slate-100 text-slate-700";
 
   const getDaysSinceLastVisit = useMemo(
     () => (companyId: string) => {
@@ -867,12 +877,21 @@ export default function CronogramaClient({
                   <Tabs
                     tabs={[
                       { id: "board", label: t("schedule.viewBoard") },
+                      { id: "grid", label: t("schedule.viewGrid") },
                       { id: "map", label: t("schedule.viewMap") },
                     ]}
                     activeTabId={viewMode}
-                    onTabChange={(id) =>
-                      setViewMode(id === "map" ? "map" : "board")
-                    }
+                    onTabChange={(id) => {
+                      if (id === "map") {
+                        setViewMode("map");
+                        return;
+                      }
+                      if (id === "grid") {
+                        setViewMode("grid");
+                        return;
+                      }
+                      setViewMode("board");
+                    }}
                   />
                 </div>
               </div>
@@ -1098,6 +1117,10 @@ export default function CronogramaClient({
                               );
                               const title =
                                 company?.name || t("company.appointmentFallback");
+                              const isExpired = isExpiredAppointment(
+                                item.appointment,
+                                todayStart,
+                              );
                               const topMinutes =
                                 (item.start.getHours() - timelineHours.min) *
                                   60 +
@@ -1118,7 +1141,9 @@ export default function CronogramaClient({
                                   key={item.appointment.id}
                                   href={`/cronograma/${item.appointment.id}`}
                                   className={`absolute overflow-hidden rounded-lg border px-2 py-1 text-[10px] leading-tight shadow-sm transition hover:shadow ${
-                                    statusCardStyles[item.appointment.status]
+                                    isExpired
+                                      ? expiredCardClass
+                                      : statusCardStyles[item.appointment.status]
                                   }`}
                                   style={{
                                     top,
@@ -1146,6 +1171,153 @@ export default function CronogramaClient({
                     </div>
                   </div>
                   )}
+                </div>
+              </div>
+            ) : viewMode === "grid" ? (
+              <div className="mt-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                  {weekDays.map((day) => {
+                    const dateKey = toDateKey(day.date);
+                    const items = timelineByDay.get(dateKey) ?? [];
+                    return (
+                      <div
+                        key={`grid-${dateKey}`}
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5"
+                      >
+                        <div
+                          className={`border-b border-slate-200 px-3 py-2 ${
+                            day.isToday ? "bg-amber-50" : "bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Badge tone="amber">{day.shortLabel}</Badge>
+                            {day.isToday ? (
+                              <Badge tone="emerald">
+                                {t("schedule.today")}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            {day.dateLabel}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 p-3">
+                          {loading ? (
+                            Array.from({ length: 2 }, (_, index) => (
+                              <div
+                                key={`grid-skeleton-${dateKey}-${index}`}
+                                className="h-[120px] rounded-xl border border-slate-200 bg-slate-100 animate-pulse"
+                              />
+                            ))
+                          ) : items.length ? (
+                            items.map((item) => {
+                              const appointment = item.appointment;
+                              const company = companyById.get(
+                                appointment.companyId,
+                              );
+                              const title =
+                                company?.name ||
+                                t("company.appointmentFallback");
+                              const statusLabel = t(
+                                isExpiredAppointment(
+                                  appointment,
+                                  todayStart,
+                                )
+                                  ? "schedule.statusExpired"
+                                  : `schedule.status.${appointment.status}`,
+                              );
+                              const opportunities =
+                                appointment.oportunidades ?? [];
+                              const visibleOpportunities =
+                                opportunities.slice(0, opportunityBadgeLimit);
+                              const remainingOpportunities =
+                                opportunities.length -
+                                visibleOpportunities.length;
+                              const recordsCount = opportunities.length;
+
+                              return (
+                                <Link
+                                  key={appointment.id}
+                                  href={`/cronograma/${appointment.id}`}
+                                  className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow"
+                                  title={`${title} • ${formatTime(
+                                    appointment.startAt,
+                                  )} - ${formatTime(appointment.endAt)}`}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-slate-900">
+                                      {title}
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    <Badge
+                                      tone={
+                                        isExpiredAppointment(
+                                          appointment,
+                                          todayStart,
+                                        )
+                                          ? "slate"
+                                          : STATUS_TONES[appointment.status]
+                                      }
+                                    >
+                                      {statusLabel}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    {formatTime(appointment.startAt)} -{" "}
+                                    {formatTime(appointment.endAt)}
+                                  </div>
+                                  <div className="text-xs font-semibold text-slate-600">
+                                    {t("company.recordsCount", {
+                                      count: recordsCount,
+                                    })}
+                                  </div>
+
+                                  {/* Badges de oportunidade comentadas temporariamente. */}
+                                  {/* <div className="mt-2 flex min-h-[18px] flex-wrap gap-1">
+                                    {isAppointmentDone(appointment) &&
+                                    opportunities.length
+                                      ? [
+                                          ...visibleOpportunities.map(
+                                            (opportunity) => (
+                                              <Badge
+                                                key={`${appointment.id}-${opportunity}`}
+                                                tone="sky"
+                                                className="text-[10px]"
+                                              >
+                                                {t(
+                                                  `schedule.opportunity.${opportunity}`,
+                                                  undefined,
+                                                  opportunity,
+                                                )}
+                                              </Badge>
+                                            ),
+                                          ),
+                                          remainingOpportunities > 0 ? (
+                                            <Badge
+                                              key={`${appointment.id}-more`}
+                                              tone="slate"
+                                              className="text-[10px]"
+                                            >
+                                              +{remainingOpportunities}
+                                            </Badge>
+                                          ) : null,
+                                        ]
+                                      : null}
+                                  </div> */}
+                                </Link>
+                              );
+                            })
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
+                              {t("schedule.noAppointmentsDay")}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (

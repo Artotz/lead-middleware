@@ -68,7 +68,8 @@ const MESSAGES = {
       prevMonth: "Mês anterior",
       nextMonth: "Próximo mês",
       timeLabel: "Hora",
-      viewBoard: "Quadro",
+      viewBoard: "Agenda",
+      viewGrid: "Quadro",
       viewMap: "Mapa",
       closeCreate: "Fechar criação",
       createAppointment: "Criar apontamento",
@@ -112,6 +113,7 @@ const MESSAGES = {
       loading: "Carregando...",
       loadingSchedule: "Carregando cronograma...",
       loadingCompanies: "Carregando empresas...",
+      noAppointmentsDay: "Sem agendamentos",
       protheusLoadError: "Não foi possível carregar oportunidades.",
       quotesLoadError: "Não foi possível carregar os valores de cotação.",
       lastVisitLoadError:
@@ -124,6 +126,7 @@ const MESSAGES = {
         done: "Concluído",
         absent: "Ausente",
       },
+      statusExpired: "Expirado",
       map: {
         companies: "Empresas",
         checkIns: "Check-ins",
@@ -391,3 +394,4 @@ export const createTranslator = (messages: Messages): Translate => {
     );
   };
 };
+

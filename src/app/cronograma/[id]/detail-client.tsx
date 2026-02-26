@@ -483,70 +483,70 @@ export default function AppointmentDetailClient({
                           t("appointment.attachment"),
                         );
                         return (
-                        <div
-                          key={item.id}
-                          className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
-                        >
-                          {item.signedUrl ? (
-                            item.mimeType?.startsWith("image/") ? (
-                              <a
-                                href={item.signedUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block"
-                              >
-                                <img
-                                  src={item.signedUrl}
-                                  alt={`${mediaKindLabels[item.kind]} - ${fileName}`}
-                                  className="h-48 w-full object-cover transition hover:scale-[1.01]"
-                                  loading="lazy"
-                                />
-                              </a>
-                            ) : (
-                              <a
-                                href={item.signedUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex h-48 flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-600 transition hover:bg-slate-100"
-                              >
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                  {t("appointment.attachment")}
-                                </div>
-                                <div className="text-sm font-semibold text-slate-800 line-clamp-2">
-                                  {fileName}
-                                </div>
-                                <div className="text-[11px] font-semibold text-slate-500">
-                                  {t("appointment.openAttachment")}
-                                </div>
-                                {item.mimeType ? (
-                                  <div className="text-[10px] text-slate-500">
-                                    {item.mimeType}
+                          <div
+                            key={item.id}
+                            className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                          >
+                            {item.signedUrl ? (
+                              item.mimeType?.startsWith("image/") ? (
+                                <a
+                                  href={item.signedUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={item.signedUrl}
+                                    alt={`${mediaKindLabels[item.kind]} - ${fileName}`}
+                                    className="h-48 w-full object-cover transition hover:scale-[1.01]"
+                                    loading="lazy"
+                                  />
+                                </a>
+                              ) : (
+                                <a
+                                  href={item.signedUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex h-48 flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-600 transition hover:bg-slate-100"
+                                >
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                    {t("appointment.attachment")}
                                   </div>
+                                  <div className="text-sm font-semibold text-slate-800 line-clamp-2">
+                                    {fileName}
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-slate-500">
+                                    {t("appointment.openAttachment")}
+                                  </div>
+                                  {item.mimeType ? (
+                                    <div className="text-[10px] text-slate-500">
+                                      {item.mimeType}
+                                    </div>
+                                  ) : null}
+                                </a>
+                              )
+                            ) : (
+                              <div className="flex h-48 items-center justify-center px-4 text-xs text-slate-400">
+                                {t("appointment.attachmentUnavailable")}
+                              </div>
+                            )}
+                            <div className="px-2 py-1 text-[10px] text-slate-500">
+                              <div className="truncate text-[11px] font-semibold text-slate-600">
+                                {fileName}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>
+                                  {formatMediaTimestamp(
+                                    item.createdAt,
+                                    t("appointment.timestampUnknown"),
+                                  )}
+                                </span>
+                                {item.mimeType ? (
+                                  <span>{item.mimeType}</span>
                                 ) : null}
-                              </a>
-                            )
-                          ) : (
-                            <div className="flex h-48 items-center justify-center px-4 text-xs text-slate-400">
-                              {t("appointment.attachmentUnavailable")}
-                            </div>
-                          )}
-                          <div className="px-2 py-1 text-[10px] text-slate-500">
-                            <div className="truncate text-[11px] font-semibold text-slate-600">
-                              {fileName}
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span>
-                                {formatMediaTimestamp(
-                                  item.createdAt,
-                                  t("appointment.timestampUnknown"),
-                                )}
-                              </span>
-                              {item.mimeType ? (
-                                <span>{item.mimeType}</span>
-                              ) : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
                         );
                       })}
                     </div>
@@ -563,14 +563,14 @@ export default function AppointmentDetailClient({
               {t("schedule.timeline.title")}
             </h2>
             <div className="mt-3 space-y-3 text-sm text-slate-600">
-              <div>
+              {/* <div>
                 <div className="font-semibold text-slate-700">
                   {t("schedule.timeline.scheduled")}
                 </div>
                 <div>
                   {dateLabel} · {formatTime(appointment.startAt)}
                 </div>
-              </div>
+              </div> */}
               <div>
                 <div className="font-semibold text-slate-700">
                   {t("schedule.timeline.checkIn")}
