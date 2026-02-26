@@ -88,6 +88,8 @@ const MESSAGES = {
       orderByPreventivas: "Preventivas",
       orderByReconexoes: "Reconexões",
       orderByQuotes: "Cotações abertas",
+      orderByLastVisit: "Dias desde última visita",
+      lastVisitDays: "Última visita (dias)",
       emptyConsultant: "Nenhum consultor",
       selectConsultantToViewCompanies:
         "Selecione um consultor para ver as empresas.",
@@ -102,11 +104,16 @@ const MESSAGES = {
       noReference: "Sem referência",
       noValidation: "Sem validação",
       noData: "Sem dados",
+      noVisits: "Sem visitas",
       loading: "Carregando...",
       loadingSchedule: "Carregando cronograma...",
       loadingCompanies: "Carregando empresas...",
       protheusLoadError: "Não foi possível carregar oportunidades.",
       quotesLoadError: "Não foi possível carregar os valores de cotação.",
+      lastVisitLoadError:
+        "Não foi possível carregar as últimas visitas concluídas.",
+      daySingular: "dia",
+      dayPlural: "dias",
       status: {
         scheduled: "Agendado",
         in_progress: "Em execução",

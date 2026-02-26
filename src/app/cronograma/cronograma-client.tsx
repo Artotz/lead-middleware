@@ -25,6 +25,7 @@ import {
   isSameDay,
   isAppointmentDone,
   matchesConsultantCompany,
+  startOfDay,
   type SupabaseAppointmentStatus,
   type Appointment,
   toDateKey,
@@ -43,7 +44,6 @@ type TimelineItem = {
   appointment: Appointment;
   start: Date;
   end: Date;
-  isActual: boolean;
 };
 
 type TimelineLayoutItem = TimelineItem & {
@@ -57,6 +57,14 @@ type OrcamentoResumoRow = {
   vs1_filial: number | string | null;
   vs1_vtotnf: number | string | null;
   status: string | null;
+};
+
+type LastVisitRow = {
+  company_id: string;
+  starts_at: string;
+  ends_at: string;
+  status: SupabaseAppointmentStatus | null;
+  check_out_at: string | null;
 };
 
 const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
@@ -82,7 +90,7 @@ const isOpenQuoteStatus = (status: string | null | undefined) =>
 
 const resolveTimelineRange = (
   appointment: Appointment,
-): { start: Date; end: Date; isActual: boolean } => {
+): { start: Date; end: Date } => {
   const scheduledStart = new Date(appointment.startAt);
   const scheduledEnd = new Date(appointment.endAt);
   const isDone = isAppointmentDone(appointment);
@@ -105,18 +113,17 @@ const resolveTimelineRange = (
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     const fallbackStart = new Date();
     const fallbackEnd = new Date(fallbackStart.getTime() + 30 * 60000);
-    return { start: fallbackStart, end: fallbackEnd, isActual: isDone };
+    return { start: fallbackStart, end: fallbackEnd };
   }
 
   if (end.getTime() <= start.getTime()) {
     return {
       start,
       end: new Date(start.getTime() + 30 * 60000),
-      isActual: isDone,
     };
   }
 
-  return { start, end, isActual: isDone };
+  return { start, end };
 };
 
 const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
@@ -165,7 +172,7 @@ export default function CronogramaClient({
     initialTab,
   );
   const [companySort, setCompanySort] = useState<
-    "name" | "preventivas" | "reconexoes" | "cotacoes"
+    "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
@@ -189,6 +196,12 @@ export default function CronogramaClient({
   const [openQuotesLoading, setOpenQuotesLoading] = useState(false);
   const [openQuotesError, setOpenQuotesError] = useState<string | null>(null);
   const openQuotesRequestIdRef = useRef(0);
+  const [lastVisitByCompany, setLastVisitByCompany] = useState<
+    Map<string, Date>
+  >(new Map());
+  const [lastVisitLoading, setLastVisitLoading] = useState(false);
+  const [lastVisitError, setLastVisitError] = useState<string | null>(null);
+  const lastVisitRequestIdRef = useRef(0);
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -234,6 +247,11 @@ export default function CronogramaClient({
     if (!selectedWeek) return;
     setRange({ startAt: selectedWeek.startAt, endAt: selectedWeek.endAt });
   }, [selectedWeek, setRange]);
+
+  useEffect(() => {
+    setCompanySort("name");
+    setCompanySearch("");
+  }, [selectedConsultantId]);
 
   const weekDays = useMemo(() => {
     if (!selectedWeek) return [];
@@ -309,6 +327,11 @@ export default function CronogramaClient({
       matchesConsultantCompany(company, selectedConsultant.name),
     );
   }, [companies, selectedConsultant]);
+
+  const companyIdsByConsultant = useMemo(
+    () => Array.from(new Set(companiesByConsultant.map((company) => company.id))),
+    [companiesByConsultant],
+  );
 
   const protheusLookup = useMemo(() => {
     const variantToCompany = new Map<string, string>();
@@ -498,6 +521,92 @@ export default function CronogramaClient({
     void loadOpenQuotes();
   }, [openQuotesLookup, selectedConsultantId, supabase, t]);
 
+  useEffect(() => {
+    if (!selectedConsultantId) {
+      setLastVisitByCompany(new Map());
+      setLastVisitError(null);
+      setLastVisitLoading(false);
+      return;
+    }
+
+    if (companyIdsByConsultant.length === 0) {
+      setLastVisitByCompany(new Map());
+      setLastVisitError(null);
+      setLastVisitLoading(false);
+      return;
+    }
+
+    const requestId = ++lastVisitRequestIdRef.current;
+    const loadLastVisits = async () => {
+      setLastVisitLoading(true);
+      setLastVisitError(null);
+      let latestVisits = new Map<string, Date>();
+      const chunkSize = 200;
+      const consultantKey = selectedConsultantId.trim();
+
+      for (
+        let index = 0;
+        index < companyIdsByConsultant.length;
+        index += chunkSize
+      ) {
+        const chunk = companyIdsByConsultant.slice(index, index + chunkSize);
+        try {
+          let query = supabase
+            .from("apontamentos")
+            .select("company_id, starts_at, ends_at, status, check_out_at")
+            .in("company_id", chunk)
+            .or("status.eq.done,check_out_at.not.is.null");
+
+          if (consultantKey) {
+            if (consultantKey.includes("@")) {
+              query = query.eq("consultant_name", consultantKey);
+            } else {
+              query = query.eq("consultant_id", consultantKey);
+            }
+          }
+
+          const { data, error } = await query;
+
+          if (requestId !== lastVisitRequestIdRef.current) return;
+
+          if (error) {
+            console.error(error);
+            setLastVisitByCompany(new Map());
+            setLastVisitLoading(false);
+            setLastVisitError(t("schedule.lastVisitLoadError"));
+            return;
+          }
+
+          const rows = (data ?? []) as LastVisitRow[];
+          rows.forEach((row) => {
+            const rawDate =
+              row.check_out_at ?? row.ends_at ?? row.starts_at ?? null;
+            if (!rawDate) return;
+            const parsed = new Date(rawDate);
+            if (Number.isNaN(parsed.getTime())) return;
+            const current = latestVisits.get(row.company_id);
+            if (!current || parsed > current) {
+              latestVisits.set(row.company_id, parsed);
+            }
+          });
+        } catch (error) {
+          console.error(error);
+          if (requestId !== lastVisitRequestIdRef.current) return;
+          setLastVisitByCompany(new Map());
+          setLastVisitLoading(false);
+          setLastVisitError(t("schedule.lastVisitLoadError"));
+          return;
+        }
+      }
+
+      if (requestId !== lastVisitRequestIdRef.current) return;
+      setLastVisitByCompany(latestVisits);
+      setLastVisitLoading(false);
+    };
+
+    void loadLastVisits();
+  }, [companyIdsByConsultant, selectedConsultantId, supabase, t]);
+
   const filteredCompanies = useMemo(() => {
     if (!normalizedCompanySearch) return companiesByConsultant;
     return companiesByConsultant.filter((company) => {
@@ -520,34 +629,68 @@ export default function CronogramaClient({
     });
   }, [companiesByConsultant, normalizedCompanySearch]);
 
+  const todayStart = useMemo(() => startOfDay(today), [today]);
+
+  const getDaysSinceLastVisit = useMemo(
+    () => (companyId: string) => {
+      const lastVisit = lastVisitByCompany.get(companyId);
+      if (!lastVisit) return null;
+      const lastVisitStart = startOfDay(lastVisit);
+      const diffMs = todayStart.getTime() - lastVisitStart.getTime();
+      if (!Number.isFinite(diffMs)) return null;
+      return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
+    },
+    [lastVisitByCompany, todayStart],
+  );
+
   const sortedCompanies = useMemo(() => {
     const sorted = [...filteredCompanies];
     const getCounts = (companyId: string) =>
       protheusCounts.get(companyId) ?? buildEmptyProtheusCounts();
     const getOpenQuotes = (companyId: string) =>
       openQuotesTotals.get(companyId) ?? 0;
+    const getLastVisitDays = (companyId: string) =>
+      getDaysSinceLastVisit(companyId);
 
     sorted.sort((a, b) => {
       if (
         companySort === "preventivas" ||
         companySort === "reconexoes" ||
-        companySort === "cotacoes"
+        companySort === "cotacoes" ||
+        companySort === "last_visit"
       ) {
-        const aCounts = getCounts(a.id);
-        const bCounts = getCounts(b.id);
         const diff =
-          companySort === "preventivas"
-            ? bCounts.preventivas - aCounts.preventivas
-            : companySort === "reconexoes"
-              ? bCounts.reconexoes - aCounts.reconexoes
-              : getOpenQuotes(b.id) - getOpenQuotes(a.id);
+          companySort === "preventivas" || companySort === "reconexoes"
+            ? (() => {
+                const aCounts = getCounts(a.id);
+                const bCounts = getCounts(b.id);
+                return companySort === "preventivas"
+                  ? bCounts.preventivas - aCounts.preventivas
+                  : bCounts.reconexoes - aCounts.reconexoes;
+              })()
+            : companySort === "cotacoes"
+              ? getOpenQuotes(b.id) - getOpenQuotes(a.id)
+              : (() => {
+                  const aDays = getLastVisitDays(a.id);
+                  const bDays = getLastVisitDays(b.id);
+                  const safeA = aDays ?? -1;
+                  const safeB = bDays ?? -1;
+                  return safeB - safeA;
+                })();
         if (diff !== 0) return diff;
       }
       return a.name.localeCompare(b.name, locale);
     });
 
     return sorted;
-  }, [filteredCompanies, companySort, protheusCounts]);
+  }, [
+    filteredCompanies,
+    companySort,
+    protheusCounts,
+    openQuotesTotals,
+    getDaysSinceLastVisit,
+    locale,
+  ]);
 
   const companyColumns = [
     { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
@@ -556,6 +699,7 @@ export default function CronogramaClient({
     { id: "carteira", label: t("company.info.carteira"), width: "1.2fr" },
     { id: "classe", label: t("company.info.class"), width: "1.2fr" },
     { id: "referencia", label: t("company.info.reference"), width: "1.1fr" },
+    { id: "ultimaVisita", label: t("schedule.lastVisitDays"), width: "1.1fr" },
     { id: "oportunidades", label: t("company.opportunities"), width: "1fr" },
     { id: "cotacoes", label: t("schedule.orderByQuotes"), width: "1.2fr" },
   ] as const;
@@ -871,17 +1015,6 @@ export default function CronogramaClient({
                                       {title}
                                     </span>
                                   </div>
-                                  <div className="mt-0.5 text-[9px] font-semibold text-slate-600">
-                                    {formatTime(item.start)} -{" "}
-                                    {formatTime(item.end)}
-                                  </div>
-                                  {!isCompact ? (
-                                    <div className="mt-0.5 text-[9px] text-slate-500">
-                                      {t(
-                                        `schedule.status.${item.appointment.status}`,
-                                      )}
-                                    </div>
-                                  ) : null}
                                 </Link>
                               );
                             })}
@@ -1004,7 +1137,8 @@ export default function CronogramaClient({
                         if (
                           value === "preventivas" ||
                           value === "reconexoes" ||
-                          value === "cotacoes"
+                          value === "cotacoes" ||
+                          value === "last_visit"
                         ) {
                           setCompanySort(value);
                           return;
@@ -1023,6 +1157,9 @@ export default function CronogramaClient({
                       </option>
                       <option value="cotacoes">
                         {t("schedule.orderByQuotes")}
+                      </option>
+                      <option value="last_visit">
+                        {t("schedule.orderByLastVisit")}
                       </option>
                     </select>
                   </label>
@@ -1049,6 +1186,11 @@ export default function CronogramaClient({
               {openQuotesError ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                   {openQuotesError}
+                </div>
+              ) : null}
+              {lastVisitError ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                  {lastVisitError}
                 </div>
               ) : null}
             </div>
@@ -1139,6 +1281,45 @@ export default function CronogramaClient({
                         <div className="truncate text-xs text-slate-500">
                           {company.validacao ?? t("schedule.noValidation")}
                         </div>
+                      </div>
+                      <div className="min-w-0">
+                        {lastVisitError ? (
+                          <span className="text-xs text-slate-400">
+                            {t("schedule.noData")}
+                          </span>
+                        ) : lastVisitLoading &&
+                          !lastVisitByCompany.has(company.id) ? (
+                          <span className="text-xs text-slate-400">
+                            {t("schedule.loading")}
+                          </span>
+                        ) : (() => {
+                            const days = getDaysSinceLastVisit(company.id);
+                            if (days == null) {
+                              return (
+                                <span className="text-xs text-slate-400">
+                                  {t("schedule.noVisits")}
+                                </span>
+                              );
+                            }
+                            const label =
+                              days === 1
+                                ? t("schedule.daySingular")
+                                : t("schedule.dayPlural");
+                            const lastVisit = lastVisitByCompany.get(company.id);
+                            return (
+                              <div className="truncate text-xs font-semibold text-slate-700">
+                                <span
+                                  title={
+                                    lastVisit
+                                      ? formatDateLabel(lastVisit)
+                                      : undefined
+                                  }
+                                >
+                                  {days} {label}
+                                </span>
+                              </div>
+                            );
+                          })()}
                       </div>
                       <div className="min-w-0">
                         {(() => {
