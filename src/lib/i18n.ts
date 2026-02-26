@@ -127,7 +127,7 @@ const MESSAGES = {
         scheduled: "Agendado",
         in_progress: "Em execução",
         done: "Concluído",
-        absent: "Ausente",
+        absent: "Cancelado",
       },
       statusExpired: "Expirado",
       map: {
@@ -141,7 +141,7 @@ const MESSAGES = {
         checkIn: "Check-in",
         checkOut: "Check-out",
         pending: "Pendente",
-        absent: "Ausente",
+        absent: "Cancelado",
       },
       opportunity: {
         preventiva: "Preventiva",
@@ -166,7 +166,8 @@ const MESSAGES = {
         period: "Período {start} - {end}",
         loading: "Carregando dashboard...",
         loadError: "Não foi possível carregar o dashboard.",
-        loadCompaniesError: "Não foi possível carregar as empresas do dashboard.",
+        loadCompaniesError:
+          "Não foi possível carregar as empresas do dashboard.",
         retry: "Tentar novamente",
         noData: "Sem dados disponíveis para o período.",
         noChartData: "Sem dados suficientes para o gráfico.",
@@ -177,7 +178,7 @@ const MESSAGES = {
           appointments: "Apontamentos",
           companies: "Empresas",
           doneRate: "Concluídos",
-          absentRate: "Ausentes",
+          absentRate: "Cancelados",
           checkInRate: "Check-ins",
           checkOutRate: "Check-outs",
         },
@@ -254,7 +255,7 @@ const MESSAGES = {
       notInformed: "Não informado",
       notes: "Notas",
       opportunities: "Oportunidades percebidas",
-      absenceRegistered: "Ausência registrada",
+      absenceRegistered: "Cancelamento registrado",
       reason: "Motivo",
       notesShort: "Obs",
       activitiesTitle: "Atividades realizadas",
@@ -272,7 +273,7 @@ const MESSAGES = {
       mediaKind: {
         checkin: "Check-in",
         checkout: "Check-out",
-        absence: "Ausência",
+        absence: "Cancelamento",
         registro: "Registro",
         other: "Outros",
       },
@@ -370,9 +371,9 @@ const MESSAGES = {
       summaryDone: "{count} concluídos",
       summaryInProgress: "{count} em execução",
       summaryPending: "{count} pendentes",
-      summaryAbsent: "{count} ausentes",
+      summaryAbsent: "{count} cancelados",
       address: "Endereço",
-      absence: "Ausência",
+      absence: "Cancelado",
       emptyMap: "Sem coordenadas deste cliente.",
     },
   },
@@ -441,8 +442,7 @@ export const createTranslator = (messages: Messages): Translate => {
   const fallbackMessages = getMessages(DEFAULT_LOCALE);
   return (key, params, fallback) => {
     const template =
-      getMessageValue(messages, key) ??
-      getMessageValue(fallbackMessages, key);
+      getMessageValue(messages, key) ?? getMessageValue(fallbackMessages, key);
     if (!template) return fallback ?? key;
     if (!params) return template;
     return template.replace(/\{(\w+)\}/g, (_, token) =>
@@ -450,4 +450,3 @@ export const createTranslator = (messages: Messages): Translate => {
     );
   };
 };
-

@@ -142,7 +142,9 @@ type CompanyDetailClientProps = {
   locale: Locale;
 };
 
-export default function CompanyDetailClient({ locale }: CompanyDetailClientProps) {
+export default function CompanyDetailClient({
+  locale,
+}: CompanyDetailClientProps) {
   const params = useParams();
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const {
@@ -183,6 +185,7 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
   const [appointmentsError, setAppointmentsError] = useState<string | null>(
     null,
   );
+  const [appointmentsPage, setAppointmentsPage] = useState(1);
   const [companyContacts, setCompanyContacts] = useState<CompanyContactRow[]>(
     [],
   );
@@ -211,6 +214,7 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
   const [protheusLoading, setProtheusLoading] = useState(false);
   const [protheusError, setProtheusError] = useState<string | null>(null);
   const protheusRequestIdRef = useRef(0);
+  const appointmentsPerPage = 10;
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
@@ -391,6 +395,10 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
   }, [companyId, loadAppointments]);
 
   useEffect(() => {
+    setAppointmentsPage(1);
+  }, [appointments]);
+
+  useEffect(() => {
     if (!companyId) return;
     setCompanyContacts([]);
     void loadCompanyContacts(companyId);
@@ -420,6 +428,34 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
     return { total, done, inProgress, absent, pending };
   }, [appointments]);
 
+  const totalAppointmentPages = useMemo(
+    () => Math.max(1, Math.ceil(appointments.length / appointmentsPerPage)),
+    [appointments.length, appointmentsPerPage],
+  );
+
+  const appointmentPageSummary = useMemo(() => {
+    if (!appointments.length) {
+      return { start: 0, end: 0, total: 0 };
+    }
+    const start = (appointmentsPage - 1) * appointmentsPerPage + 1;
+    const end = Math.min(
+      appointments.length,
+      appointmentsPage * appointmentsPerPage,
+    );
+    return { start, end, total: appointments.length };
+  }, [appointments.length, appointmentsPage, appointmentsPerPage]);
+
+  const paginatedAppointments = useMemo(() => {
+    const start = (appointmentsPage - 1) * appointmentsPerPage;
+    return appointments.slice(start, start + appointmentsPerPage);
+  }, [appointments, appointmentsPage, appointmentsPerPage]);
+
+  useEffect(() => {
+    setAppointmentsPage((current) =>
+      Math.min(Math.max(1, current), totalAppointmentPages),
+    );
+  }, [totalAppointmentPages]);
+
   const groupedOrcamentos = useMemo<OrcamentoGroup[]>(() => {
     if (!orcamentos.length) return [];
 
@@ -427,7 +463,9 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
 
     orcamentos.forEach((row) => {
       const numorc =
-        row.vs1_numorc != null ? String(row.vs1_numorc) : t("company.quoteFallback");
+        row.vs1_numorc != null
+          ? String(row.vs1_numorc)
+          : t("company.quoteFallback");
       const filial = row.vs1_filial != null ? String(row.vs1_filial) : null;
       const key = `${numorc}-${filial ?? "sem"}`;
       const item = {
@@ -493,10 +531,7 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
 
   if (scheduleLoading && !company) {
     return (
-      <PageShell
-        title={t("company.title")}
-        subtitle={t("company.loadingData")}
-      >
+      <PageShell title={t("company.title")} subtitle={t("company.loadingData")}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
           {t("company.loading")}
         </div>
@@ -525,7 +560,10 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
       label: t("company.info.document"),
       value: company.document ?? t("company.documentMissing"),
     },
-    { label: t("company.info.state"), value: company.state ?? t("company.noState") },
+    {
+      label: t("company.info.state"),
+      value: company.state ?? t("company.noState"),
+    },
     { label: t("company.info.csa"), value: company.csa ?? t("company.noCsa") },
     {
       label: t("company.info.emailCsa"),
@@ -539,7 +577,10 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
       label: t("company.info.carteira2"),
       value: company.carteiraDef2 ?? t("company.noCarteira2"),
     },
-    { label: t("company.info.class"), value: company.clientClass ?? t("company.noClass") },
+    {
+      label: t("company.info.class"),
+      value: company.clientClass ?? t("company.noClass"),
+    },
     {
       label: t("company.info.clientClass"),
       value: company.classeCliente ?? t("company.noClientClass"),
@@ -661,9 +702,13 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
               <>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                   <span>
-                    {t("company.quotesCount", { count: groupedOrcamentos.length })}
+                    {t("company.quotesCount", {
+                      count: groupedOrcamentos.length,
+                    })}
                   </span>
-                  <span>{t("company.itemsCount", { count: orcamentos.length })}</span>
+                  <span>
+                    {t("company.itemsCount", { count: orcamentos.length })}
+                  </span>
                   <button
                     type="button"
                     onClick={() => loadOrcamentos(company.document)}
@@ -951,6 +996,54 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
               </div>
             </div>
 
+            {!appointmentsLoading && !appointmentsError ? (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-slate-600">
+                <span>
+                  {t("schedule.paginationSummary", appointmentPageSummary)}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>
+                    {t("schedule.paginationPage", {
+                      page: appointmentsPage,
+                      total: totalAppointmentPages,
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAppointmentsPage((current) => Math.max(1, current - 1))
+                    }
+                    disabled={appointmentsPage <= 1}
+                    aria-label={t("schedule.paginationPrev")}
+                    className={`rounded-lg border px-2 py-1 transition ${
+                      appointmentsPage <= 1
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationPrev")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAppointmentsPage((current) =>
+                        Math.min(totalAppointmentPages, current + 1),
+                      )
+                    }
+                    disabled={appointmentsPage >= totalAppointmentPages}
+                    aria-label={t("schedule.paginationNext")}
+                    className={`rounded-lg border px-2 py-1 transition ${
+                      appointmentsPage >= totalAppointmentPages
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationNext")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {appointmentsError ? (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
                 {appointmentsError}
@@ -972,7 +1065,7 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
             ) : null}
 
             <div className="mt-3 space-y-3">
-              {appointments.map((appointment) => (
+              {paginatedAppointments.map((appointment) => (
                 <Link
                   key={appointment.id}
                   href={`/cronograma/${appointment.id}`}
@@ -1007,7 +1100,9 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
                   </div>
                   {appointment.absenceReason ? (
                     <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700">
-                      {t("company.absence")}: {appointment.absenceReason}
+                      {t("company.absence")}:{" "}
+                      {appointment.absenceNote?.trim() ||
+                        appointment.absenceReason}
                     </div>
                   ) : null}
                 </Link>
