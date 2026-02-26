@@ -174,6 +174,8 @@ export default function CronogramaClient({
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
+  const [companyPage, setCompanyPage] = useState(1);
+  const companiesPerPage = 20;
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
@@ -216,8 +218,8 @@ export default function CronogramaClient({
     "border-slate-200 text-slate-600 hover:bg-slate-50";
 
   const companySkeletonRows = useMemo(
-    () => Array.from({ length: 6 }, (_, index) => index),
-    [],
+    () => Array.from({ length: companiesPerPage }, (_, index) => index),
+    [companiesPerPage],
   );
 
   const weeks = useMemo(() => getWeeksForMonth(selectedMonth), [selectedMonth]);
@@ -251,6 +253,7 @@ export default function CronogramaClient({
   useEffect(() => {
     setCompanySort("name");
     setCompanySearch("");
+    setCompanyPage(1);
   }, [selectedConsultantId]);
 
   const weekDays = useMemo(() => {
@@ -692,6 +695,45 @@ export default function CronogramaClient({
     locale,
   ]);
 
+  useEffect(() => {
+    setCompanyPage(1);
+  }, [companySearch, companySort]);
+
+  const totalCompanyPages = Math.max(
+    1,
+    Math.ceil(filteredCompanies.length / companiesPerPage),
+  );
+
+  useEffect(() => {
+    setCompanyPage((current) =>
+      Math.min(Math.max(current, 1), totalCompanyPages),
+    );
+  }, [totalCompanyPages]);
+
+  const paginatedCompanies = useMemo(() => {
+    const start = (companyPage - 1) * companiesPerPage;
+    return sortedCompanies.slice(start, start + companiesPerPage);
+  }, [sortedCompanies, companyPage]);
+
+  const companyPageSummary = useMemo(() => {
+    if (filteredCompanies.length === 0) {
+      return {
+        start: 0,
+        end: 0,
+        total: 0,
+      };
+    }
+    const start = (companyPage - 1) * companiesPerPage + 1;
+    const end = Math.min(companyPage * companiesPerPage, filteredCompanies.length);
+    return {
+      start,
+      end,
+      total: filteredCompanies.length,
+    };
+  }, [companyPage, filteredCompanies.length]);
+
+  const isCompaniesLoading = loading && Boolean(selectedConsultantId);
+
   const companyColumns = [
     { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
     { id: "estado", label: t("company.info.state"), width: "0.7fr" },
@@ -888,16 +930,83 @@ export default function CronogramaClient({
                   {error}
                 </div>
               ) : null}
-              {loading ? (
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
-                  {t("schedule.loadingSchedule")}
-                </div>
-              ) : null}
             </div>
 
             {viewMode === "board" ? (
               <div className="mt-3">
                 <div className="overflow-x-auto">
+                  {loading ? (
+                    <div className="min-w-[980px] rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
+                      <div
+                        className="grid border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
+                        style={{
+                          gridTemplateColumns: "64px repeat(7, minmax(0, 1fr))",
+                        }}
+                      >
+                        <div className="border-r border-slate-200 px-2 py-2">
+                          <div className="h-2 w-10 rounded-full bg-slate-200 animate-pulse" />
+                        </div>
+                        {weekDays.map((day) => (
+                          <div
+                            key={`skeleton-head-${day.dateLabel}`}
+                            className="border-r border-slate-200 px-2 py-2 last:border-r-0"
+                          >
+                            <div className="h-3 w-14 rounded-full bg-slate-200 animate-pulse" />
+                            <div className="mt-2 h-2 w-20 rounded-full bg-slate-200/80 animate-pulse" />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        className="grid"
+                        style={{
+                          gridTemplateColumns: "64px repeat(7, minmax(0, 1fr))",
+                        }}
+                      >
+                        <div className="relative border-r border-slate-200 bg-slate-50">
+                          <div style={{ height: timelineHeight }}>
+                            {hourSlots.map((hour, index) => (
+                              <div
+                                key={`skeleton-time-${hour}`}
+                                className="absolute left-0 right-0 border-t border-slate-200/80"
+                                style={{ top: index * hourRowHeight }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {weekDays.map((day, index) => (
+                          <div
+                            key={`skeleton-body-${day.dateLabel}`}
+                            className="relative border-r border-slate-200 last:border-r-0"
+                            style={{ height: timelineHeight }}
+                          >
+                            {hourSlots.map((hour, lineIndex) => (
+                              <div
+                                key={`skeleton-line-${day.dateLabel}-${hour}`}
+                                className="absolute left-0 right-0 border-t border-slate-200/70"
+                                style={{ top: lineIndex * hourRowHeight }}
+                              />
+                            ))}
+                            <div
+                              className="absolute left-3 right-3 rounded-lg bg-slate-200/80 animate-pulse"
+                              style={{
+                                top: 24 + (index % 3) * 80,
+                                height: 28,
+                              }}
+                            />
+                            <div
+                              className="absolute left-6 right-6 rounded-lg bg-slate-200/70 animate-pulse"
+                              style={{
+                                top: 120 + (index % 4) * 60,
+                                height: 18,
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
                   <div className="min-w-[980px] rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
                     <div
                       className="grid border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
@@ -1023,6 +1132,7 @@ export default function CronogramaClient({
                       })}
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1061,17 +1171,32 @@ export default function CronogramaClient({
                   </button>
                 </div>
 
-                <ScheduleMapView
-                  appointments={appointments}
-                  companies={companies}
-                  showCompanies={showCompanies}
-                  showCheckIns={showCheckIns}
-                  showCheckOuts={showCheckOuts}
-                  visible={viewMode === "map"}
-                  loading={loading}
-                  error={error}
-                  t={t}
-                />
+                {loading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-black/5">
+                    <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
+                    <div className="mt-4 h-64 w-full rounded-2xl bg-slate-200/70 animate-pulse" />
+                    <div className="mt-4 grid grid-cols-3 gap-3">
+                      {Array.from({ length: 3 }, (_, index) => (
+                        <div
+                          key={`map-skeleton-${index}`}
+                          className="h-8 rounded-lg bg-slate-200/80 animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <ScheduleMapView
+                    appointments={appointments}
+                    companies={companies}
+                    showCompanies={showCompanies}
+                    showCheckIns={showCheckIns}
+                    showCheckOuts={showCheckOuts}
+                    visible={viewMode === "map"}
+                    loading={loading}
+                    error={error}
+                    t={t}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -1172,6 +1297,61 @@ export default function CronogramaClient({
                   </button> */}
                 </div>
               </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
+                {isCompaniesLoading ? (
+                  <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
+                ) : (
+                  <span>
+                    {t("schedule.paginationSummary", companyPageSummary)}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  {isCompaniesLoading ? (
+                    <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    <span>
+                      {t("schedule.paginationPage", {
+                        page: companyPage,
+                        total: totalCompanyPages,
+                      })}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCompanyPage((current) => Math.max(1, current - 1))
+                    }
+                    disabled={companyPage <= 1 || isCompaniesLoading}
+                    aria-label={t("schedule.paginationPrev")}
+                    className={`rounded-lg border px-3 py-1.5 transition ${
+                      companyPage <= 1 || isCompaniesLoading
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationPrev")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCompanyPage((current) =>
+                        Math.min(totalCompanyPages, current + 1),
+                      )
+                    }
+                    disabled={
+                      companyPage >= totalCompanyPages || isCompaniesLoading
+                    }
+                    aria-label={t("schedule.paginationNext")}
+                    className={`rounded-lg border px-3 py-1.5 transition ${
+                      companyPage >= totalCompanyPages || isCompaniesLoading
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationNext")}
+                  </button>
+                </div>
+              </div>
 
               {error ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -1210,7 +1390,7 @@ export default function CronogramaClient({
                   <div className="px-5 py-4 text-sm text-slate-500">
                     {t("schedule.selectConsultantToViewCompanies")}
                   </div>
-                ) : loading ? (
+                ) : isCompaniesLoading ? (
                   companySkeletonRows.map((index) => (
                     <div
                       key={`company-skeleton-${index}`}
@@ -1227,7 +1407,7 @@ export default function CronogramaClient({
                     </div>
                   ))
                 ) : (
-                  sortedCompanies.map((company) => (
+                  paginatedCompanies.map((company) => (
                     <Link
                       key={company.id}
                       href={`/cronograma/empresa/${company.id}`}
@@ -1357,7 +1537,7 @@ export default function CronogramaClient({
                 )}
 
                 {selectedConsultant &&
-                  !loading &&
+                  !isCompaniesLoading &&
                   filteredCompanies.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
                       {t("schedule.noCompaniesFound")}

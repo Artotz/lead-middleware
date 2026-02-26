@@ -90,6 +90,10 @@ const MESSAGES = {
       orderByQuotes: "Cotações abertas",
       orderByLastVisit: "Dias desde última visita",
       lastVisitDays: "Última visita (dias)",
+      paginationSummary: "Mostrando {start}-{end} de {total}",
+      paginationPage: "Página {page} de {total}",
+      paginationPrev: "Anterior",
+      paginationNext: "Próxima",
       emptyConsultant: "Nenhum consultor",
       selectConsultantToViewCompanies:
         "Selecione um consultor para ver as empresas.",
