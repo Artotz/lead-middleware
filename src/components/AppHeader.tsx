@@ -84,7 +84,7 @@ export function AppHeader({ locale }: AppHeaderProps) {
           </nav>
 
           <div className="hidden items-center gap-3 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700 sm:flex">
-            <span className="max-w-[180px] truncate">{greeting}</span>
+            <span>{greeting}</span>
             <form action="/auth/logout" method="post">
               <button
                 type="submit"
@@ -139,7 +139,7 @@ export function AppHeader({ locale }: AppHeaderProps) {
               ),
             )}
             <div className="mt-1 flex flex-col gap-2 rounded-lg border border-amber-300/40 bg-white/70 px-3 py-2 text-xs font-semibold text-slate-700">
-              <span className="truncate">{greeting}</span>
+              <span>{greeting}</span>
               <form action="/auth/logout" method="post">
                 <button
                   type="submit"

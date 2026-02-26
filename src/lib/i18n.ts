@@ -43,7 +43,7 @@ const MESSAGES = {
       menuOpen: "Abrir menu",
       menuClose: "Fechar menu",
       menuLabel: "Menu",
-      userGreeting: "Olá, {name}",
+      userGreeting: "{name}",
       userFallback: "Usuário",
       signOut: "Sair",
       nav: {

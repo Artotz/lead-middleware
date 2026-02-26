@@ -870,11 +870,6 @@ export default function CronogramaClient({
                                     <span className="truncate font-semibold">
                                       {title}
                                     </span>
-                                    {!isTiny && item.isActual ? (
-                                      <span className="rounded bg-emerald-100 px-1 text-[9px] font-semibold text-emerald-700">
-                                        {t("schedule.actual")}
-                                      </span>
-                                    ) : null}
                                   </div>
                                   <div className="mt-0.5 text-[9px] font-semibold text-slate-600">
                                     {formatTime(item.start)} -{" "}
