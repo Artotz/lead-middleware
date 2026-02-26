@@ -175,6 +175,9 @@ export default function CronogramaClient({
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
   const [companyPage, setCompanyPage] = useState(1);
+  const [loadedConsultantId, setLoadedConsultantId] = useState<string | null>(
+    null,
+  );
   const companiesPerPage = 20;
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
@@ -732,7 +735,17 @@ export default function CronogramaClient({
     };
   }, [companyPage, filteredCompanies.length]);
 
-  const isCompaniesLoading = loading && Boolean(selectedConsultantId);
+  useEffect(() => {
+    if (!selectedConsultantId) {
+      setLoadedConsultantId(null);
+      return;
+    }
+    if (!loading) {
+      setLoadedConsultantId(selectedConsultantId);
+    }
+  }, [loading, selectedConsultantId]);
+
+  const isCompaniesLoading = Boolean(selectedConsultantId) && (loading || loadedConsultantId !== selectedConsultantId);
 
   const companyColumns = [
     { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
@@ -1207,11 +1220,15 @@ export default function CronogramaClient({
                 className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  <span>
-                    {t("schedule.companiesCount", {
-                      count: filteredCompanies.length,
-                    })}
-                  </span>
+                  {isCompaniesLoading ? (
+                    <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    <span>
+                      {t("schedule.companiesCount", {
+                        count: filteredCompanies.length,
+                      })}
+                    </span>
+                  )}
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
