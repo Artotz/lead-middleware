@@ -94,6 +94,12 @@ type OrcamentoGroup = {
   }>;
 };
 
+type CompanyContactRow = {
+  name: string | null;
+  contact: string | null;
+  created_at: string | null;
+};
+
 const formatAppointmentHeadline = (appointment: Appointment) => {
   const date = new Date(appointment.startAt);
   const dateLabel = formatDateLabel(date);
@@ -177,8 +183,16 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
   const [appointmentsError, setAppointmentsError] = useState<string | null>(
     null,
   );
+  const [companyContacts, setCompanyContacts] = useState<CompanyContactRow[]>(
+    [],
+  );
+  const [companyContactsLoading, setCompanyContactsLoading] = useState(false);
+  const [companyContactsError, setCompanyContactsError] = useState<
+    string | null
+  >(null);
   const requestIdRef = useRef(0);
   const orcRequestIdRef = useRef(0);
+  const companyContactsRequestIdRef = useRef(0);
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
@@ -240,6 +254,42 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
         setAppointments([]);
         setAppointmentsLoading(false);
         setAppointmentsError(t("company.appointmentsLoadError"));
+      }
+    },
+    [supabase, t],
+  );
+
+  const loadCompanyContacts = useCallback(
+    async (id: string) => {
+      const requestId = ++companyContactsRequestIdRef.current;
+      setCompanyContactsLoading(true);
+      setCompanyContactsError(null);
+
+      try {
+        const { data, error } = await supabase
+          .from("company_contacts")
+          .select("name, contact, created_at")
+          .eq("company_id", id)
+          .order("created_at", { ascending: false });
+
+        if (requestId !== companyContactsRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setCompanyContacts([]);
+          setCompanyContactsLoading(false);
+          setCompanyContactsError(t("company.companyContactsLoadError"));
+          return;
+        }
+
+        setCompanyContacts((data ?? []) as CompanyContactRow[]);
+        setCompanyContactsLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== companyContactsRequestIdRef.current) return;
+        setCompanyContacts([]);
+        setCompanyContactsLoading(false);
+        setCompanyContactsError(t("company.companyContactsLoadError"));
       }
     },
     [supabase, t],
@@ -339,6 +389,12 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
     setAppointments([]);
     void loadAppointments(companyId);
   }, [companyId, loadAppointments]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    setCompanyContacts([]);
+    void loadCompanyContacts(companyId);
+  }, [companyId, loadCompanyContacts]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -797,6 +853,83 @@ export default function CompanyDetailClient({ locale }: CompanyDetailClientProps
                 </div>
               </>
             )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t("company.contactsTitle")}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                <span>
+                  {t("company.contactsCount", {
+                    count: companyContacts.length,
+                  })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadCompanyContacts(companyId)}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  {t("company.refresh")}
+                </button>
+              </div>
+            </div>
+
+            {companyContactsError ? (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {companyContactsError}
+              </div>
+            ) : null}
+
+            {companyContactsLoading ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                {t("company.contactsLoading")}
+              </div>
+            ) : null}
+
+            {!companyContactsLoading &&
+            !companyContactsError &&
+            companyContacts.length === 0 ? (
+              <div className="mt-3 rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-xs text-slate-400">
+                {t("company.noContacts")}
+              </div>
+            ) : null}
+
+            <div className="mt-3 space-y-2">
+              {companyContacts.map((contact, index) => {
+                const createdAt = contact.created_at
+                  ? new Date(contact.created_at)
+                  : null;
+                const createdLabel =
+                  createdAt && !Number.isNaN(createdAt.getTime())
+                    ? `${formatDateLabel(createdAt)} · ${formatTime(createdAt)}`
+                    : t("company.noDate");
+                return (
+                  <div
+                    key={`${contact.name ?? "contato"}-${index}`}
+                    className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900">
+                          {contact.name?.trim() ||
+                            t("company.contactNameFallback")}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {t("company.contactInfo")}:{" "}
+                          {contact.contact?.trim() ||
+                            t("company.contactInfoFallback")}
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {createdLabel}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">

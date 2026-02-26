@@ -19,7 +19,12 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "../components/ScheduleMapView";
 
-type AppointmentMediaKind = "checkin" | "checkout" | "absence" | "other";
+type AppointmentMediaKind =
+  | "checkin"
+  | "checkout"
+  | "absence"
+  | "registro"
+  | "other";
 
 type AppointmentRow = {
   id: string;
@@ -52,6 +57,7 @@ type AppointmentMediaRow = {
   bucket: string;
   path: string;
   kind: string | null;
+  registro_tipo?: string | null;
   mime_type: string | null;
   bytes: number | null;
   created_at: string | null;
@@ -62,6 +68,7 @@ type AppointmentMediaItem = {
   bucket: string;
   path: string;
   kind: AppointmentMediaKind;
+  registroTipo: string | null;
   mimeType: string | null;
   bytes: number | null;
   createdAt: string | null;
@@ -70,11 +77,12 @@ type AppointmentMediaItem = {
 
 const MEDIA_KIND_TONES: Record<
   AppointmentMediaKind,
-  "emerald" | "rose" | "amber" | "slate"
+  "emerald" | "rose" | "amber" | "violet" | "slate"
 > = {
   checkin: "emerald",
   checkout: "rose",
   absence: "amber",
+  registro: "violet",
   other: "slate",
 };
 
@@ -84,6 +92,7 @@ const normalizeMediaKind = (
   if (value === "checkin") return "checkin";
   if (value === "checkout") return "checkout";
   if (value === "absence") return "absence";
+  if (value === "registro") return "registro";
   return "other";
 };
 
@@ -190,7 +199,9 @@ export default function AppointmentDetailClient({
       try {
         const { data, error } = await supabase
           .from("apontamento_media")
-          .select("id, bucket, path, kind, mime_type, bytes, created_at")
+          .select(
+            "id, bucket, path, kind, registro_tipo, mime_type, bytes, created_at",
+          )
           .eq("apontamento_id", id)
           .order("created_at", { ascending: true });
 
@@ -221,6 +232,7 @@ export default function AppointmentDetailClient({
               bucket: row.bucket,
               path: row.path,
               kind: normalizeMediaKind(row.kind),
+              registroTipo: row.registro_tipo ?? null,
               mimeType: row.mime_type ?? null,
               bytes: row.bytes ?? null,
               createdAt: row.created_at ?? null,
@@ -260,8 +272,24 @@ export default function AppointmentDetailClient({
     return groups;
   }, [media]);
 
+  const activityGroups = useMemo(() => {
+    const groups = new Map<string, AppointmentMediaItem[]>();
+    media.forEach((item) => {
+      if (!item.registroTipo) return;
+      const list = groups.get(item.registroTipo) ?? [];
+      list.push(item);
+      groups.set(item.registroTipo, list);
+    });
+    return groups;
+  }, [media]);
+
   const orderedMediaKinds = useMemo(() => {
-    const ordered: AppointmentMediaKind[] = ["checkin", "checkout", "absence"];
+    const ordered: AppointmentMediaKind[] = [
+      "checkin",
+      "checkout",
+      "absence",
+      "registro",
+    ];
     for (const kind of mediaGroups.keys()) {
       if (!ordered.includes(kind)) {
         ordered.push(kind);
@@ -278,10 +306,38 @@ export default function AppointmentDetailClient({
       checkin: t("appointment.mediaKind.checkin"),
       checkout: t("appointment.mediaKind.checkout"),
       absence: t("appointment.mediaKind.absence"),
+      registro: t("appointment.mediaKind.registro"),
       other: t("appointment.mediaKind.other"),
     }),
     [t],
   );
+
+  const activityLabels = useMemo(
+    () => ({
+      reconexao: t("appointment.activity.reconexao"),
+      medicao_mr: t("appointment.activity.medicao_mr"),
+      proposta_preventiva: t("appointment.activity.proposta_preventiva"),
+      proposta_powergard: t("appointment.activity.proposta_powergard"),
+      outro: t("appointment.activity.outro"),
+    }),
+    [t],
+  );
+
+  const orderedActivityKeys = useMemo(() => {
+    const ordered = [
+      "reconexao",
+      "medicao_mr",
+      "proposta_preventiva",
+      "proposta_powergard",
+      "outro",
+    ];
+    for (const key of activityGroups.keys()) {
+      if (!ordered.includes(key)) {
+        ordered.push(key);
+      }
+    }
+    return ordered.filter((key) => activityGroups.has(key));
+  }, [activityGroups]);
 
   const handleRefreshMedia = useCallback(() => {
     if (!appointmentId) return;
@@ -386,6 +442,36 @@ export default function AppointmentDetailClient({
               </h2>
               <div className="mt-2 text-sm text-slate-600">
                 {appointment.notes}
+              </div>
+            </div>
+          ) : null}
+
+          {activityGroups.size ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t("appointment.activitiesTitle")}
+              </h2>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                {orderedActivityKeys.map((key) => {
+                  const items = activityGroups.get(key) ?? [];
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
+                    >
+                      <span className="font-semibold text-slate-700">
+                        {activityLabels[
+                          key as keyof typeof activityLabels
+                        ] ?? t(`appointment.activity.${key}`, undefined, key)}
+                      </span>
+                      <span className="text-slate-400">
+                        {t("appointment.activityCount", {
+                          count: items.length,
+                        })}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
