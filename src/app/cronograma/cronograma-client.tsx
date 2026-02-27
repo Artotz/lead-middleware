@@ -53,7 +53,12 @@ import {
   toDateKey,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
-import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
+import {
+  createTranslator,
+  getMessages,
+  type Locale,
+  type Translate,
+} from "@/lib/i18n";
 import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
@@ -116,10 +121,17 @@ const toNumber = (value: number | string | null | undefined): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const formatAverageDuration = (
-  minutes: number | null,
-  t: (key: string, vars?: Record<string, unknown>, fallback?: string) => string,
-) => {
+const formatChartLabel = (value: unknown, decimals?: number) => {
+  const numeric =
+    typeof value === "number" || typeof value === "string"
+      ? toNumber(value)
+      : null;
+  if (!numeric) return "";
+  if (decimals != null) return numeric.toFixed(decimals);
+  return String(numeric);
+};
+
+const formatAverageDuration = (minutes: number | null, t: Translate) => {
   if (minutes == null || minutes <= 0) return t("schedule.noData");
   const rounded = Math.round(minutes);
   const hours = Math.floor(rounded / 60);
@@ -1651,9 +1663,7 @@ export default function CronogramaClient({
                       <LabelList
                         dataKey="avg"
                         position="top"
-                        formatter={(value: number) =>
-                          value ? value.toFixed(1) : ""
-                        }
+                        formatter={(value) => formatChartLabel(value, 1)}
                       />
                     </Bar>
                   </BarChart>
@@ -1778,7 +1788,7 @@ export default function CronogramaClient({
                       <LabelList
                         dataKey="count"
                         position="top"
-                        formatter={(value: number) => (value ? value : "")}
+                        formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
                   </BarChart>
@@ -1938,7 +1948,7 @@ export default function CronogramaClient({
                       <LabelList
                         dataKey="count"
                         position="top"
-                        formatter={(value: number) => (value ? value : "")}
+                        formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
                   </BarChart>
@@ -1995,7 +2005,7 @@ export default function CronogramaClient({
                       <LabelList
                         dataKey="count"
                         position="top"
-                        formatter={(value: number) => (value ? value : "")}
+                        formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
                   </BarChart>
@@ -2040,7 +2050,7 @@ export default function CronogramaClient({
                       <LabelList
                         dataKey="count"
                         position="top"
-                        formatter={(value: number) => (value ? value : "")}
+                        formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
                   </BarChart>
