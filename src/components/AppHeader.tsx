@@ -15,6 +15,9 @@ export function AppHeader({ locale }: AppHeaderProps) {
   const { user } = useAuth();
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const pathname = usePathname();
+  if (pathname === "/login") {
+    return null;
+  }
   const displayName = getUserDisplayName(user, t("header.userFallback"));
   const greeting = t("header.userGreeting", {
     name: displayName ?? t("header.userFallback"),

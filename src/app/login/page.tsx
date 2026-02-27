@@ -10,7 +10,7 @@ export default async function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center bg-slate-50 px-4 py-10 text-sm text-slate-500">
+        <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 text-sm text-slate-500">
           {t("login.loading")}
         </div>
       }
