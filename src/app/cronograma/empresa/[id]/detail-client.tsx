@@ -149,6 +149,7 @@ export default function CompanyDetailClient({
   const companyId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const {
     companies,
+    appointments: scheduleAppointments,
     consultants,
     selectedConsultantId,
     refresh,
@@ -623,6 +624,7 @@ export default function CompanyDetailClient({
       <CreateAppointmentModal
         open={createModalOpen}
         companies={companies}
+        appointments={scheduleAppointments}
         consultants={consultants}
         defaultConsultantId={selectedConsultantId}
         defaultCompanyId={company.id}

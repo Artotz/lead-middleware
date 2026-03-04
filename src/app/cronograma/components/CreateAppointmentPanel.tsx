@@ -8,7 +8,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { type Translate } from "@/lib/i18n";
 import {
   type Company,
+  type Appointment,
   formatDuration,
+  isAppointmentAbsent,
+  isAppointmentDone,
   matchesConsultantCompany,
 } from "@/lib/schedule";
 
@@ -20,6 +23,7 @@ type Consultant = {
 type CreateAppointmentModalProps = {
   open: boolean;
   companies: Company[];
+  appointments: Appointment[];
   consultants: Consultant[];
   defaultConsultantId: string | null;
   defaultCompanyId?: string | null;
@@ -47,6 +51,7 @@ const addMinutes = (date: Date, minutes: number) => {
   return next;
 };
 
+const PAST_TOLERANCE_MINUTES = 10;
 const CSA_CACHE_PREFIX = "lead-middleware:csa:";
 
 const getCsaCacheKey = (consultantId: string, consultantName: string | null) => {
@@ -85,9 +90,59 @@ const parseDateTime = (dateValue: string, timeValue: string) => {
   return date;
 };
 
+const resolveAppointmentRange = (
+  appointment: Appointment,
+): { start: Date; end: Date } | null => {
+  if (isAppointmentAbsent(appointment)) return null;
+  const scheduledStart = new Date(appointment.startAt);
+  const scheduledEnd = new Date(appointment.endAt);
+  if (
+    Number.isNaN(scheduledStart.getTime()) ||
+    Number.isNaN(scheduledEnd.getTime())
+  ) {
+    return null;
+  }
+
+  let start = scheduledStart;
+  let end = scheduledEnd;
+
+  if (isAppointmentDone(appointment)) {
+    const checkIn = appointment.checkInAt
+      ? new Date(appointment.checkInAt)
+      : null;
+    const checkOut = appointment.checkOutAt
+      ? new Date(appointment.checkOutAt)
+      : null;
+
+    if (checkIn && !Number.isNaN(checkIn.getTime())) {
+      start = checkIn;
+    }
+    if (checkOut && !Number.isNaN(checkOut.getTime())) {
+      end = checkOut;
+    }
+  }
+
+  if (end.getTime() <= start.getTime()) return null;
+  return { start, end };
+};
+
+const hasAppointmentCollision = (
+  appointments: Appointment[],
+  startDateTime: Date,
+  endDateTime: Date,
+) => {
+  if (endDateTime.getTime() <= startDateTime.getTime()) return false;
+  return appointments.some((appointment) => {
+    const range = resolveAppointmentRange(appointment);
+    if (!range) return false;
+    return startDateTime < range.end && endDateTime > range.start;
+  });
+};
+
 export function CreateAppointmentModal({
   open,
   companies,
+  appointments,
   consultants,
   defaultConsultantId,
   defaultCompanyId,
@@ -254,6 +309,28 @@ export function CreateAppointmentModal({
         ? normalizedConsultantId
         : (selectedConsultant?.name ?? getUserDisplayName(user) ?? null);
       const createdBy = user?.email?.trim() || null;
+
+      const pastToleranceMs = PAST_TOLERANCE_MINUTES * 60 * 1000;
+      const pastLimit = new Date(Date.now() - pastToleranceMs);
+      if (startDateTime < pastLimit) {
+        setError(t("createAppointment.pastNotAllowed"));
+        toast.push({
+          variant: "error",
+          message: t("createAppointment.pastNotAllowed"),
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (hasAppointmentCollision(appointments, startDateTime, endDateTime)) {
+        setError(t("createAppointment.collisionError"));
+        toast.push({
+          variant: "error",
+          message: t("createAppointment.collisionError"),
+        });
+        setLoading(false);
+        return;
+      }
 
       let companyId = selectedCompanyId;
 

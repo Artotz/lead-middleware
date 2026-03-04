@@ -265,6 +265,8 @@ const MESSAGES = {
       createCompanyError: "Nao foi possivel criar a empresa.",
       createError: "Não foi possível criar o apontamento.",
       createSuccess: "Apontamento criado com sucesso.",
+      pastNotAllowed: "Nao e possivel criar apontamento no passado.",
+      collisionError: "Ja existe um apontamento para esse horario.",
     },
     appointment: {
       title: "Apontamento",

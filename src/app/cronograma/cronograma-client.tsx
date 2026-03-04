@@ -2241,6 +2241,7 @@ export default function CronogramaClient({
               <CreateAppointmentModal
                 open={showCreateModal}
                 companies={companies}
+                appointments={appointments}
                 consultants={consultants}
                 defaultConsultantId={selectedConsultantId}
                 defaultDate={defaultCreateDate}
