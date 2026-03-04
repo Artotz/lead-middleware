@@ -432,6 +432,13 @@ export default function AppointmentDetailClient({
                 {appointment.consultantName?.trim() ||
                   t("appointment.notInformed")}
               </div>
+              <div>
+                <span className="font-semibold text-slate-600">
+                  {t("appointment.createdBy")}:{" "}
+                </span>
+                {appointment.createdBy?.trim() ||
+                  t("appointment.notInformed")}
+              </div>
             </div>
           </div>
 
@@ -442,6 +449,17 @@ export default function AppointmentDetailClient({
               </h2>
               <div className="mt-2 text-sm text-slate-600">
                 {appointment.notes}
+              </div>
+            </div>
+          ) : null}
+
+          {appointment.creationNotes?.trim() ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t("appointment.creationNotes")}
+              </h2>
+              <div className="mt-2 text-sm text-slate-600">
+                {appointment.creationNotes}
               </div>
             </div>
           ) : null}

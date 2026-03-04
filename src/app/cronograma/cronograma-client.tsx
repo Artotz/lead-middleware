@@ -233,6 +233,10 @@ export default function CronogramaClient({
       value ? value.replace(/\s+/g, " ").trim() : "",
     [],
   );
+  const normalizeIdentity = useCallback(
+    (value: string | null | undefined) => value?.trim().toLowerCase() ?? "",
+    [],
+  );
 
   const currencyFormatter = useMemo(
     () =>
@@ -320,6 +324,18 @@ export default function CronogramaClient({
   const toggleInactiveClass =
     "border-slate-200 text-slate-600 hover:bg-slate-50";
   const opportunityBadgeLimit = 2;
+  const suggestionHighlightClass =
+    "border-warning/80 bg-amber-100 ring-1 ring-warning/30";
+
+  const isSuggestedAppointment = useCallback(
+    (appointment: Appointment) => {
+      const creator = normalizeIdentity(appointment.createdBy);
+      const consultant = normalizeIdentity(appointment.consultantName);
+      if (!creator || !consultant) return false;
+      return creator !== consultant;
+    },
+    [normalizeIdentity],
+  );
 
   const companySkeletonRows = useMemo(
     () => Array.from({ length: companiesPerPage }, (_, index) => index),
@@ -2535,7 +2551,11 @@ export default function CronogramaClient({
                                 <Link
                                   key={appointment.id}
                                   href={`/cronograma/${appointment.id}`}
-                                  className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow"
+                                  className={`flex flex-col gap-2 rounded-xl border p-3 shadow-sm transition hover:shadow ${
+                                    isSuggestedAppointment(appointment)
+                                      ? suggestionHighlightClass
+                                      : "border-slate-200 bg-white"
+                                  }`}
                                   title={`${title} • ${formatTime(
                                     appointment.startAt,
                                   )} - ${formatTime(appointment.endAt)}`}

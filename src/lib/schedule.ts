@@ -4,13 +4,13 @@ export const COMPANY_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira";
 
 export const APPOINTMENT_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, oportunidades";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, creation_notes, created_by, oportunidades";
 
 export const COMPANY_LIST_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira";
 
 export const APPOINTMENT_LIST_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, oportunidades";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, created_by, oportunidades";
 
 export type SupabaseAppointmentStatus =
   | "scheduled"
@@ -66,6 +66,7 @@ export type Appointment = {
   absenceReason: string | null;
   absenceNote: string | null;
   notes: string | null;
+  creationNotes: string | null;
   oportunidades: string[] | null;
   createdBy: string | null;
   createdAt: string | null;
@@ -118,6 +119,7 @@ type SupabaseAppointmentRow = {
   absence_reason?: string | null;
   absence_note?: string | null;
   notes?: string | null;
+  creation_notes?: string | null;
   oportunidades?: string[] | null;
   created_by?: string | null;
   created_at?: string | null;
@@ -253,6 +255,7 @@ export const mapAppointment = (row: SupabaseAppointmentRow): Appointment => ({
   absenceReason: row.absence_reason ?? null,
   absenceNote: row.absence_note ?? null,
   notes: row.notes ?? null,
+  creationNotes: row.creation_notes ?? null,
   oportunidades: row.oportunidades ?? null,
   createdBy: row.created_by ?? null,
   createdAt: row.created_at ?? null,

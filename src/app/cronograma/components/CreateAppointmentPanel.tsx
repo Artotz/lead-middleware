@@ -54,7 +54,10 @@ const addMinutes = (date: Date, minutes: number) => {
 const PAST_TOLERANCE_MINUTES = 10;
 const CSA_CACHE_PREFIX = "lead-middleware:csa:";
 
-const getCsaCacheKey = (consultantId: string, consultantName: string | null) => {
+const getCsaCacheKey = (
+  consultantId: string,
+  consultantName: string | null,
+) => {
   const base = consultantId.trim();
   if (base) return `${CSA_CACHE_PREFIX}${base}`;
   if (consultantName?.trim()) {
@@ -163,6 +166,7 @@ export function CreateAppointmentModal({
   const [dateValue, setDateValue] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [creationNotes, setCreationNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -195,6 +199,7 @@ export function CreateAppointmentModal({
     setIsOutsidePortfolio(false);
     setCompanySearch("");
     setNewCompanyName("");
+    setCreationNotes("");
 
     const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
@@ -291,6 +296,7 @@ export function CreateAppointmentModal({
   }, [endDateTime, startDateTime]);
 
   const normalizedNewCompanyName = newCompanyName.trim();
+  const normalizedCreationNotes = creationNotes.trim();
   const hasCompanySelection = isOutsidePortfolio
     ? Boolean(selectedCompanyId || normalizedNewCompanyName)
     : Boolean(selectedCompanyId);
@@ -397,6 +403,7 @@ export function CreateAppointmentModal({
         status: "scheduled",
         // address_snapshot: selectedCompany?.state ?? null,
         created_by: createdBy,
+        creation_notes: normalizedCreationNotes || null,
       };
 
       const { error: insertError } = await supabase
@@ -660,6 +667,17 @@ export function CreateAppointmentModal({
               {t("createAppointment.duration")}:{" "}
               <span className="font-semibold">{durationLabel}</span>
             </div>
+
+            <label className="space-y-1 text-xs font-semibold text-slate-600">
+              <span>{t("createAppointment.creationNotesLabel")}</span>
+              <textarea
+                value={creationNotes}
+                onChange={(event) => setCreationNotes(event.target.value)}
+                placeholder={t("createAppointment.creationNotesPlaceholder")}
+                rows={3}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              />
+            </label>
 
             {timeError ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
