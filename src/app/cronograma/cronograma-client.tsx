@@ -274,6 +274,7 @@ export default function CronogramaClient({
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
   const [companyPage, setCompanyPage] = useState(1);
+  const [showOutsidePortfolio, setShowOutsidePortfolio] = useState(false);
   const [loadedConsultantId, setLoadedConsultantId] = useState<string | null>(
     null,
   );
@@ -357,7 +358,9 @@ export default function CronogramaClient({
     setCompanySort("name");
     setCompanySearch("");
     setCompanyPage(1);
+    setShowOutsidePortfolio(false);
   }, [selectedConsultantId]);
+
 
   const weekDays = useMemo(() => {
     if (!selectedWeek) return [];
@@ -744,16 +747,25 @@ export default function CronogramaClient({
     );
   }, [companies, selectedConsultant]);
 
+  const companiesByPortfolio = useMemo(() => {
+    if (!companiesByConsultant.length) return [];
+    return companiesByConsultant.filter((company) =>
+      showOutsidePortfolio
+        ? Boolean(company.foraCarteira)
+        : !company.foraCarteira,
+    );
+  }, [companiesByConsultant, showOutsidePortfolio]);
+
   const companyIdsByConsultant = useMemo(
-    () => Array.from(new Set(companiesByConsultant.map((company) => company.id))),
-    [companiesByConsultant],
+    () => Array.from(new Set(companiesByPortfolio.map((company) => company.id))),
+    [companiesByPortfolio],
   );
 
   const protheusLookup = useMemo(() => {
     const variantToCompany = new Map<string, string>();
     const variants: string[] = [];
 
-    companiesByConsultant.forEach((company) => {
+    companiesByPortfolio.forEach((company) => {
       const docs = buildDocumentVariants(company.document);
       docs.forEach((doc) => {
         if (!doc) return;
@@ -768,13 +780,13 @@ export default function CronogramaClient({
       variantToCompany,
       variants: Array.from(new Set(variants)),
     };
-  }, [companiesByConsultant]);
+  }, [companiesByPortfolio]);
 
   const openQuotesLookup = useMemo(() => {
     const cnpjToCompany = new Map<string, string>();
     const cnpjs: string[] = [];
 
-    companiesByConsultant.forEach((company) => {
+    companiesByPortfolio.forEach((company) => {
       const cnpj = normalizeCnpj(company.document);
       if (!cnpj) return;
       if (!cnpjToCompany.has(cnpj)) {
@@ -787,7 +799,7 @@ export default function CronogramaClient({
       cnpjToCompany,
       cnpjs: Array.from(new Set(cnpjs)),
     };
-  }, [companiesByConsultant]);
+  }, [companiesByPortfolio]);
 
   useEffect(() => {
     if (!selectedConsultantId) {
@@ -1183,8 +1195,8 @@ export default function CronogramaClient({
   ]);
 
   const filteredCompanies = useMemo(() => {
-    if (!normalizedCompanySearch) return companiesByConsultant;
-    return companiesByConsultant.filter((company) => {
+    if (!normalizedCompanySearch) return companiesByPortfolio;
+    return companiesByPortfolio.filter((company) => {
       const haystack = [
         company.name,
         company.document,
@@ -1202,7 +1214,7 @@ export default function CronogramaClient({
         .toLowerCase();
       return haystack.includes(normalizedCompanySearch);
     });
-  }, [companiesByConsultant, normalizedCompanySearch]);
+  }, [companiesByPortfolio, normalizedCompanySearch]);
 
   const todayStart = useMemo(() => startOfDay(today), [today]);
   const expiredCardClass = "border-slate-300 bg-slate-100 text-slate-700";
@@ -1270,7 +1282,7 @@ export default function CronogramaClient({
 
   useEffect(() => {
     setCompanyPage(1);
-  }, [companySearch, companySort]);
+  }, [companySearch, companySort, showOutsidePortfolio]);
 
   const totalCompanyPages = Math.max(
     1,
@@ -2725,6 +2737,18 @@ export default function CronogramaClient({
                       aria-label={t("schedule.search")}
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <input
+                      type="checkbox"
+                      checked={showOutsidePortfolio}
+                      onChange={(event) =>
+                        setShowOutsidePortfolio(event.target.checked)
+                      }
+                      disabled={!selectedConsultantId}
+                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <span>{t("schedule.outsidePortfolioToggle")}</span>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="sr-only">{t("schedule.orderBy")}</span>

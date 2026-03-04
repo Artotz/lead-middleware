@@ -47,6 +47,37 @@ const addMinutes = (date: Date, minutes: number) => {
   return next;
 };
 
+const CSA_CACHE_PREFIX = "lead-middleware:csa:";
+
+const getCsaCacheKey = (consultantId: string, consultantName: string | null) => {
+  const base = consultantId.trim();
+  if (base) return `${CSA_CACHE_PREFIX}${base}`;
+  if (consultantName?.trim()) {
+    return `${CSA_CACHE_PREFIX}${consultantName.trim().toLowerCase()}`;
+  }
+  return null;
+};
+
+const readCsaCache = (key: string | null) => {
+  if (!key) return "";
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(key)?.trim() ?? "";
+  } catch {
+    return "";
+  }
+};
+
+const writeCsaCache = (key: string | null, value: string) => {
+  if (!key) return;
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // no-op: local storage may be unavailable
+  }
+};
+
 const parseDateTime = (dateValue: string, timeValue: string) => {
   if (!dateValue || !timeValue) return null;
   const date = new Date(`${dateValue}T${timeValue}`);
@@ -70,6 +101,9 @@ export function CreateAppointmentModal({
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [isOutsidePortfolio, setIsOutsidePortfolio] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [newCompanyName, setNewCompanyName] = useState("");
   const [consultantId, setConsultantId] = useState("");
   const [dateValue, setDateValue] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -100,19 +134,16 @@ export function CreateAppointmentModal({
       consultants.some((item) => item.id === defaultConsultantId);
     const nextConsultant = hasDefaultConsultant
       ? defaultConsultantId
-      : consultants[0]?.id ?? "";
+      : (consultants[0]?.id ?? "");
     setConsultantId(nextConsultant);
     setSelectedCompanyId(defaultCompanyId ?? "");
+    setIsOutsidePortfolio(false);
+    setCompanySearch("");
+    setNewCompanyName("");
 
     const id = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
-  }, [
-    consultants,
-    defaultCompanyId,
-    defaultConsultantId,
-    defaultDate,
-    open,
-  ]);
+  }, [consultants, defaultCompanyId, defaultConsultantId, defaultDate, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,11 +167,25 @@ export function CreateAppointmentModal({
     [consultantId, consultants],
   );
 
-  const availableCompanies = useMemo(() => {
+  const baseAvailableCompanies = useMemo(() => {
     if (!selectedConsultant?.name) return [];
     const matched = companies.filter((company) =>
       matchesConsultantCompany(company, selectedConsultant.name),
     );
+    return matched.filter((company) =>
+      isOutsidePortfolio
+        ? Boolean(company.foraCarteira)
+        : !company.foraCarteira,
+    );
+  }, [companies, isOutsidePortfolio, selectedConsultant]);
+
+  const filteredCompanies = useMemo(() => {
+    const normalizedSearch = companySearch.trim().toLowerCase();
+    const matched = normalizedSearch
+      ? baseAvailableCompanies.filter((company) =>
+          company.name.toLowerCase().includes(normalizedSearch),
+        )
+      : baseAvailableCompanies;
     if (
       selectedCompany &&
       !matched.some((item) => item.id === selectedCompany.id)
@@ -148,18 +193,17 @@ export function CreateAppointmentModal({
       return [selectedCompany, ...matched];
     }
     return matched;
-  }, [companies, selectedCompany, selectedConsultant]);
+  }, [baseAvailableCompanies, companySearch, selectedCompany]);
 
   useEffect(() => {
     if (!selectedCompanyId) return;
     if (!companies.length) return;
     if (
-      availableCompanies.some((company) => company.id === selectedCompanyId)
-    ) {
+      baseAvailableCompanies.some((company) => company.id === selectedCompanyId)
+    )
       return;
-    }
     setSelectedCompanyId("");
-  }, [availableCompanies, companies.length, selectedCompanyId]);
+  }, [baseAvailableCompanies, companies.length, selectedCompanyId]);
 
   const startDateTime = useMemo(
     () => parseDateTime(dateValue, startTime),
@@ -191,11 +235,12 @@ export function CreateAppointmentModal({
     );
   }, [endDateTime, startDateTime]);
 
+  const normalizedNewCompanyName = newCompanyName.trim();
+  const hasCompanySelection = isOutsidePortfolio
+    ? Boolean(selectedCompanyId || normalizedNewCompanyName)
+    : Boolean(selectedCompanyId);
   const canCreate =
-    Boolean(selectedCompanyId) &&
-    Boolean(consultantId) &&
-    !timeError &&
-    !loading;
+    hasCompanySelection && Boolean(consultantId) && !timeError && !loading;
 
   const handleCreate = async () => {
     if (!canCreate) return;
@@ -207,16 +252,70 @@ export function CreateAppointmentModal({
       const normalizedConsultantId = consultantId.trim();
       const consultantName = normalizedConsultantId.includes("@")
         ? normalizedConsultantId
-        : selectedConsultant?.name ?? getUserDisplayName(user) ?? null;
+        : (selectedConsultant?.name ?? getUserDisplayName(user) ?? null);
       const createdBy = user?.email?.trim() || null;
 
+      let companyId = selectedCompanyId;
+
+      if (isOutsidePortfolio && !companyId) {
+        if (!normalizedNewCompanyName) {
+          setError(t("createAppointment.companyNameRequired"));
+          toast.push({
+            variant: "error",
+            message: t("createAppointment.companyNameRequired"),
+          });
+          setLoading(false);
+          return;
+        }
+
+        const csaCacheKey = getCsaCacheKey(
+          normalizedConsultantId,
+          selectedConsultant?.name ?? null,
+        );
+        let cachedCsa = readCsaCache(csaCacheKey);
+        if (!cachedCsa && selectedConsultant?.name) {
+          const candidate = companies.find(
+            (company) =>
+              !company.foraCarteira &&
+              Boolean(company.csa?.trim()) &&
+              matchesConsultantCompany(company, selectedConsultant.name),
+          );
+          if (candidate?.csa?.trim()) {
+            cachedCsa = candidate.csa.trim();
+            writeCsaCache(csaCacheKey, cachedCsa);
+          }
+        }
+
+        const { data: newCompany, error: companyError } = await supabase
+          .from("companies")
+          .insert({
+            name: normalizedNewCompanyName,
+            fora_carteira: true,
+            csa: cachedCsa || null,
+            email_csa: createdBy,
+          })
+          .select("id")
+          .single();
+
+        if (companyError || !newCompany?.id) {
+          console.error(companyError);
+          setError(t("createAppointment.createCompanyError"));
+          toast.push({
+            variant: "error",
+            message: t("createAppointment.createCompanyError"),
+          });
+          setLoading(false);
+          return;
+        }
+
+        companyId = newCompany.id;
+      }
+
       const payload = {
-        company_id: selectedCompanyId,
+        company_id: companyId,
         starts_at: startDateTime.toISOString(),
         ends_at: endDateTime.toISOString(),
-        consultant_id: normalizedConsultantId.includes("@")
-          ? null
-          : normalizedConsultantId || null,
+        consultant_id: user?.id ?? null,
         consultant_name: consultantName,
         status: "scheduled",
         // address_snapshot: selectedCompany?.state ?? null,
@@ -303,11 +402,48 @@ export function CreateAppointmentModal({
               </div>
             ) : null}
 
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={isOutsidePortfolio}
+                onChange={(event) => {
+                  const nextValue = event.target.checked;
+                  setIsOutsidePortfolio(nextValue);
+                  setCompanySearch("");
+                  setNewCompanyName("");
+                  if (!nextValue) setSelectedCompanyId("");
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-sky-200"
+              />
+              <span>{t("createAppointment.outsidePortfolio")}</span>
+            </label>
+
+            {/* {isOutsidePortfolio ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {t("createAppointment.pickOrCreateCompany")}
+              </div>
+            ) : null} */}
+
+            <label className="space-y-1 text-xs font-semibold text-slate-600">
+              <span>{t("createAppointment.companySearchLabel")}</span>
+              <input
+                type="text"
+                value={companySearch}
+                onChange={(event) => setCompanySearch(event.target.value)}
+                placeholder={t("createAppointment.companySearchPlaceholder")}
+                disabled={!selectedConsultant}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+
             <label className="space-y-1 text-xs font-semibold text-slate-600">
               <span>{t("createAppointment.selectedCompany")}</span>
               <select
                 value={selectedCompanyId}
-                onChange={(event) => setSelectedCompanyId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedCompanyId(event.target.value);
+                  if (event.target.value) setNewCompanyName("");
+                }}
                 disabled={!selectedConsultant}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -316,7 +452,7 @@ export function CreateAppointmentModal({
                     ? t("createAppointment.selectCompany")
                     : t("createAppointment.selectConsultantFirst")}
                 </option>
-                {availableCompanies.map((company) => (
+                {filteredCompanies.map((company) => (
                   <option key={company.id} value={company.id}>
                     {company.name}
                   </option>
@@ -324,37 +460,61 @@ export function CreateAppointmentModal({
               </select>
             </label>
 
-            {selectedCompany ? (
+            {isOutsidePortfolio ? (
+              <label className="space-y-1 text-xs font-semibold text-slate-600">
+                <span>{t("createAppointment.newCompanyLabel")}</span>
+                <input
+                  type="text"
+                  value={newCompanyName}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setNewCompanyName(nextValue);
+                    if (nextValue.trim()) setSelectedCompanyId("");
+                  }}
+                  placeholder={t("createAppointment.newCompanyPlaceholder")}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                />
+              </label>
+            ) : null}
+
+            {selectedCompany || normalizedNewCompanyName ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 mt-4">
                 <div className="font-semibold text-slate-700">
-                  {selectedCompany.name}
+                  {selectedCompany?.name ?? normalizedNewCompanyName}
                 </div>
-                <div className="mt-1 grid gap-1 sm:grid-cols-2">
-                  <span>
-                    {t("createAppointment.companyDocument")}:{" "}
-                    {selectedCompany.document ??
-                      t("createAppointment.notInformed")}
-                  </span>
-                  <span>
-                    {t("createAppointment.companyState")}:{" "}
-                    {selectedCompany.state ??
-                      t("createAppointment.notInformed")}
-                  </span>
-                  <span>
-                    {t("createAppointment.companyCsa")}:{" "}
-                    {selectedCompany.csa ?? t("createAppointment.notInformed")}
-                  </span>
-                  <span>
-                    {t("createAppointment.companyEmail")}:{" "}
-                    {selectedCompany.emailCsa ??
-                      t("createAppointment.notInformed")}
-                  </span>
-                  <span>
-                    {t("createAppointment.companyPortfolio")}:{" "}
-                    {selectedCompany.carteiraDef ??
-                      t("createAppointment.notInformed")}
-                  </span>
-                </div>
+                {selectedCompany ? (
+                  <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                    <span>
+                      {t("createAppointment.companyDocument")}:{" "}
+                      {selectedCompany.document ??
+                        t("createAppointment.notInformed")}
+                    </span>
+                    <span>
+                      {t("createAppointment.companyState")}:{" "}
+                      {selectedCompany.state ??
+                        t("createAppointment.notInformed")}
+                    </span>
+                    <span>
+                      {t("createAppointment.companyCsa")}:{" "}
+                      {selectedCompany.csa ??
+                        t("createAppointment.notInformed")}
+                    </span>
+                    <span>
+                      {t("createAppointment.companyEmail")}:{" "}
+                      {selectedCompany.emailCsa ??
+                        t("createAppointment.notInformed")}
+                    </span>
+                    <span>
+                      {t("createAppointment.companyPortfolio")}:{" "}
+                      {selectedCompany.carteiraDef ??
+                        t("createAppointment.notInformed")}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-1 text-xs text-slate-500">
+                    {t("createAppointment.newCompanyPreview")}
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -375,7 +535,9 @@ export function CreateAppointmentModal({
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               >
-                <option value="">{t("createAppointment.selectConsultant")}</option>
+                <option value="">
+                  {t("createAppointment.selectConsultant")}
+                </option>
                 {consultants.map((consultant) => (
                   <option key={consultant.id} value={consultant.id}>
                     {consultant.name}
@@ -417,7 +579,7 @@ export function CreateAppointmentModal({
               </label>
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 mb-1">
               {t("createAppointment.duration")}:{" "}
               <span className="font-semibold">{durationLabel}</span>
             </div>
@@ -440,7 +602,7 @@ export function CreateAppointmentModal({
           <div className="text-xs text-slate-500">
             {selectedConsultant
               ? t("createAppointment.availableCompanies", {
-                  count: availableCompanies.length,
+                  count: filteredCompanies.length,
                 })
               : t("createAppointment.selectConsultantToList")}
           </div>
@@ -459,7 +621,9 @@ export function CreateAppointmentModal({
               disabled={!canCreate}
               className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? t("createAppointment.creating") : t("createAppointment.create")}
+              {loading
+                ? t("createAppointment.creating")
+                : t("createAppointment.create")}
             </button>
           </div>
         </div>
