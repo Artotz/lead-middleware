@@ -288,7 +288,7 @@ export default function CronogramaClient({
     useState<string>("all");
   const [appointmentSort, setAppointmentSort] = useState<
     "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc"
-  >("date_asc");
+  >("date_desc");
   const [appointmentPage, setAppointmentPage] = useState(1);
   const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
   const [listAppointmentsLoading, setListAppointmentsLoading] = useState(false);
@@ -3031,7 +3031,7 @@ export default function CronogramaClient({
                           setAppointmentSort(value);
                           return;
                         }
-                        setAppointmentSort("date_asc");
+                        setAppointmentSort("date_desc");
                       }}
                       aria-label={t("schedule.appointmentSortLabel")}
                       className="min-w-[180px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"

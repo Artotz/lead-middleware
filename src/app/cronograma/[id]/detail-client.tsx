@@ -76,6 +76,16 @@ type AppointmentMediaItem = {
   signedUrl: string | null;
 };
 
+type AppointmentAction = {
+  id: string;
+  resultado: "vendido" | "perdido";
+  nfOuOs: string | null;
+  valor: number | null;
+  motivoPerda: string | null;
+  observacao: string | null;
+  createdAt: string | null;
+};
+
 const MEDIA_KIND_TONES: Record<
   AppointmentMediaKind,
   "emerald" | "rose" | "amber" | "violet" | "slate"
@@ -138,11 +148,24 @@ export default function AppointmentDetailClient({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [actionModalOpen, setActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState("");
+  const [actionResult, setActionResult] = useState<"vendido" | "perdido" | "">(
+    "",
+  );
+  const [actionNfOs, setActionNfOs] = useState("");
+  const [actionValue, setActionValue] = useState("");
+  const [actionLossReason, setActionLossReason] = useState("");
   const [actionNote, setActionNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [appointmentAction, setAppointmentAction] =
+    useState<AppointmentAction | null>(null);
+  const [appointmentActionLoading, setAppointmentActionLoading] =
+    useState(false);
+  const [appointmentActionError, setAppointmentActionError] = useState<
+    string | null
+  >(null);
+  const appointmentActionRequestIdRef = useRef(0);
 
   const company = useMemo(
     () => companies.find((item) => item.id === appointment?.companyId),
@@ -263,11 +286,70 @@ export default function AppointmentDetailClient({
     [supabase, t],
   );
 
+  const loadAppointmentAction = useCallback(
+    async (id: string) => {
+      const requestId = ++appointmentActionRequestIdRef.current;
+      setAppointmentActionLoading(true);
+      setAppointmentActionError(null);
+      try {
+        const { data, error } = await supabase
+          .from("apontamento_acoes")
+          .select(
+            "id, resultado, nf_ou_os, valor, motivo_perda, observacao, created_at",
+          )
+          .eq("apontamento_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (requestId !== appointmentActionRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setAppointmentAction(null);
+          setAppointmentActionLoading(false);
+          setAppointmentActionError(t("appointment.action.loadError"));
+          return;
+        }
+
+        if (!data) {
+          setAppointmentAction(null);
+          setAppointmentActionLoading(false);
+          return;
+        }
+
+        setAppointmentAction({
+          id: data.id,
+          resultado: data.resultado,
+          nfOuOs: data.nf_ou_os ?? null,
+          valor: data.valor ?? null,
+          motivoPerda: data.motivo_perda ?? null,
+          observacao: data.observacao ?? null,
+          createdAt: data.created_at ?? null,
+        });
+        setAppointmentActionLoading(false);
+      } catch (err) {
+        console.error(err);
+        if (requestId !== appointmentActionRequestIdRef.current) return;
+        setAppointmentAction(null);
+        setAppointmentActionLoading(false);
+        setAppointmentActionError(t("appointment.action.loadError"));
+      }
+    },
+    [supabase, t],
+  );
+
   useEffect(() => {
     if (!appointmentId) return;
     setMedia([]);
     void loadMedia(appointmentId);
   }, [appointmentId, loadMedia]);
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    setAppointmentAction(null);
+    void loadAppointmentAction(appointmentId);
+  }, [appointmentId, loadAppointmentAction]);
 
   const mediaGroups = useMemo(() => {
     const groups = new Map<AppointmentMediaKind, AppointmentMediaItem[]>();
@@ -346,21 +428,21 @@ export default function AppointmentDetailClient({
     return ordered.filter((key) => activityGroups.has(key));
   }, [activityGroups]);
 
-  const actionOptions = useMemo(
+  const lossReasons = useMemo(
     () => [
-      { id: "reconexao", label: t("appointment.action.types.reconexao") },
-      { id: "medicao_mr", label: t("appointment.action.types.medicao_mr") },
-      {
-        id: "proposta_preventiva",
-        label: t("appointment.action.types.proposta_preventiva"),
-      },
-      {
-        id: "proposta_powergard",
-        label: t("appointment.action.types.proposta_powergard"),
-      },
-      { id: "outro", label: t("appointment.action.types.outro") },
+      "preco_da_peca",
+      "preco_da_mao_de_obra",
+      "preco_do_deslocamento",
+      "indisponibilidade_tecnica",
+      "indisponibilidade_de_peca",
+      "experiencia_anterior_negativa",
+      "mao_de_obra_propria",
+      "mao_de_obra_terceirizada",
+      "postergou_o_servico",
+      "pendencia_financeira",
+      "falta_de_flexibilidade_comercial",
     ],
-    [t],
+    [],
   );
 
   const handleRefreshMedia = useCallback(() => {
@@ -373,7 +455,10 @@ export default function AppointmentDetailClient({
 
   useEffect(() => {
     if (!actionModalOpen) return;
-    setActionType("");
+    setActionResult("");
+    setActionNfOs("");
+    setActionValue("");
+    setActionLossReason("");
     setActionNote("");
     setActionError(null);
     const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
@@ -382,36 +467,65 @@ export default function AppointmentDetailClient({
 
   const handleConfirmAction = useCallback(async () => {
     if (!appointment || !appointmentId) return;
-    if (!actionType) {
-      setActionError(t("appointment.action.typeRequired"));
+    if (!actionResult) {
+      setActionError(t("appointment.action.resultRequired"));
+      return;
+    }
+    if (actionResult === "vendido") {
+      if (!actionNfOs.trim()) {
+        setActionError(t("appointment.action.nfOsRequired"));
+        return;
+      }
+      const value = Number(actionValue.replace(",", "."));
+      if (!Number.isFinite(value) || value <= 0) {
+        setActionError(t("appointment.action.valueRequired"));
+        return;
+      }
+    }
+    if (actionResult === "perdido" && !actionLossReason) {
+      setActionError(t("appointment.action.lossReasonRequired"));
       return;
     }
     setActionLoading(true);
     setActionError(null);
 
-    const actionLabel =
-      actionOptions.find((option) => option.id === actionType)?.label ??
-      actionType;
-    const timestamp = `${formatDateLabel(new Date())} · ${formatTime(
-      new Date(),
-    )}`;
-    const note = actionNote.trim();
-    const entry = note
-      ? `${t("appointment.action.logPrefix")}: ${actionLabel} (${timestamp}) - ${note}`
-      : `${t("appointment.action.logPrefix")}: ${actionLabel} (${timestamp})`;
-    const currentNotes = appointment.notes?.trim();
-    const nextNotes = currentNotes ? `${currentNotes}\n${entry}` : entry;
+    const normalizedValue =
+      actionResult === "vendido"
+        ? Number(actionValue.replace(",", "."))
+        : null;
 
     try {
-      const { data, error } = await supabase
+      const { error: insertError } = await supabase
+        .from("apontamento_acoes")
+        .insert({
+          apontamento_id: appointmentId,
+          resultado: actionResult,
+          nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
+          valor: actionResult === "vendido" ? normalizedValue : null,
+          motivo_perda: actionResult === "perdido" ? actionLossReason : null,
+          observacao: actionNote.trim() || null,
+        });
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          await loadAppointmentAction(appointmentId);
+        } else {
+          console.error(insertError);
+          setActionError(t("appointment.action.loadError"));
+        }
+        setActionLoading(false);
+        return;
+      }
+
+      const { data, error: updateError } = await supabase
         .from("apontamentos")
-        .update({ status: "atuado", notes: nextNotes })
+        .update({ status: "atuado" })
         .eq("id", appointmentId)
         .select(APPOINTMENT_SELECT)
         .maybeSingle();
 
-      if (error) {
-        console.error(error);
+      if (updateError) {
+        console.error(updateError);
         setActionError(t("appointment.action.loadError"));
         setActionLoading(false);
         return;
@@ -420,6 +534,7 @@ export default function AppointmentDetailClient({
       if (data) {
         setAppointment(mapAppointment(data as AppointmentRow));
       }
+      await loadAppointmentAction(appointmentId);
       setActionModalOpen(false);
       setActionLoading(false);
     } catch (err) {
@@ -429,12 +544,15 @@ export default function AppointmentDetailClient({
     }
   }, [
     actionNote,
-    actionOptions,
-    actionType,
+    actionLossReason,
+    actionNfOs,
+    actionResult,
     appointment,
     appointmentId,
+    loadAppointmentAction,
     supabase,
     t,
+    actionValue,
   ]);
 
   if (appointmentLoading && !appointment) {
@@ -646,6 +764,89 @@ export default function AppointmentDetailClient({
               ) : null}
             </div>
           ) : null}
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+            <h2 className="text-sm font-semibold text-slate-900">
+              {t("appointment.action.sectionTitle")}
+            </h2>
+            {appointmentActionError ? (
+              <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                {appointmentActionError}
+              </div>
+            ) : null}
+            {appointmentActionLoading ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                {t("appointment.action.loading")}
+              </div>
+            ) : appointmentAction ? (
+              <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                <div>
+                  <span className="font-semibold text-slate-600">
+                    {t("appointment.action.resultLabel")}:{" "}
+                  </span>
+                  {appointmentAction.resultado === "vendido"
+                    ? t("appointment.action.resultSold")
+                    : t("appointment.action.resultLost")}
+                </div>
+                {appointmentAction.resultado === "vendido" ? (
+                  <>
+                    <div>
+                      <span className="font-semibold text-slate-600">
+                        {t("appointment.action.nfOsLabel")}:{" "}
+                      </span>
+                      {appointmentAction.nfOuOs ?? t("appointment.notInformed")}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-600">
+                        {t("appointment.action.valueLabel")}:{" "}
+                      </span>
+                      {appointmentAction.valor != null
+                        ? new Intl.NumberFormat(locale, {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(appointmentAction.valor)
+                        : t("appointment.notInformed")}
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <span className="font-semibold text-slate-600">
+                      {t("appointment.action.lossReasonLabel")}:{" "}
+                    </span>
+                    {appointmentAction.motivoPerda
+                      ? t(
+                          `appointment.action.lossReasons.${appointmentAction.motivoPerda}`,
+                          undefined,
+                          appointmentAction.motivoPerda,
+                        )
+                      : t("appointment.notInformed")}
+                  </div>
+                )}
+                {appointmentAction.observacao ? (
+                  <div>
+                    <span className="font-semibold text-slate-600">
+                      {t("appointment.action.noteLabel")}:{" "}
+                    </span>
+                    {appointmentAction.observacao}
+                  </div>
+                ) : null}
+                {appointmentAction.createdAt ? (
+                  <div className="text-xs text-slate-500">
+                    {t("appointment.action.createdAt", {
+                      date: formatDateLabel(
+                        new Date(appointmentAction.createdAt),
+                      ),
+                      time: formatTime(new Date(appointmentAction.createdAt)),
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("appointment.action.empty")}
+              </div>
+            )}
+          </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -907,24 +1108,93 @@ export default function AppointmentDetailClient({
 
                   <label className="space-y-1 text-sm font-semibold text-slate-700">
                     <span>
-                      {t("appointment.action.typeLabel")}{" "}
+                      {t("appointment.action.resultLabel")}{" "}
                       <span className="text-rose-600">*</span>
                     </span>
                     <select
-                      value={actionType}
-                      onChange={(event) => setActionType(event.target.value)}
+                      value={actionResult}
+                      onChange={(event) =>
+                        setActionResult(
+                          event.target.value as "vendido" | "perdido" | "",
+                        )
+                      }
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                     >
                       <option value="">
-                        {t("appointment.action.typePlaceholder")}
+                        {t("appointment.action.resultPlaceholder")}
                       </option>
-                      {actionOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
+                      <option value="vendido">
+                        {t("appointment.action.resultSold")}
+                      </option>
+                      <option value="perdido">
+                        {t("appointment.action.resultLost")}
+                      </option>
                     </select>
                   </label>
+
+                  {actionResult === "vendido" && (
+                    <>
+                      <label className="space-y-1 text-sm font-semibold text-slate-700">
+                        <span>
+                          {t("appointment.action.nfOsLabel")}{" "}
+                          <span className="text-rose-600">*</span>
+                        </span>
+                        <input
+                          value={actionNfOs}
+                          onChange={(event) => setActionNfOs(event.target.value)}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                          placeholder={t("appointment.action.nfOsPlaceholder")}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm font-semibold text-slate-700">
+                        <span>
+                          {t("appointment.action.valueLabel")}{" "}
+                          <span className="text-rose-600">*</span>
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={actionValue}
+                          onChange={(event) =>
+                            setActionValue(event.target.value)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                          placeholder={t("appointment.action.valuePlaceholder")}
+                          min="0"
+                          step="0.01"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {actionResult === "perdido" && (
+                    <label className="space-y-1 text-sm font-semibold text-slate-700">
+                      <span>
+                        {t("appointment.action.lossReasonLabel")}{" "}
+                        <span className="text-rose-600">*</span>
+                      </span>
+                      <select
+                        value={actionLossReason}
+                        onChange={(event) =>
+                          setActionLossReason(event.target.value)
+                        }
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      >
+                        <option value="">
+                          {t("appointment.action.lossReasonPlaceholder")}
+                        </option>
+                        {lossReasons.map((reason) => (
+                          <option key={reason} value={reason}>
+                            {t(
+                              `appointment.action.lossReasons.${reason}`,
+                              undefined,
+                              reason,
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
 
                   <label className="space-y-1 text-sm font-semibold text-slate-700">
                     <span>{t("appointment.action.noteLabel")}</span>
