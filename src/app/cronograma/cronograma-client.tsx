@@ -286,6 +286,9 @@ export default function CronogramaClient({
   >("all");
   const [appointmentOpportunity, setAppointmentOpportunity] =
     useState<string>("all");
+  const [appointmentSort, setAppointmentSort] = useState<
+    "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc"
+  >("date_asc");
   const [appointmentPage, setAppointmentPage] = useState(1);
   const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
   const [listAppointmentsLoading, setListAppointmentsLoading] = useState(false);
@@ -831,14 +834,32 @@ export default function CronogramaClient({
   ]);
 
   const sortedAppointments = useMemo(() => {
-    return [...filteredAppointments].sort((a, b) =>
-      a.startAt.localeCompare(b.startAt),
-    );
-  }, [filteredAppointments]);
+    const sorted = [...filteredAppointments];
+    sorted.sort((a, b) => {
+      if (appointmentSort === "date_desc") {
+        return b.startAt.localeCompare(a.startAt);
+      }
+      if (appointmentSort === "date_asc") {
+        return a.startAt.localeCompare(b.startAt);
+      }
+      const companyA = companyById.get(a.companyId)?.name ?? "";
+      const companyB = companyById.get(b.companyId)?.name ?? "";
+      const nameComparison = companyA.localeCompare(companyB, "pt-BR");
+      if (appointmentSort === "alpha_desc") {
+        return nameComparison !== 0
+          ? -nameComparison
+          : b.startAt.localeCompare(a.startAt);
+      }
+      return nameComparison !== 0
+        ? nameComparison
+        : a.startAt.localeCompare(b.startAt);
+    });
+    return sorted;
+  }, [appointmentSort, companyById, filteredAppointments]);
 
   useEffect(() => {
     setAppointmentPage(1);
-  }, [appointmentSearch, appointmentStatus, appointmentOpportunity]);
+  }, [appointmentSearch, appointmentStatus, appointmentOpportunity, appointmentSort]);
 
   const totalAppointmentPages = Math.max(
     1,
@@ -2895,11 +2916,14 @@ export default function CronogramaClient({
                   {isAppointmentsLoading ? (
                     <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
-                    <span>
-                      {t("schedule.appointmentsCount", {
-                        count: filteredAppointments.length,
-                      })}
-                    </span>
+                    <>
+                      <span>
+                        {t("schedule.appointmentsCount", {
+                          count: filteredAppointments.length,
+                        })}
+                      </span>
+                      <span>{t("schedule.appointmentsControlsHint")}</span>
+                    </>
                   )}
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
@@ -2939,7 +2963,9 @@ export default function CronogramaClient({
                     />
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.statusFilterLabel")}</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {t("schedule.statusFilterLabel")}
+                    </span>
                     <select
                       value={appointmentStatus}
                       onChange={(event) => {
@@ -2968,7 +2994,9 @@ export default function CronogramaClient({
                     </select>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.opportunityFilterLabel")}</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {t("schedule.opportunityFilterLabel")}
+                    </span>
                     <select
                       value={appointmentOpportunity}
                       onChange={(event) => {
@@ -2984,6 +3012,42 @@ export default function CronogramaClient({
                           {t(`schedule.opportunity.${option.id}`, undefined, option.label)}
                         </option>
                       ))}
+                    </select>
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {t("schedule.orderBy")}
+                    </span>
+                    <select
+                      value={appointmentSort}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (
+                          value === "date_desc" ||
+                          value === "date_asc" ||
+                          value === "alpha_asc" ||
+                          value === "alpha_desc"
+                        ) {
+                          setAppointmentSort(value);
+                          return;
+                        }
+                        setAppointmentSort("date_asc");
+                      }}
+                      aria-label={t("schedule.appointmentSortLabel")}
+                      className="min-w-[180px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      <option value="date_asc">
+                        {t("schedule.appointmentSortDateAsc")}
+                      </option>
+                      <option value="date_desc">
+                        {t("schedule.appointmentSortDateDesc")}
+                      </option>
+                      <option value="alpha_asc">
+                        {t("schedule.appointmentSortAlphaAsc")}
+                      </option>
+                      <option value="alpha_desc">
+                        {t("schedule.appointmentSortAlphaDesc")}
+                      </option>
                     </select>
                   </label>
                 </div>
@@ -3253,7 +3317,9 @@ export default function CronogramaClient({
                     <span>{t("schedule.outsidePortfolioToggle")}</span>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.orderBy")}</span>
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {t("schedule.orderBy")}
+                    </span>
                     <select
                       value={companySort}
                       onChange={(event) => {
