@@ -15,18 +15,25 @@ type LeadTypesMultiSelectProps = {
   options: Array<string | { value: string; label: string }>;
   onChange: (next: string[]) => void;
   placeholder?: string;
+  searchPlaceholder?: string;
+  noResultsText?: string;
+  selectedCountTemplate?: string;
 };
 
 const buildSummary = (
   value: string[],
   labelByValue: Map<string, string>,
-  placeholder?: string
+  placeholder?: string,
+  selectedCountTemplate?: string,
 ) => {
   if (!value.length) return placeholder ?? "Selecionar tipos";
   const labels = value.map((item) => labelByValue.get(item) ?? item);
   if (labels.length === 1) return labels[0];
   if (labels.length === 2) return `${labels[0]}, ${labels[1]}`;
-  return `${value.length} selecionados`;
+  return (selectedCountTemplate ?? "{count} selecionados").replace(
+    "{count}",
+    String(value.length),
+  );
 };
 
 export function LeadTypesMultiSelect({
@@ -34,7 +41,14 @@ export function LeadTypesMultiSelect({
   options,
   onChange,
   placeholder,
+  searchPlaceholder,
+  noResultsText,
+  selectedCountTemplate,
 }: LeadTypesMultiSelectProps) {
+  const selectedValues = useMemo(
+    () => (Array.isArray(value) ? value : []),
+    [value],
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -90,13 +104,19 @@ export function LeadTypesMultiSelect({
   }, [open]);
 
   const summary = useMemo(
-    () => buildSummary(value, labelByValue, placeholder),
-    [value, labelByValue, placeholder],
+    () =>
+      buildSummary(
+        selectedValues,
+        labelByValue,
+        placeholder,
+        selectedCountTemplate,
+      ),
+    [selectedValues, labelByValue, placeholder, selectedCountTemplate],
   );
 
   const toggleOption = useCallback(
     (option: string) => {
-      const selected = new Set(value);
+      const selected = new Set(selectedValues);
       if (selected.has(option)) {
         selected.delete(option);
       } else {
@@ -104,7 +124,7 @@ export function LeadTypesMultiSelect({
       }
       onChange(Array.from(selected));
     },
-    [onChange, value],
+    [onChange, selectedValues],
   );
 
   const focusOption = (index: number) => {
@@ -184,7 +204,7 @@ export function LeadTypesMultiSelect({
       >
         <span
           className={`truncate ${
-            value.length ? "text-slate-900" : "text-slate-400"
+            selectedValues.length ? "text-slate-900" : "text-slate-400"
           }`}
         >
           {summary}
@@ -194,7 +214,7 @@ export function LeadTypesMultiSelect({
 
       {open ? (
         <div
-          className="absolute left-0 bottom-full z-50 mb-1 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           role="listbox"
           aria-multiselectable="true"
           id={listId}
@@ -205,7 +225,7 @@ export function LeadTypesMultiSelect({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder="Buscar tipo..."
+              placeholder={searchPlaceholder ?? "Buscar tipo..."}
               className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             />
           </div>
@@ -215,7 +235,7 @@ export function LeadTypesMultiSelect({
           >
             {filteredOptions.length ? (
               filteredOptions.map((option) => {
-                const selected = value.includes(option.value);
+                const selected = selectedValues.includes(option.value);
                 return (
                   <button
                     key={option.value}
@@ -243,7 +263,7 @@ export function LeadTypesMultiSelect({
               })
             ) : (
               <div className="px-3 py-2 text-xs text-slate-500">
-                Nenhum resultado
+                {noResultsText ?? "Nenhum resultado"}
               </div>
             )}
           </div>
