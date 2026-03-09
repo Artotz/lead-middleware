@@ -49,6 +49,7 @@ const MESSAGES = {
       signOut: "Sair",
       nav: {
         schedule: "Cronograma",
+        appointments: "Agendamentos",
         companies: "Empresas",
         dashboard: "Dashboard",
         metrics: "Métricas",
@@ -66,6 +67,11 @@ const MESSAGES = {
       tabDashboard: "Dashboard",
       appointmentsCount: "{count} agendamentos",
       companiesCount: "{count} empresas",
+      appointmentsSearchPlaceholder: "Buscar por empresa, consultor ou status",
+      statusFilterLabel: "Status",
+      statusAll: "Todos",
+      opportunityFilterLabel: "Oportunidade",
+      opportunityAll: "Todas",
       zoomOut: "Diminuir zoom da semana",
       zoomIn: "Aumentar zoom da semana",
       zoomLabel: "Zoom",
@@ -103,7 +109,11 @@ const MESSAGES = {
       emptyConsultant: "Nenhum consultor",
       selectConsultantToViewCompanies:
         "Selecione um consultor para ver as empresas.",
+      selectConsultantToViewAppointments:
+        "Selecione um consultor para ver os agendamentos.",
       noCompaniesFound: "Nenhuma empresa encontrada com esses filtros.",
+      appointmentsLoadError: "Não foi possível carregar os agendamentos.",
+      noAppointmentsFound: "Nenhum agendamento encontrado com esses filtros.",
       companyDocumentMissing: "Documento não informado",
       noState: "Sem estado",
       noCsa: "Sem CSA",
@@ -132,6 +142,13 @@ const MESSAGES = {
         absent: "Cancelado",
       },
       statusExpired: "Expirado",
+      appointmentList: {
+        company: "Empresa",
+        consultant: "Consultor",
+        date: "Data",
+        time: "Horario",
+        status: "Status",
+      },
       map: {
         companies: "Empresas",
         checkIns: "Check-ins",

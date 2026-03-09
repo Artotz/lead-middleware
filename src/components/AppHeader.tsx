@@ -24,6 +24,7 @@ export function AppHeader({ locale }: AppHeaderProps) {
   });
   const navItems = [
     { href: "/cronograma", label: t("header.nav.schedule") },
+    { href: "/cronograma/agendamentos", label: t("header.nav.appointments") },
     { href: "/cronograma/empresas", label: t("header.nav.companies") },
     { href: "/cronograma/dashboard", label: t("header.nav.dashboard") },
   ];

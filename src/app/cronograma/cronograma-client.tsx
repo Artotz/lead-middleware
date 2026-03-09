@@ -63,7 +63,7 @@ import { ScheduleMapView } from "./components/ScheduleMapView";
 import { CreateAppointmentModal } from "./components/CreateAppointmentPanel";
 
 type CronogramaClientProps = {
-  initialTab?: "cronograma" | "empresas" | "dashboard";
+  initialTab?: "cronograma" | "agendamentos" | "empresas" | "dashboard";
   locale: Locale;
 };
 
@@ -254,7 +254,7 @@ export default function CronogramaClient({
 
   const [viewMode, setViewMode] = useState<"board" | "grid" | "map">("board");
   const [activeTab, setActiveTab] = useState<
-    "cronograma" | "empresas" | "dashboard"
+    "cronograma" | "agendamentos" | "empresas" | "dashboard"
   >(initialTab);
   const [dashboardScope, setDashboardScope] =
     useState<DashboardScope>("general");
@@ -278,11 +278,25 @@ export default function CronogramaClient({
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >("name");
   const [companyPage, setCompanyPage] = useState(1);
+  const [appointmentSearch, setAppointmentSearch] = useState("");
+  const [appointmentStatus, setAppointmentStatus] = useState<
+    "all" | SupabaseAppointmentStatus
+  >("all");
+  const [appointmentOpportunity, setAppointmentOpportunity] =
+    useState<string>("all");
+  const [appointmentPage, setAppointmentPage] = useState(1);
+  const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
+  const [listAppointmentsLoading, setListAppointmentsLoading] = useState(false);
+  const [listAppointmentsError, setListAppointmentsError] = useState<
+    string | null
+  >(null);
+  const listAppointmentsRequestIdRef = useRef(0);
   const [showOutsidePortfolio, setShowOutsidePortfolio] = useState(false);
   const [loadedConsultantId, setLoadedConsultantId] = useState<string | null>(
     null,
   );
   const companiesPerPage = 20;
+  const appointmentsPerPage = 20;
   const [selectedMonth, setSelectedMonth] = useState(
     () => new Date(today.getFullYear(), today.getMonth(), 1),
   );
@@ -341,6 +355,10 @@ export default function CronogramaClient({
     () => Array.from({ length: companiesPerPage }, (_, index) => index),
     [companiesPerPage],
   );
+  const appointmentSkeletonRows = useMemo(
+    () => Array.from({ length: appointmentsPerPage }, (_, index) => index),
+    [appointmentsPerPage],
+  );
 
   const weeks = useMemo(() => getWeeksForMonth(selectedMonth), [selectedMonth]);
 
@@ -375,6 +393,10 @@ export default function CronogramaClient({
     setCompanySearch("");
     setCompanyPage(1);
     setShowOutsidePortfolio(false);
+    setAppointmentSearch("");
+    setAppointmentStatus("all");
+    setAppointmentOpportunity("all");
+    setAppointmentPage(1);
   }, [selectedConsultantId]);
 
 
@@ -755,6 +777,93 @@ export default function CronogramaClient({
 
   const totalAppointments = appointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
+  const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase();
+
+  const filteredAppointments = useMemo(() => {
+    if (!selectedConsultant) return [];
+    return listAppointments.filter((appointment) => {
+      if (
+        appointmentStatus !== "all" &&
+        appointment.status !== appointmentStatus
+      ) {
+        return false;
+      }
+      if (appointmentOpportunity !== "all") {
+        const opportunities = appointment.oportunidades ?? [];
+        if (!opportunities.includes(appointmentOpportunity)) {
+          return false;
+        }
+      }
+      if (!normalizedAppointmentSearch) return true;
+      const company = companyById.get(appointment.companyId);
+      const tokens = [
+        company?.name,
+        company?.document,
+        appointment.consultantName,
+        appointment.consultantId,
+        appointment.status,
+        t(`schedule.status.${appointment.status}`),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return tokens.includes(normalizedAppointmentSearch);
+    });
+  }, [
+    appointmentStatus,
+    appointmentOpportunity,
+    listAppointments,
+    companyById,
+    normalizedAppointmentSearch,
+    selectedConsultant,
+    t,
+  ]);
+
+  const sortedAppointments = useMemo(() => {
+    return [...filteredAppointments].sort((a, b) =>
+      a.startAt.localeCompare(b.startAt),
+    );
+  }, [filteredAppointments]);
+
+  useEffect(() => {
+    setAppointmentPage(1);
+  }, [appointmentSearch, appointmentStatus, appointmentOpportunity]);
+
+  const totalAppointmentPages = Math.max(
+    1,
+    Math.ceil(filteredAppointments.length / appointmentsPerPage),
+  );
+
+  useEffect(() => {
+    setAppointmentPage((current) =>
+      Math.min(Math.max(current, 1), totalAppointmentPages),
+    );
+  }, [totalAppointmentPages]);
+
+  const paginatedAppointments = useMemo(() => {
+    const start = (appointmentPage - 1) * appointmentsPerPage;
+    return sortedAppointments.slice(start, start + appointmentsPerPage);
+  }, [appointmentPage, appointmentsPerPage, sortedAppointments]);
+
+  const appointmentPageSummary = useMemo(() => {
+    if (filteredAppointments.length === 0) {
+      return {
+        start: 0,
+        end: 0,
+        total: 0,
+      };
+    }
+    const start = (appointmentPage - 1) * appointmentsPerPage + 1;
+    const end = Math.min(
+      appointmentPage * appointmentsPerPage,
+      filteredAppointments.length,
+    );
+    return {
+      start,
+      end,
+      total: filteredAppointments.length,
+    };
+  }, [appointmentPage, appointmentsPerPage, filteredAppointments.length]);
 
   const companiesByConsultant = useMemo(() => {
     if (!selectedConsultant?.name) return [];
@@ -1343,7 +1452,59 @@ export default function CronogramaClient({
     }
   }, [loading, selectedConsultantId]);
 
+  useEffect(() => {
+    if (activeTab !== "agendamentos") return;
+    const requestId = ++listAppointmentsRequestIdRef.current;
+
+    if (!selectedConsultantId?.trim()) {
+      setListAppointments([]);
+      setListAppointmentsError(null);
+      setListAppointmentsLoading(false);
+      return;
+    }
+
+    const loadAppointmentsList = async () => {
+      setListAppointmentsLoading(true);
+      setListAppointmentsError(null);
+      try {
+        let query = supabase
+          .from("apontamentos")
+          .select(APPOINTMENT_LIST_SELECT)
+          .order("starts_at", { ascending: false });
+        const consultantKey = selectedConsultantId.trim();
+        if (consultantKey.includes("@")) {
+          query = query.eq("consultant_name", consultantKey);
+        } else {
+          query = query.eq("consultant_id", consultantKey);
+        }
+        const { data, error: appointmentsError } = await query;
+
+        if (requestId !== listAppointmentsRequestIdRef.current) return;
+
+        if (appointmentsError) {
+          console.error(appointmentsError);
+          setListAppointments([]);
+          setListAppointmentsError(t("schedule.appointmentsLoadError"));
+          setListAppointmentsLoading(false);
+          return;
+        }
+
+        setListAppointments((data ?? []).map(mapAppointment));
+        setListAppointmentsLoading(false);
+      } catch (err) {
+        console.error(err);
+        if (requestId !== listAppointmentsRequestIdRef.current) return;
+        setListAppointments([]);
+        setListAppointmentsError(t("schedule.appointmentsLoadError"));
+        setListAppointmentsLoading(false);
+      }
+    };
+
+    void loadAppointmentsList();
+  }, [activeTab, selectedConsultantId, supabase, t]);
+
   const isCompaniesLoading = Boolean(selectedConsultantId) && (loading || loadedConsultantId !== selectedConsultantId);
+  const isAppointmentsLoading = Boolean(selectedConsultantId) && listAppointmentsLoading;
 
   const companyColumns = [
     { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
@@ -1358,6 +1519,18 @@ export default function CronogramaClient({
   ] as const;
 
   const companyGridTemplateColumns = companyColumns
+    .map((column) => column.width)
+    .join(" ");
+
+  const appointmentColumns = [
+    { id: "empresa", label: t("schedule.appointmentList.company"), width: "1.6fr" },
+    { id: "consultor", label: t("schedule.appointmentList.consultant"), width: "1.1fr" },
+    { id: "data", label: t("schedule.appointmentList.date"), width: "0.8fr" },
+    { id: "horario", label: t("schedule.appointmentList.time"), width: "0.9fr" },
+    { id: "status", label: t("schedule.appointmentList.status"), width: "0.7fr" },
+  ] as const;
+
+  const appointmentGridTemplateColumns = appointmentColumns
     .map((column) => column.width)
     .join(" ");
 
@@ -2699,6 +2872,277 @@ export default function CronogramaClient({
                 )}
               </div>
             )}
+          </div>
+        ) : activeTab === "agendamentos" ? (
+          <div className={`${panelClass} p-3 sm:p-4`}>
+            <div className="flex flex-col gap-3">
+              <div
+                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  {isAppointmentsLoading ? (
+                    <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    <span>
+                      {t("schedule.appointmentsCount", {
+                        count: filteredAppointments.length,
+                      })}
+                    </span>
+                  )}
+                </div>
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="sr-only">{t("schedule.consultant")}</span>
+                    <select
+                      value={selectedConsultantId ?? ""}
+                      onChange={(event) => {
+                        const next = event.target.value || null;
+                        setSelectedConsultantId(next);
+                      }}
+                      disabled={!consultants.length}
+                      aria-label={t("schedule.consultant")}
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      {consultants.length ? (
+                        consultants.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">{t("schedule.emptyConsultant")}</option>
+                      )}
+                    </select>
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="sr-only">{t("schedule.search")}</span>
+                    <input
+                      type="search"
+                      value={appointmentSearch}
+                      onChange={(event) => setAppointmentSearch(event.target.value)}
+                      placeholder={t("schedule.appointmentsSearchPlaceholder")}
+                      disabled={!selectedConsultantId}
+                      aria-label={t("schedule.search")}
+                      className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="sr-only">{t("schedule.statusFilterLabel")}</span>
+                    <select
+                      value={appointmentStatus}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (
+                          value === "scheduled" ||
+                          value === "in_progress" ||
+                          value === "done" ||
+                          value === "absent"
+                        ) {
+                          setAppointmentStatus(value);
+                          return;
+                        }
+                        setAppointmentStatus("all");
+                      }}
+                      aria-label={t("schedule.statusFilterLabel")}
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      <option value="all">{t("schedule.statusAll")}</option>
+                      <option value="scheduled">{t("schedule.status.scheduled")}</option>
+                      <option value="in_progress">{t("schedule.status.in_progress")}</option>
+                      <option value="done">{t("schedule.status.done")}</option>
+                      <option value="absent">{t("schedule.status.absent")}</option>
+                    </select>
+                  </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="sr-only">{t("schedule.opportunityFilterLabel")}</span>
+                    <select
+                      value={appointmentOpportunity}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setAppointmentOpportunity(value || "all");
+                      }}
+                      aria-label={t("schedule.opportunityFilterLabel")}
+                      className="min-w-[180px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      <option value="all">{t("schedule.opportunityAll")}</option>
+                      {OPPORTUNITY_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {t(`schedule.opportunity.${option.id}`, undefined, option.label)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
+                {isAppointmentsLoading ? (
+                  <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
+                ) : (
+                  <span>
+                    {t("schedule.paginationSummary", appointmentPageSummary)}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  {isAppointmentsLoading ? (
+                    <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    <span>
+                      {t("schedule.paginationPage", {
+                        page: appointmentPage,
+                        total: totalAppointmentPages,
+                      })}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAppointmentPage((current) => Math.max(1, current - 1))
+                    }
+                    disabled={appointmentPage <= 1 || isAppointmentsLoading}
+                    aria-label={t("schedule.paginationPrev")}
+                    className={`rounded-lg border px-3 py-1.5 transition ${
+                      appointmentPage <= 1 || isAppointmentsLoading
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationPrev")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAppointmentPage((current) =>
+                        Math.min(totalAppointmentPages, current + 1),
+                      )
+                    }
+                    disabled={
+                      appointmentPage >= totalAppointmentPages || isAppointmentsLoading
+                    }
+                    aria-label={t("schedule.paginationNext")}
+                    className={`rounded-lg border px-3 py-1.5 transition ${
+                      appointmentPage >= totalAppointmentPages || isAppointmentsLoading
+                        ? "border-slate-200 text-slate-400"
+                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {t("schedule.paginationNext")}
+                  </button>
+                </div>
+              </div>
+
+              {listAppointmentsError ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                  {listAppointmentsError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
+              <div
+                className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600"
+                style={{ gridTemplateColumns: appointmentGridTemplateColumns }}
+              >
+                {appointmentColumns.map((column) => (
+                  <span key={column.id}>{column.label}</span>
+                ))}
+              </div>
+
+              <div className="divide-y divide-slate-200">
+                {!selectedConsultant ? (
+                  <div className="px-5 py-4 text-sm text-slate-500">
+                    {t("schedule.selectConsultantToViewAppointments")}
+                  </div>
+                ) : isAppointmentsLoading ? (
+                  appointmentSkeletonRows.map((index) => (
+                    <div
+                      key={`appointment-skeleton-${index}`}
+                      className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]"
+                      style={{
+                        gridTemplateColumns: appointmentGridTemplateColumns,
+                      }}
+                    >
+                      {appointmentColumns.map((column) => (
+                        <div key={`${index}-${column.id}`} className="min-w-0">
+                          <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  paginatedAppointments.map((appointment) => {
+                    const company = companyById.get(appointment.companyId);
+                    const companyName =
+                      company?.name ?? t("appointment.companyMissing");
+                    const companyDocument =
+                      company?.document ?? t("schedule.companyDocumentMissing");
+                    const startDate = new Date(appointment.startAt);
+                    const dateLabel = Number.isNaN(startDate.getTime())
+                      ? t("schedule.noData")
+                      : formatDateLabel(startDate);
+                    const timeLabel = `${formatTime(appointment.startAt)} - ${formatTime(appointment.endAt)}`;
+                    const isExpired = isExpiredAppointment(appointment, todayStart);
+                    const statusLabel = isExpired
+                      ? t("schedule.statusExpired")
+                      : t(`schedule.status.${appointment.status}`);
+                    const statusTone = isExpired
+                      ? "stone"
+                      : STATUS_TONES[appointment.status];
+                    const consultantLabel =
+                      appointment.consultantName ||
+                      appointment.consultantId ||
+                      t("appointment.notInformed");
+                    return (
+                      <Link
+                        key={appointment.id}
+                        href={`/cronograma/${appointment.id}`}
+                        className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50"
+                        style={{
+                          gridTemplateColumns: appointmentGridTemplateColumns,
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-slate-900">
+                            {companyName}
+                          </div>
+                          <div className="truncate text-xs text-slate-500">
+                            {companyDocument}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-700">
+                            {consultantLabel}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-700">
+                            {dateLabel}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-700">
+                            {timeLabel}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <Badge tone={statusTone} className="max-w-[140px] truncate">
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+
+                {selectedConsultant &&
+                  !isAppointmentsLoading &&
+                  filteredAppointments.length === 0 && (
+                    <div className="px-5 py-4 text-sm text-slate-500">
+                      {t("schedule.noAppointmentsFound")}
+                    </div>
+                  )}
+              </div>
+            </div>
           </div>
         ) : activeTab === "dashboard" ? (
           renderDashboard()
