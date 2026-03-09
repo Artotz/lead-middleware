@@ -148,6 +148,7 @@ const MESSAGES = {
         date: "Data",
         time: "Horario",
         status: "Status",
+        opportunities: "Oportunidades",
       },
       map: {
         companies: "Empresas",

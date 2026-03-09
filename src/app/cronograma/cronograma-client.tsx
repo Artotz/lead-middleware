@@ -1528,6 +1528,7 @@ export default function CronogramaClient({
     { id: "data", label: t("schedule.appointmentList.date"), width: "0.8fr" },
     { id: "horario", label: t("schedule.appointmentList.time"), width: "0.9fr" },
     { id: "status", label: t("schedule.appointmentList.status"), width: "0.7fr" },
+    { id: "oportunidades", label: t("schedule.appointmentList.opportunities"), width: "1.3fr" },
   ] as const;
 
   const appointmentGridTemplateColumns = appointmentColumns
@@ -3128,6 +3129,29 @@ export default function CronogramaClient({
                           <Badge tone={statusTone} className="max-w-[140px] truncate">
                             {statusLabel}
                           </Badge>
+                        </div>
+                        <div className="min-w-0">
+                          {appointment.oportunidades?.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {appointment.oportunidades.map((opportunity) => (
+                                <Badge
+                                  key={`${appointment.id}-${opportunity}`}
+                                  tone="violet"
+                                  className="max-w-[140px] truncate"
+                                >
+                                  {t(
+                                    `schedule.opportunity.${opportunity}`,
+                                    undefined,
+                                    opportunity,
+                                  )}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              {t("schedule.noData")}
+                            </span>
+                          )}
                         </div>
                       </Link>
                     );
