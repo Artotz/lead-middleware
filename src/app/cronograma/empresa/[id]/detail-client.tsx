@@ -320,6 +320,7 @@ export default function CompanyDetailClient({
             "csa, definicao, classe, clientes, vs1_numorc, vs1_filial, vs3_codite, descricao, vs3_qtdite, vs3_valtot, vs1_nclift, vs1_datorc, cnpj, vs1_vtotnf, consultor_bd, consultor_codigo, status",
           )
           .eq("cnpj", cnpj)
+          .eq("status", "ABERTO")
           .order("vs1_datorc", { ascending: false })
           .order("vs1_numorc", { ascending: false });
 

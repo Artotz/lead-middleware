@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
@@ -212,10 +213,68 @@ const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
   return sorted.map((item) => ({ ...item, lane: 0, lanes: 1 }));
 };
 
+const TAB_VALUES = ["cronograma", "agendamentos", "empresas", "dashboard"] as const;
+const VIEW_MODE_VALUES = ["board", "grid", "map"] as const;
+const DASHBOARD_SCOPE_VALUES = ["general", "individual"] as const;
+const COMPANY_SORT_VALUES = [
+  "name",
+  "preventivas",
+  "reconexoes",
+  "cotacoes",
+  "last_visit",
+] as const;
+const APPOINTMENT_SORT_VALUES = [
+  "date_desc",
+  "date_asc",
+  "alpha_asc",
+  "alpha_desc",
+] as const;
+const APPOINTMENT_STATUS_VALUES = [
+  "scheduled",
+  "in_progress",
+  "done",
+  "absent",
+  "atuado",
+] as const;
+
+const parseEnum = <T extends string>(
+  value: string | null,
+  allowed: readonly T[],
+  fallback: T,
+): T => (value && allowed.includes(value as T) ? (value as T) : fallback);
+
+const parsePositiveInt = (value: string | null, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parseMonth = (value: string | null, fallback: Date) => {
+  if (!value) return fallback;
+  const match = /^(\d{4})-(\d{2})$/.exec(value.trim());
+  if (!match) return fallback;
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return fallback;
+  if (month < 0 || month > 11) return fallback;
+  return new Date(year, month, 1);
+};
+
+const toMonthKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+const parseCsv = (value: string | null) =>
+  value
+    ?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean) ?? [];
+
 export default function CronogramaClient({
   initialTab = "cronograma",
   locale,
 }: CronogramaClientProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {
     range,
     appointments,
@@ -231,6 +290,44 @@ export default function CronogramaClient({
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
+  const urlState = useMemo(() => {
+    const selectedMonthFallback = new Date(today.getFullYear(), today.getMonth(), 1);
+    const appointmentOpportunityIds = new Set(
+      OPPORTUNITY_OPTIONS.map((option) => option.id),
+    );
+    const appointmentStatus = parseCsv(searchParams.get("astatus")).filter(
+      (status): status is SupabaseAppointmentStatus =>
+        APPOINTMENT_STATUS_VALUES.includes(status as SupabaseAppointmentStatus),
+    );
+    const appointmentOpportunity = parseCsv(searchParams.get("aopp")).filter(
+      (opportunity) => appointmentOpportunityIds.has(opportunity),
+    );
+    return {
+      activeTab: parseEnum(searchParams.get("tab"), TAB_VALUES, initialTab),
+      viewMode: parseEnum(searchParams.get("view"), VIEW_MODE_VALUES, "board"),
+      dashboardScope: parseEnum(
+        searchParams.get("dscope"),
+        DASHBOARD_SCOPE_VALUES,
+        "general",
+      ),
+      companySort: parseEnum(searchParams.get("csort"), COMPANY_SORT_VALUES, "name"),
+      companyPage: parsePositiveInt(searchParams.get("cpage"), 1),
+      companySearch: searchParams.get("csearch")?.trim() ?? "",
+      showOutsidePortfolio: searchParams.get("outside") === "1",
+      appointmentSearch: searchParams.get("asearch")?.trim() ?? "",
+      appointmentSort: parseEnum(
+        searchParams.get("asort"),
+        APPOINTMENT_SORT_VALUES,
+        "date_desc",
+      ),
+      appointmentPage: parsePositiveInt(searchParams.get("apage"), 1),
+      appointmentStatus,
+      appointmentOpportunity,
+      selectedMonth: parseMonth(searchParams.get("month"), selectedMonthFallback),
+      selectedWeekIndex: Math.max(0, parsePositiveInt(searchParams.get("week"), 1) - 1),
+      consultantId: searchParams.get("consultor")?.trim() || null,
+    };
+  }, [searchParams, initialTab, today]);
   const normalizeConsultantText = useCallback(
     (value: string | null | undefined) =>
       value ? value.replace(/\s+/g, " ").trim() : "",
@@ -255,12 +352,14 @@ export default function CronogramaClient({
     [currencyFormatter, t],
   );
 
-  const [viewMode, setViewMode] = useState<"board" | "grid" | "map">("board");
-  const [activeTab, setActiveTab] = useState<
+  const [viewMode, setViewMode] = useState<"board" | "grid" | "map">(
+    urlState.viewMode,
+  );
+  const [activeTab] = useState<
     "cronograma" | "agendamentos" | "empresas" | "dashboard"
-  >(initialTab);
+  >(urlState.activeTab);
   const [dashboardScope, setDashboardScope] =
-    useState<DashboardScope>("general");
+    useState<DashboardScope>(urlState.dashboardScope);
   const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
     [],
   );
@@ -279,38 +378,43 @@ export default function CronogramaClient({
   const activityRequestIdRef = useRef(0);
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
-  >("name");
-  const [companyPage, setCompanyPage] = useState(1);
-  const [appointmentSearch, setAppointmentSearch] = useState("");
+  >(urlState.companySort);
+  const [companyPage, setCompanyPage] = useState(urlState.companyPage);
+  const [appointmentSearch, setAppointmentSearch] = useState(
+    urlState.appointmentSearch,
+  );
   const [appointmentStatus, setAppointmentStatus] = useState<
     SupabaseAppointmentStatus[]
-  >([]);
-  const [appointmentOpportunity, setAppointmentOpportunity] =
-    useState<string[]>([]);
+  >(urlState.appointmentStatus);
+  const [appointmentOpportunity, setAppointmentOpportunity] = useState<string[]>(
+    urlState.appointmentOpportunity,
+  );
   const [appointmentSort, setAppointmentSort] = useState<
     "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc"
-  >("date_desc");
-  const [appointmentPage, setAppointmentPage] = useState(1);
+  >(urlState.appointmentSort);
+  const [appointmentPage, setAppointmentPage] = useState(urlState.appointmentPage);
   const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
   const [listAppointmentsLoading, setListAppointmentsLoading] = useState(false);
   const [listAppointmentsError, setListAppointmentsError] = useState<
     string | null
   >(null);
   const listAppointmentsRequestIdRef = useRef(0);
-  const [showOutsidePortfolio, setShowOutsidePortfolio] = useState(false);
+  const [showOutsidePortfolio, setShowOutsidePortfolio] = useState(
+    urlState.showOutsidePortfolio,
+  );
   const [loadedConsultantId, setLoadedConsultantId] = useState<string | null>(
     null,
   );
   const companiesPerPage = 20;
   const appointmentsPerPage = 20;
-  const [selectedMonth, setSelectedMonth] = useState(
-    () => new Date(today.getFullYear(), today.getMonth(), 1),
+  const [selectedMonth, setSelectedMonth] = useState(() => urlState.selectedMonth);
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState(
+    urlState.selectedWeekIndex,
   );
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
-  const [companySearch, setCompanySearch] = useState("");
+  const [companySearch, setCompanySearch] = useState(urlState.companySearch);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [protheusCounts, setProtheusCounts] = useState<
@@ -331,6 +435,8 @@ export default function CronogramaClient({
   const [lastVisitLoading, setLastVisitLoading] = useState(false);
   const [lastVisitError, setLastVisitError] = useState<string | null>(null);
   const lastVisitRequestIdRef = useRef(0);
+  const skipConsultantResetRef = useRef(true);
+  const queryConsultantAppliedRef = useRef(false);
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -370,14 +476,28 @@ export default function CronogramaClient({
 
   useEffect(() => {
     if (!weeks.length) return;
-    const todayKey = toDateKey(today);
-    const index = weeks.findIndex(
-      (week) =>
-        todayKey >= toDateKey(week.startAt) &&
-        todayKey <= toDateKey(week.endAt),
-    );
-    setSelectedWeekIndex(index >= 0 ? index : 0);
-  }, [selectedMonth, weeks, today]);
+    setSelectedWeekIndex((current) => {
+      if (current >= 0 && current < weeks.length) return current;
+      const todayKey = toDateKey(today);
+      const index = weeks.findIndex(
+        (week) =>
+          todayKey >= toDateKey(week.startAt) &&
+          todayKey <= toDateKey(week.endAt),
+      );
+      return index >= 0 ? index : 0;
+    });
+  }, [weeks, today]);
+
+  useEffect(() => {
+    if (queryConsultantAppliedRef.current) return;
+    if (!consultants.length) return;
+    queryConsultantAppliedRef.current = true;
+    if (!urlState.consultantId) return;
+    const exists = consultants.some((item) => item.id === urlState.consultantId);
+    if (exists && selectedConsultantId !== urlState.consultantId) {
+      setSelectedConsultantId(urlState.consultantId);
+    }
+  }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
 
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
   const defaultCreateDate = useMemo(() => {
@@ -395,6 +515,10 @@ export default function CronogramaClient({
   }, [selectedWeek, setRange]);
 
   useEffect(() => {
+    if (skipConsultantResetRef.current) {
+      skipConsultantResetRef.current = false;
+      return;
+    }
     setCompanySort("name");
     setCompanySearch("");
     setCompanyPage(1);
@@ -404,6 +528,67 @@ export default function CronogramaClient({
     setAppointmentOpportunity([]);
     setAppointmentPage(1);
   }, [selectedConsultantId]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (activeTab !== initialTab) next.set("tab", activeTab);
+    else next.delete("tab");
+    if (selectedConsultantId) next.set("consultor", selectedConsultantId);
+    else next.delete("consultor");
+    next.set("month", toMonthKey(selectedMonth));
+    next.set("week", String(selectedWeekIndex + 1));
+    if (viewMode !== "board") next.set("view", viewMode);
+    else next.delete("view");
+    if (dashboardScope !== "general") next.set("dscope", dashboardScope);
+    else next.delete("dscope");
+    if (companySearch.trim()) next.set("csearch", companySearch.trim());
+    else next.delete("csearch");
+    if (companySort !== "name") next.set("csort", companySort);
+    else next.delete("csort");
+    if (companyPage > 1) next.set("cpage", String(companyPage));
+    else next.delete("cpage");
+    if (showOutsidePortfolio) next.set("outside", "1");
+    else next.delete("outside");
+    if (appointmentSearch.trim()) next.set("asearch", appointmentSearch.trim());
+    else next.delete("asearch");
+    if (appointmentStatus.length) next.set("astatus", appointmentStatus.join(","));
+    else next.delete("astatus");
+    if (appointmentOpportunity.length) {
+      next.set("aopp", appointmentOpportunity.join(","));
+    } else {
+      next.delete("aopp");
+    }
+    if (appointmentSort !== "date_desc") next.set("asort", appointmentSort);
+    else next.delete("asort");
+    if (appointmentPage > 1) next.set("apage", String(appointmentPage));
+    else next.delete("apage");
+
+    const currentQuery = searchParams.toString();
+    const nextQuery = next.toString();
+    if (currentQuery === nextQuery) return;
+    const href = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(href, { scroll: false });
+  }, [
+    activeTab,
+    appointmentOpportunity,
+    appointmentPage,
+    appointmentSearch,
+    appointmentSort,
+    appointmentStatus,
+    companyPage,
+    companySearch,
+    companySort,
+    dashboardScope,
+    initialTab,
+    pathname,
+    router,
+    searchParams,
+    selectedConsultantId,
+    selectedMonth,
+    selectedWeekIndex,
+    showOutsidePortfolio,
+    viewMode,
+  ]);
 
   const weekDays = useMemo(() => {
     if (!selectedWeek) return [];
@@ -1068,7 +1253,8 @@ export default function CronogramaClient({
           const { data, error } = await supabase
             .from("base_csa_orc")
             .select("cnpj, vs1_numorc, vs1_filial, vs1_vtotnf, status")
-            .in("cnpj", chunk);
+            .in("cnpj", chunk)
+            .eq("status", "ABERTO");
 
           if (requestId !== openQuotesRequestIdRef.current) return;
 
