@@ -16,7 +16,8 @@ export type SupabaseAppointmentStatus =
   | "scheduled"
   | "in_progress"
   | "done"
-  | "absent";
+  | "absent"
+  | "atuado";
 
 export type ScheduleBadgeTone =
   | "sky"
@@ -178,6 +179,7 @@ export const STATUS_LABELS: Record<SupabaseAppointmentStatus, string> = {
   in_progress: "Em execucao",
   done: "Concluido",
   absent: "Ausente",
+  atuado: "Atuado",
 };
 
 export const STATUS_TONES: Record<SupabaseAppointmentStatus, ScheduleBadgeTone> =
@@ -186,6 +188,7 @@ export const STATUS_TONES: Record<SupabaseAppointmentStatus, ScheduleBadgeTone> 
     in_progress: "sky",
     done: "emerald",
     absent: "rose",
+    atuado: "violet",
   };
 
 export const OPPORTUNITY_OPTIONS = [
@@ -232,6 +235,7 @@ const normalizeStatus = (
   if (value === "in_progress") return "in_progress";
   if (value === "done") return "done";
   if (value === "absent") return "absent";
+  if (value === "atuado") return "atuado";
   return "scheduled";
 };
 
@@ -410,7 +414,9 @@ export const isSameDay = (a: Date, b: Date): boolean =>
   a.getDate() === b.getDate();
 
 export const isAppointmentDone = (appointment: Appointment): boolean =>
-  appointment.status === "done" || Boolean(appointment.checkOutAt);
+  appointment.status === "done" ||
+  appointment.status === "atuado" ||
+  Boolean(appointment.checkOutAt);
 
 export const isAppointmentAbsent = (appointment: Appointment): boolean =>
   appointment.status === "absent" || Boolean(appointment.absenceReason);

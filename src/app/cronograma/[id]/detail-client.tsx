@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { useSchedule } from "@/contexts/ScheduleContext";
@@ -33,7 +34,7 @@ type AppointmentRow = {
   consultant_name: string | null;
   starts_at: string;
   ends_at: string;
-  status: "scheduled" | "in_progress" | "done" | "absent" | null;
+  status: "scheduled" | "in_progress" | "done" | "absent" | "atuado" | null;
   check_in_at: string | null;
   check_out_at: string | null;
   check_in_lat: number | null;
@@ -136,6 +137,12 @@ export default function AppointmentDetailClient({
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [actionType, setActionType] = useState("");
+  const [actionNote, setActionNote] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const actionCloseButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const company = useMemo(
     () => companies.find((item) => item.id === appointment?.companyId),
@@ -339,10 +346,96 @@ export default function AppointmentDetailClient({
     return ordered.filter((key) => activityGroups.has(key));
   }, [activityGroups]);
 
+  const actionOptions = useMemo(
+    () => [
+      { id: "reconexao", label: t("appointment.action.types.reconexao") },
+      { id: "medicao_mr", label: t("appointment.action.types.medicao_mr") },
+      {
+        id: "proposta_preventiva",
+        label: t("appointment.action.types.proposta_preventiva"),
+      },
+      {
+        id: "proposta_powergard",
+        label: t("appointment.action.types.proposta_powergard"),
+      },
+      { id: "outro", label: t("appointment.action.types.outro") },
+    ],
+    [t],
+  );
+
   const handleRefreshMedia = useCallback(() => {
     if (!appointmentId) return;
     void loadMedia(appointmentId);
   }, [appointmentId, loadMedia]);
+
+  const canRegisterAction =
+    appointment?.status === "done" || appointment?.status === "atuado";
+
+  useEffect(() => {
+    if (!actionModalOpen) return;
+    setActionType("");
+    setActionNote("");
+    setActionError(null);
+    const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [actionModalOpen]);
+
+  const handleConfirmAction = useCallback(async () => {
+    if (!appointment || !appointmentId) return;
+    if (!actionType) {
+      setActionError(t("appointment.action.typeRequired"));
+      return;
+    }
+    setActionLoading(true);
+    setActionError(null);
+
+    const actionLabel =
+      actionOptions.find((option) => option.id === actionType)?.label ??
+      actionType;
+    const timestamp = `${formatDateLabel(new Date())} · ${formatTime(
+      new Date(),
+    )}`;
+    const note = actionNote.trim();
+    const entry = note
+      ? `${t("appointment.action.logPrefix")}: ${actionLabel} (${timestamp}) - ${note}`
+      : `${t("appointment.action.logPrefix")}: ${actionLabel} (${timestamp})`;
+    const currentNotes = appointment.notes?.trim();
+    const nextNotes = currentNotes ? `${currentNotes}\n${entry}` : entry;
+
+    try {
+      const { data, error } = await supabase
+        .from("apontamentos")
+        .update({ status: "atuado", notes: nextNotes })
+        .eq("id", appointmentId)
+        .select(APPOINTMENT_SELECT)
+        .maybeSingle();
+
+      if (error) {
+        console.error(error);
+        setActionError(t("appointment.action.loadError"));
+        setActionLoading(false);
+        return;
+      }
+
+      if (data) {
+        setAppointment(mapAppointment(data as AppointmentRow));
+      }
+      setActionModalOpen(false);
+      setActionLoading(false);
+    } catch (err) {
+      console.error(err);
+      setActionError(t("appointment.action.loadError"));
+      setActionLoading(false);
+    }
+  }, [
+    actionNote,
+    actionOptions,
+    actionType,
+    appointment,
+    appointmentId,
+    supabase,
+    t,
+  ]);
 
   if (appointmentLoading && !appointment) {
     return (
@@ -400,6 +493,29 @@ export default function AppointmentDetailClient({
         >
           {t("appointment.backToSchedule")}
         </Link>
+        <button
+          type="button"
+          onClick={() => setActionModalOpen(true)}
+          disabled={!canRegisterAction || appointment.status === "atuado"}
+          title={
+            appointment.status === "atuado"
+              ? t("appointment.action.registered")
+              : !canRegisterAction
+                ? t("appointment.action.doneRequired")
+                : undefined
+          }
+          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+            appointment.status === "atuado"
+              ? "border-violet-200 bg-violet-50 text-violet-700"
+              : !canRegisterAction
+                ? "border-slate-200 bg-white text-slate-400"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+          }`}
+        >
+          {appointment.status === "atuado"
+            ? t("appointment.action.registered")
+            : t("appointment.action.button")}
+        </button>
       </div>
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_0.9fr]">
@@ -748,6 +864,105 @@ export default function AppointmentDetailClient({
           </div>
         </div>
       </div>
+
+      {actionModalOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                if (e.target === e.currentTarget) setActionModalOpen(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("appointment.action.dialogLabel")}
+            >
+              <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="space-y-1">
+                    <h2 className="text-base font-semibold text-slate-900">
+                      {t("appointment.action.dialogTitle")}
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      {t("appointment.action.dialogSubtitle")}
+                    </p>
+                  </div>
+                  <button
+                    ref={actionCloseButtonRef}
+                    type="button"
+                    onClick={() => setActionModalOpen(false)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    {t("createAppointment.close")}
+                  </button>
+                </div>
+
+                <div className="space-y-4 p-5">
+                  {actionError ? (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                      {actionError}
+                    </div>
+                  ) : null}
+
+                  <label className="space-y-1 text-sm font-semibold text-slate-700">
+                    <span>
+                      {t("appointment.action.typeLabel")}{" "}
+                      <span className="text-rose-600">*</span>
+                    </span>
+                    <select
+                      value={actionType}
+                      onChange={(event) => setActionType(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                    >
+                      <option value="">
+                        {t("appointment.action.typePlaceholder")}
+                      </option>
+                      {actionOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1 text-sm font-semibold text-slate-700">
+                    <span>{t("appointment.action.noteLabel")}</span>
+                    <textarea
+                      value={actionNote}
+                      onChange={(event) => setActionNote(event.target.value)}
+                      rows={4}
+                      className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      placeholder={t("appointment.action.notePlaceholder")}
+                    />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => setActionModalOpen(false)}
+                    disabled={actionLoading}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                  >
+                    {t("appointment.action.cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAction}
+                    disabled={actionLoading}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {actionLoading
+                      ? t("appointment.action.saving")
+                      : t("appointment.action.confirm")}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </PageShell>
   );
 }

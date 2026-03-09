@@ -106,6 +106,7 @@ const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
   done: "border-emerald-300 bg-emerald-50 text-emerald-900",
   absent: "border-rose-300 bg-rose-50 text-rose-900",
+  atuado: "border-violet-300 bg-violet-50 text-violet-900",
 };
 
 const statusChartColors: Record<SupabaseAppointmentStatus, string> = {
@@ -113,6 +114,7 @@ const statusChartColors: Record<SupabaseAppointmentStatus, string> = {
   in_progress: "#0EA5E9",
   done: "#10B981",
   absent: "#F43F5E",
+  atuado: "#8B5CF6",
 };
 
 const toNumber = (value: number | string | null | undefined): number | null => {
@@ -458,6 +460,7 @@ export default function CronogramaClient({
       in_progress: 0,
       done: 0,
       absent: 0,
+      atuado: 0,
     };
     let checkIns = 0;
     let checkOuts = 0;
@@ -573,7 +576,9 @@ export default function CronogramaClient({
       ? Math.round((totalAppointments / daysWithVisits) * 10) / 10
       : 0;
     const doneRate = totalAppointments
-      ? Math.round((statusTotals.done / totalAppointments) * 100)
+      ? Math.round(
+          ((statusTotals.done + statusTotals.atuado) / totalAppointments) * 100,
+        )
       : 0;
     const absentRate = totalAppointments
       ? Math.round((statusTotals.absent / totalAppointments) * 100)
@@ -635,6 +640,12 @@ export default function CronogramaClient({
         label: t("schedule.status.absent"),
         count: dashboardMetrics.statusTotals.absent,
         color: statusChartColors.absent,
+      },
+      {
+        id: "atuado",
+        label: t("schedule.status.atuado"),
+        count: dashboardMetrics.statusTotals.atuado,
+        color: statusChartColors.atuado,
       },
     ],
     [dashboardMetrics.statusTotals, t],
@@ -2937,7 +2948,8 @@ export default function CronogramaClient({
                           value === "scheduled" ||
                           value === "in_progress" ||
                           value === "done" ||
-                          value === "absent"
+                          value === "absent" ||
+                          value === "atuado"
                         ) {
                           setAppointmentStatus(value);
                           return;
@@ -2952,6 +2964,7 @@ export default function CronogramaClient({
                       <option value="in_progress">{t("schedule.status.in_progress")}</option>
                       <option value="done">{t("schedule.status.done")}</option>
                       <option value="absent">{t("schedule.status.absent")}</option>
+                      <option value="atuado">{t("schedule.status.atuado")}</option>
                     </select>
                   </label>
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
