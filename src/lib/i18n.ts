@@ -457,7 +457,7 @@ const MESSAGES = {
       itemsTitle: "Itens do orçamento",
       item: "Item",
       quantity: "Qtd",
-      value: "Valor",
+      value: "Valor Final",
       itemNoDescription: "Item sem descrição",
       sourceProtheus: "Fonte: Protheus",
       loadingOpportunities: "Carregando oportunidades...",
