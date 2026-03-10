@@ -260,6 +260,13 @@ const parseMonth = (value: string | null, fallback: Date) => {
   return new Date(year, month, 1);
 };
 
+const parseWeekIndex = (value: string | null): number | null => {
+  if (value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed - 1;
+};
+
 const toMonthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
@@ -294,6 +301,20 @@ export default function CronogramaClient({
   const today = useMemo(() => new Date(), []);
   const urlState = useMemo(() => {
     const selectedMonthFallback = new Date(today.getFullYear(), today.getMonth(), 1);
+    const selectedMonth = parseMonth(searchParams.get("month"), selectedMonthFallback);
+    const weekParamIndex = parseWeekIndex(searchParams.get("week"));
+    const defaultWeekIndex = (() => {
+      if (weekParamIndex != null) return weekParamIndex;
+      const monthWeeks = getWeeksForMonth(selectedMonth);
+      if (!monthWeeks.length) return 0;
+      const todayKey = toDateKey(today);
+      const currentWeekIndex = monthWeeks.findIndex(
+        (week) =>
+          todayKey >= toDateKey(week.startAt) &&
+          todayKey <= toDateKey(week.endAt),
+      );
+      return currentWeekIndex >= 0 ? currentWeekIndex : 0;
+    })();
     const appointmentOpportunityIds = new Set(
       OPPORTUNITY_OPTIONS.map((option) => option.id),
     );
@@ -325,8 +346,8 @@ export default function CronogramaClient({
       appointmentPage: parsePositiveInt(searchParams.get("apage"), 1),
       appointmentStatus,
       appointmentOpportunity,
-      selectedMonth: parseMonth(searchParams.get("month"), selectedMonthFallback),
-      selectedWeekIndex: Math.max(0, parsePositiveInt(searchParams.get("week"), 1) - 1),
+      selectedMonth,
+      selectedWeekIndex: defaultWeekIndex,
       consultantId: searchParams.get("consultor")?.trim() || null,
     };
   }, [searchParams, initialTab, today]);
