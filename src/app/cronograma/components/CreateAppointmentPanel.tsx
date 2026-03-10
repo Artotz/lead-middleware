@@ -154,9 +154,10 @@ export function CreateAppointmentModal({
   onCreated,
   t,
 }: CreateAppointmentModalProps) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const toast = useToast();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const canCreateAppointment = role === "admin";
 
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [isOutsidePortfolio, setIsOutsidePortfolio] = useState(false);
@@ -304,6 +305,15 @@ export function CreateAppointmentModal({
     hasCompanySelection && Boolean(consultantId) && !timeError && !loading;
 
   const handleCreate = async () => {
+    if (!canCreateAppointment) {
+      const message = t("createAppointment.permissionDenied");
+      setError(message);
+      toast.push({
+        variant: "error",
+        message,
+      });
+      return;
+    }
     if (!canCreate) return;
     if (!startDateTime || !endDateTime) return;
 

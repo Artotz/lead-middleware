@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -14,9 +15,12 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 type AuthState = {
   user: User | null;
   session: Session | null;
+  role: UserRole;
   loading: boolean;
   error: string | null;
 };
+
+export type UserRole = "admin" | "standard";
 
 type AuthContextValue = AuthState;
 
@@ -27,10 +31,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     session: null,
+    role: "standard",
     loading: true,
     error: null,
   });
   const didValidateUserRef = useRef(false);
+
+  const resolveUserRole = useCallback(
+    async (userId: string | undefined): Promise<UserRole> => {
+      if (!userId) return "standard";
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) {
+        console.error(error);
+        return "standard";
+      }
+      const role = data?.role;
+      return role === "admin" ? "admin" : "standard";
+    },
+    [supabase],
+  );
 
   useEffect(() => {
     let active = true;
@@ -42,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession();
+      const role = await resolveUserRole(session?.user?.id);
 
       if (!active) return;
 
@@ -49,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         session,
         user: session?.user ?? null,
+        role,
         error: sessionError?.message ?? null,
         loading: true,
       }));
@@ -60,12 +85,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { user },
           error: userError,
         } = await supabase.auth.getUser();
+        const validatedRole = await resolveUserRole(user?.id);
 
         if (!active) return;
 
         setState((prev) => ({
           ...prev,
           user: user ?? null,
+          role: validatedRole,
           error: userError?.message ?? prev.error ?? null,
           loading: false,
         }));
@@ -80,20 +107,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      setState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-        error: null,
-      });
+      void (async () => {
+        if (!active) return;
+        const role = await resolveUserRole(session?.user?.id);
+        if (!active) return;
+        setState({
+          user: session?.user ?? null,
+          session,
+          role,
+          loading: false,
+          error: null,
+        });
+      })();
     });
 
     return () => {
       active = false;
       subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [resolveUserRole, supabase]);
 
   const value = useMemo(() => state, [state]);
 

@@ -22,6 +22,7 @@ import { Badge } from "@/components/Badge";
 import { LeadTypesMultiSelect } from "@/components/LeadTypesMultiSelect";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSchedule } from "@/contexts/ScheduleContext";
 import {
   buildDocumentVariants,
@@ -288,6 +289,7 @@ export default function CronogramaClient({
     setSelectedConsultantId,
   } = useSchedule();
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
+  const { role } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
   const urlState = useMemo(() => {
@@ -452,6 +454,7 @@ export default function CronogramaClient({
   const opportunityBadgeLimit = 2;
   const suggestionHighlightClass =
     "border-warning/80 bg-amber-100 ring-1 ring-warning/30";
+  const canCreateAppointment = role === "admin";
 
   const isSuggestedAppointment = useCallback(
     (appointment: Appointment) => {
@@ -2632,8 +2635,17 @@ export default function CronogramaClient({
                   </button> */}
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal((prev) => !prev)}
-                    className={`w-full sm:w-auto ${primaryButtonClass}`}
+                    onClick={() => {
+                      if (!canCreateAppointment) return;
+                      setShowCreateModal((prev) => !prev);
+                    }}
+                    disabled={!canCreateAppointment}
+                    title={
+                      canCreateAppointment
+                        ? undefined
+                        : t("schedule.createAppointmentDisabled")
+                    }
+                    className={`w-full sm:w-auto ${primaryButtonClass} disabled:cursor-not-allowed disabled:opacity-60`}
                     aria-expanded={showCreateModal}
                   >
                     {showCreateModal

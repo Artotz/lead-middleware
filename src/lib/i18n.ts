@@ -89,6 +89,8 @@ const MESSAGES = {
       viewMap: "Mapa",
       closeCreate: "Fechar criação",
       createAppointment: "Criar apontamento",
+      createAppointmentDisabled:
+        "Somente administradores podem criar apontamentos.",
       selectWeek: "Selecionar semana",
       weekOf: "Semana de {label}",
       today: "Hoje",
@@ -293,6 +295,7 @@ const MESSAGES = {
       cancel: "Cancelar",
       creating: "Criando...",
       create: "Criar apontamento",
+      permissionDenied: "Somente administradores podem criar apontamentos.",
       companyNameRequired: "Informe o nome da empresa.",
       createCompanyError: "Nao foi possivel criar a empresa.",
       createError: "Não foi possível criar o apontamento.",
@@ -402,6 +405,8 @@ const MESSAGES = {
       notFound: "Empresa não encontrada.",
       backToSchedule: "Voltar ao cronograma",
       createAppointment: "Criar apontamento",
+      createAppointmentDisabled:
+        "Somente administradores podem criar apontamentos.",
       documentMissing: "Documento não informado",
       appointmentsLoadError: "Não foi possível carregar os apontamentos.",
       quotesLoadError: "Não foi possível carregar os orçamentos.",

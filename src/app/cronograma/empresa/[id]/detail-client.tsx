@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSchedule } from "@/contexts/ScheduleContext";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
@@ -157,6 +158,7 @@ export default function CompanyDetailClient({
   } = useSchedule();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
+  const { role } = useAuth();
 
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(locale),
@@ -216,6 +218,7 @@ export default function CompanyDetailClient({
   const [protheusError, setProtheusError] = useState<string | null>(null);
   const protheusRequestIdRef = useRef(0);
   const appointmentsPerPage = 10;
+  const canCreateAppointment = role === "admin";
 
   const company = useMemo(
     () => companies.find((item) => item.id === companyId),
@@ -223,9 +226,10 @@ export default function CompanyDetailClient({
   );
 
   const openCreateModal = useCallback(() => {
+    if (!canCreateAppointment) return;
     setCreateModalDate(new Date());
     setCreateModalOpen(true);
-  }, []);
+  }, [canCreateAppointment]);
 
   const loadAppointments = useCallback(
     async (id: string) => {
@@ -616,7 +620,13 @@ export default function CompanyDetailClient({
         <button
           type="button"
           onClick={openCreateModal}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+          disabled={!canCreateAppointment}
+          title={
+            canCreateAppointment
+              ? undefined
+              : t("company.createAppointmentDisabled")
+          }
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {t("company.createAppointment")}
         </button>
