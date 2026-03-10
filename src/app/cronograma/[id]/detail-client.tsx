@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Badge } from "@/components/Badge";
 import { PageShell } from "@/components/PageShell";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSchedule } from "@/contexts/ScheduleContext";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
@@ -83,6 +84,7 @@ type AppointmentAction = {
   valor: number | null;
   motivoPerda: string | null;
   observacao: string | null;
+  createdBy: string | null;
   createdAt: string | null;
 };
 
@@ -134,6 +136,7 @@ export default function AppointmentDetailClient({
   const params = useParams();
   const appointmentId = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const { companies } = useSchedule();
+  const { user } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const [appointment, setAppointment] = useState<Appointment | null>(null);
@@ -295,7 +298,7 @@ export default function AppointmentDetailClient({
         const { data, error } = await supabase
           .from("apontamento_acoes")
           .select(
-            "id, resultado, nf_ou_os, valor, motivo_perda, observacao, created_at",
+            "id, resultado, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at",
           )
           .eq("apontamento_id", id)
           .order("created_at", { ascending: false })
@@ -325,6 +328,7 @@ export default function AppointmentDetailClient({
           valor: data.valor ?? null,
           motivoPerda: data.motivo_perda ?? null,
           observacao: data.observacao ?? null,
+          createdBy: data.created_by ?? null,
           createdAt: data.created_at ?? null,
         });
         setAppointmentActionLoading(false);
@@ -504,6 +508,7 @@ export default function AppointmentDetailClient({
           valor: actionResult === "vendido" ? normalizedValue : null,
           motivo_perda: actionResult === "perdido" ? actionLossReason : null,
           observacao: actionNote.trim() || null,
+          created_by: user?.email?.trim() || null,
         });
 
       if (insertError) {
@@ -552,6 +557,7 @@ export default function AppointmentDetailClient({
     loadAppointmentAction,
     supabase,
     t,
+    user,
     actionValue,
   ]);
 
@@ -830,6 +836,13 @@ export default function AppointmentDetailClient({
                     {appointmentAction.observacao}
                   </div>
                 ) : null}
+                <div>
+                  <span className="font-semibold text-slate-600">
+                    {t("appointment.action.createdByLabel")}:{" "}
+                  </span>
+                  {appointmentAction.createdBy?.trim() ||
+                    t("appointment.notInformed")}
+                </div>
                 {appointmentAction.createdAt ? (
                   <div className="text-xs text-slate-500">
                     {t("appointment.action.createdAt", {

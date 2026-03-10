@@ -361,6 +361,7 @@ const MESSAGES = {
         sectionTitle: "Atuação",
         loading: "Carregando atuação...",
         empty: "Nenhuma atuação registrada.",
+        createdByLabel: "Registrado por",
         createdAt: "Registrado em {date} · {time}",
         resultLabel: "Resultado",
         resultPlaceholder: "Selecione o resultado",
