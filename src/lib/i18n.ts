@@ -103,6 +103,7 @@ const MESSAGES = {
         "Buscar por empresa, documento ou carteira",
       searchPlaceholderNoConsultant: "Selecione um consultor",
       outsidePortfolioToggle: "Fora Carteira?",
+      showCanceledToggle: "Mostrar cancelados?",
       orderBy: "Ordenar",
       orderByName: "Nome",
       orderByPreventivas: "Preventivas",

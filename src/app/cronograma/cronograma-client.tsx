@@ -322,6 +322,10 @@ export default function CronogramaClient({
       (status): status is SupabaseAppointmentStatus =>
         APPOINTMENT_STATUS_VALUES.includes(status as SupabaseAppointmentStatus),
     );
+    const cronogramaStatus = parseCsv(searchParams.get("cstatus")).filter(
+      (status): status is SupabaseAppointmentStatus =>
+        APPOINTMENT_STATUS_VALUES.includes(status as SupabaseAppointmentStatus),
+    );
     const appointmentOpportunity = parseCsv(searchParams.get("aopp")).filter(
       (opportunity) => appointmentOpportunityIds.has(opportunity),
     );
@@ -345,6 +349,7 @@ export default function CronogramaClient({
       ),
       appointmentPage: parsePositiveInt(searchParams.get("apage"), 1),
       appointmentStatus,
+      cronogramaStatus,
       appointmentOpportunity,
       selectedMonth,
       selectedWeekIndex: defaultWeekIndex,
@@ -412,6 +417,9 @@ export default function CronogramaClient({
   const [appointmentOpportunity, setAppointmentOpportunity] = useState<string[]>(
     urlState.appointmentOpportunity,
   );
+  const [cronogramaStatus, setCronogramaStatus] = useState<
+    SupabaseAppointmentStatus[]
+  >(urlState.cronogramaStatus);
   const [appointmentSort, setAppointmentSort] = useState<
     "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc"
   >(urlState.appointmentSort);
@@ -551,6 +559,7 @@ export default function CronogramaClient({
     setAppointmentStatus([]);
     setAppointmentOpportunity([]);
     setAppointmentPage(1);
+    setCronogramaStatus([]);
   }, [selectedConsultantId]);
 
   useEffect(() => {
@@ -586,6 +595,12 @@ export default function CronogramaClient({
     else next.delete("asort");
     if (appointmentPage > 1) next.set("apage", String(appointmentPage));
     else next.delete("apage");
+    if (activeTab === "cronograma" && cronogramaStatus.length) {
+      next.set("cstatus", cronogramaStatus.join(","));
+    } else {
+      next.delete("cstatus");
+    }
+    next.delete("acancel");
 
     const currentQuery = searchParams.toString();
     const nextQuery = next.toString();
@@ -599,6 +614,7 @@ export default function CronogramaClient({
     appointmentSearch,
     appointmentSort,
     appointmentStatus,
+    cronogramaStatus,
     companyPage,
     companySearch,
     companySort,
@@ -664,7 +680,12 @@ export default function CronogramaClient({
       map.set(appointment.id, consultantLabel);
     });
     return map;
-  }, [dashboardAppointments, consultantNameMap, normalizeConsultantText, t]);
+  }, [
+    dashboardAppointments,
+    consultantNameMap,
+    normalizeConsultantText,
+    t,
+  ]);
 
   const dashboardMetrics = useMemo(() => {
     const statusTotals: Record<SupabaseAppointmentStatus, number> = {
@@ -946,9 +967,19 @@ export default function CronogramaClient({
       .slice(0, 6);
   }, [activityByConsultantCounts]);
 
+  const visibleAppointments = useMemo(
+    () =>
+      cronogramaStatus.length > 0
+        ? appointments.filter((appointment) =>
+            cronogramaStatus.includes(appointment.status),
+          )
+        : appointments,
+    [appointments, cronogramaStatus],
+  );
+
   const timelineByDay = useMemo(() => {
     const map = new Map<string, TimelineItem[]>();
-    appointments.forEach((appointment) => {
+    visibleAppointments.forEach((appointment) => {
       const range = resolveTimelineRange(appointment);
       const dateKey = toDateKey(range.start);
       const bucket = map.get(dateKey) ?? [];
@@ -956,7 +987,7 @@ export default function CronogramaClient({
       map.set(dateKey, bucket);
     });
     return map;
-  }, [appointments]);
+  }, [visibleAppointments]);
 
   const timelineHours = useMemo(() => {
     let min = 7;
@@ -997,7 +1028,7 @@ export default function CronogramaClient({
     [consultants, selectedConsultantId],
   );
 
-  const totalAppointments = appointments.length;
+  const totalAppointments = visibleAppointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
   const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase();
 
@@ -1979,29 +2010,31 @@ export default function CronogramaClient({
                 </select>
               </label>
               {dashboardScope === "individual" ? (
-                <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                  <span className="sr-only">{t("schedule.consultant")}</span>
-                  <select
-                    value={selectedConsultantId ?? ""}
-                    onChange={(event) => {
-                      const next = event.target.value || null;
-                      setSelectedConsultantId(next);
-                    }}
-                    disabled={!consultants.length}
-                    aria-label={t("schedule.consultant")}
-                    className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                  >
-                    {consultants.length ? (
-                      consultants.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">{t("schedule.emptyConsultant")}</option>
-                    )}
-                  </select>
-                </label>
+                <>
+                  <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                    <span className="sr-only">{t("schedule.consultant")}</span>
+                    <select
+                      value={selectedConsultantId ?? ""}
+                      onChange={(event) => {
+                        const next = event.target.value || null;
+                        setSelectedConsultantId(next);
+                      }}
+                      disabled={!consultants.length}
+                      aria-label={t("schedule.consultant")}
+                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                    >
+                      {consultants.length ? (
+                        consultants.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">{t("schedule.emptyConsultant")}</option>
+                      )}
+                    </select>
+                  </label>
+                </>
               ) : null}
             </div>
           </div>
@@ -2647,6 +2680,37 @@ export default function CronogramaClient({
                       )}
                     </select>
                   </label>
+                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {t("schedule.statusFilterLabel")}
+                    </span>
+                    <div className="min-w-[180px]">
+                      <LeadTypesMultiSelect
+                        value={cronogramaStatus}
+                        options={appointmentStatusOptions}
+                        onChange={(next) =>
+                          setCronogramaStatus(
+                            next.filter(
+                              (status): status is SupabaseAppointmentStatus =>
+                                status === "scheduled" ||
+                                status === "in_progress" ||
+                                status === "done" ||
+                                status === "absent" ||
+                                status === "atuado",
+                            ),
+                          )
+                        }
+                        placeholder={t("schedule.statusAll")}
+                        searchPlaceholder={t(
+                          "schedule.statusFilterSearchPlaceholder",
+                        )}
+                        noResultsText={t("schedule.statusFilterNoResults")}
+                        selectedCountTemplate={t(
+                          "schedule.multiSelectSelectedCount",
+                        )}
+                      />
+                    </div>
+                  </label>
                   {/* <button
                     type="button"
                     onClick={() => refresh()}
@@ -3180,7 +3244,7 @@ export default function CronogramaClient({
                   </div>
                 ) : (
                   <ScheduleMapView
-                    appointments={appointments}
+                    appointments={visibleAppointments}
                     companies={companies}
                     showCompanies={showCompanies}
                     showCheckIns={showCheckIns}
