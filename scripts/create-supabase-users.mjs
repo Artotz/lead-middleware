@@ -71,7 +71,7 @@ function readEmailsFromFile(filePath) {
 function printUsage() {
   console.log(`
 Uso:
-  node scripts/create-supabase-users.mjs --file ./emails.txt --password "Senha@123"
+  node scripts/create-supabase-users.mjs --file ./scripts/emails.txt --password "Senha@123"
   node scripts/create-supabase-users.mjs --emails "a@x.com,b@x.com" --password "Senha@123"
 
 Opções:
@@ -137,7 +137,9 @@ async function main() {
     throw new Error("Informe --password.");
   }
 
-  const fileEmails = args.file ? readEmailsFromFile(path.resolve(args.file)) : [];
+  const fileEmails = args.file
+    ? readEmailsFromFile(path.resolve(args.file))
+    : [];
   const inlineEmails = parseEmails(args.emails ?? "");
   const emails = Array.from(new Set([...fileEmails, ...inlineEmails]));
 
