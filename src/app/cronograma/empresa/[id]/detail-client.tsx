@@ -16,15 +16,18 @@ import {
 } from "@/lib/protheus";
 import {
   APPOINTMENT_SELECT,
+  COMPANY_SELECT,
   formatDateLabel,
   formatDuration,
   formatTime,
   isAppointmentAbsent,
   isAppointmentDone,
   isAppointmentInProgress,
+  mapCompany,
   mapAppointment,
   STATUS_TONES,
   type Appointment,
+  type Company,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "../../components/ScheduleMapView";
@@ -217,13 +220,19 @@ export default function CompanyDetailClient({
   const [protheusLoading, setProtheusLoading] = useState(false);
   const [protheusError, setProtheusError] = useState<string | null>(null);
   const protheusRequestIdRef = useRef(0);
+  const [fallbackCompany, setFallbackCompany] = useState<Company | null>(null);
+  const [fallbackCompanyLoading, setFallbackCompanyLoading] = useState(false);
+  const fallbackCompanyRequestIdRef = useRef(0);
   const appointmentsPerPage = 10;
   const canCreateAppointment = role === "admin";
 
-  const company = useMemo(
+  const contextCompany = useMemo(
     () => companies.find((item) => item.id === companyId),
     [companies, companyId],
   );
+  const company =
+    contextCompany ??
+    (fallbackCompany?.id === companyId ? fallbackCompany : undefined);
 
   const openCreateModal = useCallback(() => {
     if (!canCreateAppointment) return;
@@ -394,6 +403,39 @@ export default function CompanyDetailClient({
     [supabase, t],
   );
 
+  const loadFallbackCompany = useCallback(
+    async (id: string) => {
+      const requestId = ++fallbackCompanyRequestIdRef.current;
+      setFallbackCompanyLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("companies")
+          .select(COMPANY_SELECT)
+          .eq("id", id)
+          .maybeSingle();
+
+        if (requestId !== fallbackCompanyRequestIdRef.current) return;
+
+        if (error || !data) {
+          if (error) console.error(error);
+          setFallbackCompany(null);
+          setFallbackCompanyLoading(false);
+          return;
+        }
+
+        setFallbackCompany(mapCompany(data));
+        setFallbackCompanyLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== fallbackCompanyRequestIdRef.current) return;
+        setFallbackCompany(null);
+        setFallbackCompanyLoading(false);
+      }
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     if (!companyId) return;
     setAppointments([]);
@@ -419,6 +461,13 @@ export default function CompanyDetailClient({
     if (!companyId) return;
     void loadProtheusSeries(company?.document ?? null);
   }, [company?.document, companyId, loadProtheusSeries]);
+
+  useEffect(() => {
+    setFallbackCompany(null);
+    if (!companyId) return;
+    if (contextCompany) return;
+    void loadFallbackCompany(companyId);
+  }, [companyId, contextCompany, loadFallbackCompany]);
 
   const stats = useMemo(() => {
     const total = appointments.length;
@@ -535,7 +584,7 @@ export default function CompanyDetailClient({
     return null;
   }, [sortedAsc, now]);
 
-  if (scheduleLoading && !company) {
+  if ((scheduleLoading || fallbackCompanyLoading) && !company) {
     return (
       <PageShell title={t("company.title")} subtitle={t("company.loadingData")}>
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">

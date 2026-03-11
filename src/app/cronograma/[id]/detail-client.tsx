@@ -11,12 +11,15 @@ import { useSchedule } from "@/contexts/ScheduleContext";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
   APPOINTMENT_SELECT,
+  COMPANY_SELECT,
   formatDateLabel,
   formatDuration,
   formatTime,
+  mapCompany,
   mapAppointment,
   STATUS_TONES,
   type Appointment,
+  type Company,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { ScheduleMapView } from "../components/ScheduleMapView";
@@ -169,11 +172,16 @@ export default function AppointmentDetailClient({
     string | null
   >(null);
   const appointmentActionRequestIdRef = useRef(0);
+  const [fallbackCompany, setFallbackCompany] = useState<Company | null>(null);
+  const fallbackCompanyRequestIdRef = useRef(0);
 
-  const company = useMemo(
+  const contextCompany = useMemo(
     () => companies.find((item) => item.id === appointment?.companyId),
     [companies, appointment?.companyId],
   );
+  const company =
+    contextCompany ??
+    (fallbackCompany?.id === appointment?.companyId ? fallbackCompany : null);
 
   const loadAppointment = useCallback(
     async (id: string) => {
@@ -217,11 +225,49 @@ export default function AppointmentDetailClient({
     [supabase, t],
   );
 
+  const loadFallbackCompany = useCallback(
+    async (id: string) => {
+      const requestId = ++fallbackCompanyRequestIdRef.current;
+      try {
+        const { data, error } = await supabase
+          .from("companies")
+          .select(COMPANY_SELECT)
+          .eq("id", id)
+          .maybeSingle();
+
+        if (requestId !== fallbackCompanyRequestIdRef.current) return;
+
+        if (error || !data) {
+          if (error) console.error(error);
+          setFallbackCompany(null);
+          return;
+        }
+
+        setFallbackCompany(mapCompany(data));
+      } catch (error) {
+        console.error(error);
+        if (requestId !== fallbackCompanyRequestIdRef.current) return;
+        setFallbackCompany(null);
+      }
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     if (!appointmentId) return;
     setAppointment(null);
     void loadAppointment(appointmentId);
   }, [appointmentId, loadAppointment]);
+
+  useEffect(() => {
+    setFallbackCompany(null);
+  }, [appointmentId]);
+
+  useEffect(() => {
+    if (!appointment?.companyId) return;
+    if (contextCompany) return;
+    void loadFallbackCompany(appointment.companyId);
+  }, [appointment?.companyId, contextCompany, loadFallbackCompany]);
 
   const loadMedia = useCallback(
     async (id: string) => {
