@@ -324,6 +324,9 @@ export function CreateAppointmentModal({
       const consultantName = normalizedConsultantId.includes("@")
         ? normalizedConsultantId
         : (selectedConsultant?.name ?? getUserDisplayName(user) ?? null);
+      const consultantEmail = normalizedConsultantId.includes("@")
+        ? normalizedConsultantId
+        : null;
       const createdBy = user?.email?.trim() || null;
 
       const pastToleranceMs = PAST_TOLERANCE_MINUTES * 60 * 1000;
@@ -385,7 +388,7 @@ export function CreateAppointmentModal({
             name: normalizedNewCompanyName,
             fora_carteira: true,
             csa: cachedCsa || null,
-            email_csa: createdBy,
+            email_csa: consultantEmail,
           })
           .select("id")
           .single();

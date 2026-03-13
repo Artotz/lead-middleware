@@ -314,7 +314,6 @@ const MESSAGES = {
       errorLoading: "Erro ao carregar",
       loadError: "Não foi possível carregar o apontamento.",
       mediaLoadError: "Não foi possível carregar as imagens.",
-      backToSchedule: "Voltar ao cronograma",
       companyMissing: "Empresa não informada",
       openCompany: "Abrir empresa",
       address: "Endereço",
@@ -408,7 +407,6 @@ const MESSAGES = {
       loading: "Carregando empresa...",
       loadingData: "Carregando dados...",
       notFound: "Empresa não encontrada.",
-      backToSchedule: "Voltar ao cronograma",
       createAppointment: "Criar apontamento",
       createAppointmentDisabled:
         "Somente administradores podem criar apontamentos.",

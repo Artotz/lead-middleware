@@ -600,12 +600,6 @@ export default function CompanyDetailClient({
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
           {t("company.notFound")}
         </div>
-        <Link
-          href="/cronograma"
-          className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          {t("company.backToSchedule")}
-        </Link>
       </PageShell>
     );
   }
@@ -659,28 +653,6 @@ export default function CompanyDetailClient({
 
   return (
     <PageShell title={t("company.title")} subtitle={company.name}>
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 sm:text-xs">
-        <Link
-          href="/cronograma"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          {t("company.backToSchedule")}
-        </Link>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          disabled={!canCreateAppointment}
-          title={
-            canCreateAppointment
-              ? undefined
-              : t("company.createAppointmentDisabled")
-          }
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {t("company.createAppointment")}
-        </button>
-      </div>
-
       <CreateAppointmentModal
         open={createModalOpen}
         companies={companies}
@@ -1220,6 +1192,19 @@ export default function CompanyDetailClient({
           </div>
 
           <div>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              disabled={!canCreateAppointment}
+              title={
+                canCreateAppointment
+                  ? undefined
+                  : t("company.createAppointmentDisabled")
+              }
+              className="mb-3 w-full rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+            >
+              {t("company.createAppointment")}
+            </button>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
               <button
                 type="button"

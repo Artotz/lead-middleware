@@ -683,12 +683,6 @@ export default function AppointmentDetailClient({
         <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
           {appointmentError ?? t("appointment.notFound")}
         </div>
-        <Link
-          href="/cronograma"
-          className="mt-4 inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          {t("appointment.backToSchedule")}
-        </Link>
       </PageShell>
     );
   }
@@ -706,38 +700,6 @@ export default function AppointmentDetailClient({
       title={t("appointment.detailsTitle")}
       subtitle={company?.name ?? ""}
     >
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 sm:text-xs">
-        <Link
-          href="/cronograma"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-        >
-          {t("appointment.backToSchedule")}
-        </Link>
-        <button
-          type="button"
-          onClick={() => setActionModalOpen(true)}
-          disabled={!canRegisterAction || appointment.status === "atuado"}
-          title={
-            appointment.status === "atuado"
-              ? t("appointment.action.registered")
-              : !canRegisterAction
-                ? t("appointment.action.doneRequired")
-                : undefined
-          }
-          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-            appointment.status === "atuado"
-              ? "border-violet-200 bg-violet-50 text-violet-700"
-              : !canRegisterAction
-                ? "border-slate-200 bg-white text-slate-400"
-                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
-          }`}
-        >
-          {appointment.status === "atuado"
-            ? t("appointment.action.registered")
-            : t("appointment.action.button")}
-        </button>
-      </div>
-
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.3fr_0.9fr]">
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
@@ -1152,6 +1114,29 @@ export default function AppointmentDetailClient({
           </div>
 
           <div>
+            <button
+              type="button"
+              onClick={() => setActionModalOpen(true)}
+              disabled={!canRegisterAction || appointment.status === "atuado"}
+              title={
+                appointment.status === "atuado"
+                  ? t("appointment.action.registered")
+                  : !canRegisterAction
+                    ? t("appointment.action.doneRequired")
+                    : undefined
+              }
+              className={`mb-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                appointment.status === "atuado"
+                  ? "border-violet-200 bg-violet-50 text-violet-700"
+                  : !canRegisterAction
+                    ? "border-slate-200 bg-slate-100 text-slate-400"
+                    : "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200 hover:bg-slate-800"
+              }`}
+            >
+              {appointment.status === "atuado"
+                ? t("appointment.action.registered")
+                : t("appointment.action.button")}
+            </button>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
               <button
                 type="button"
