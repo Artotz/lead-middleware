@@ -1075,6 +1075,30 @@ export default function AppointmentDetailClient({
         </div>
 
         <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setActionModalOpen(true)}
+            disabled={!canRegisterAction || appointment.status === "atuado"}
+            title={
+              appointment.status === "atuado"
+                ? t("appointment.action.registered")
+                : !canRegisterAction
+                  ? t("appointment.action.doneRequired")
+                  : undefined
+            }
+            className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+              appointment.status === "atuado"
+                ? "border-violet-200 bg-violet-50 text-violet-700"
+                : !canRegisterAction
+                  ? "border-slate-200 bg-slate-100 text-slate-400"
+                  : "border-slate-200 bg-[#FFDE00] text-[#0B0D10] shadow-md shadow-black/40 hover:brightness-95"
+            }`}
+          >
+            {appointment.status === "atuado"
+              ? t("appointment.action.registered")
+              : t("appointment.action.button")}
+          </button>
+
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">
               {t("schedule.timeline.title")}
@@ -1114,29 +1138,6 @@ export default function AppointmentDetailClient({
           </div>
 
           <div>
-            <button
-              type="button"
-              onClick={() => setActionModalOpen(true)}
-              disabled={!canRegisterAction || appointment.status === "atuado"}
-              title={
-                appointment.status === "atuado"
-                  ? t("appointment.action.registered")
-                  : !canRegisterAction
-                    ? t("appointment.action.doneRequired")
-                    : undefined
-              }
-              className={`mb-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-                appointment.status === "atuado"
-                  ? "border-violet-200 bg-violet-50 text-violet-700"
-                  : !canRegisterAction
-                    ? "border-slate-200 bg-slate-100 text-slate-400"
-                    : "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200 hover:bg-slate-800"
-              }`}
-            >
-              {appointment.status === "atuado"
-                ? t("appointment.action.registered")
-                : t("appointment.action.button")}
-            </button>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
               <button
                 type="button"

@@ -1146,6 +1146,20 @@ export default function CompanyDetailClient({
         </div>
 
         <div className="space-y-4">
+          <button
+            type="button"
+            onClick={openCreateModal}
+            disabled={!canCreateAppointment}
+            title={
+              canCreateAppointment
+                ? undefined
+                : t("company.createAppointmentDisabled")
+            }
+            className="w-full rounded-xl border border-slate-200 bg-[#FFDE00] px-4 py-3 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/40 transition hover:brightness-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+          >
+            {t("company.createAppointment")}
+          </button>
+
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">
               {t("company.appointmentSummary")}
@@ -1192,19 +1206,6 @@ export default function CompanyDetailClient({
           </div>
 
           <div>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              disabled={!canCreateAppointment}
-              title={
-                canCreateAppointment
-                  ? undefined
-                  : t("company.createAppointmentDisabled")
-              }
-              className="mb-3 w-full rounded-xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
-            >
-              {t("company.createAppointment")}
-            </button>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
               <button
                 type="button"

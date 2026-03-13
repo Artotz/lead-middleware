@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useAuth, getUserDisplayName } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { type Translate } from "@/lib/i18n";
@@ -321,12 +321,7 @@ export function CreateAppointmentModal({
     setLoading(true);
     try {
       const normalizedConsultantId = consultantId.trim();
-      const consultantName = normalizedConsultantId.includes("@")
-        ? normalizedConsultantId
-        : (selectedConsultant?.name ?? getUserDisplayName(user) ?? null);
-      const consultantEmail = normalizedConsultantId.includes("@")
-        ? normalizedConsultantId
-        : null;
+      const consultantEmail = normalizedConsultantId || null;
       const createdBy = user?.email?.trim() || null;
 
       const pastToleranceMs = PAST_TOLERANCE_MINUTES * 60 * 1000;
@@ -412,7 +407,7 @@ export function CreateAppointmentModal({
         starts_at: startDateTime.toISOString(),
         ends_at: endDateTime.toISOString(),
         consultant_id: user?.id ?? null,
-        consultant_name: consultantName,
+        consultant_name: consultantEmail,
         status: "scheduled",
         // address_snapshot: selectedCompany?.state ?? null,
         created_by: createdBy,
