@@ -316,6 +316,7 @@ const MESSAGES = {
       mediaLoadError: "Não foi possível carregar as imagens.",
       backToSchedule: "Voltar ao cronograma",
       companyMissing: "Empresa não informada",
+      openCompany: "Abrir empresa",
       address: "Endereço",
       consultant: "Consultor",
       createdBy: "Criado por",

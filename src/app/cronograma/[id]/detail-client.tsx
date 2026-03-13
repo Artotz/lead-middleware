@@ -743,9 +743,21 @@ export default function AppointmentDetailClient({
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-lg font-semibold text-slate-900">
-                  {company?.name ?? t("appointment.companyMissing")}
-                </div>
+                {company?.id ? (
+                  <Link
+                    href={`/cronograma/empresa/${company.id}`}
+                    className="inline-flex items-center gap-2 text-lg font-semibold text-slate-900 underline decoration-sky-300 decoration-2 underline-offset-4 transition hover:text-sky-800"
+                  >
+                    <span>{company.name}</span>
+                    <span className="text-xs font-semibold text-sky-700">
+                      {t("appointment.openCompany")}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="text-lg font-semibold text-slate-900">
+                    {company?.name ?? t("appointment.companyMissing")}
+                  </div>
+                )}
                 <div className="mt-1 text-sm text-slate-500">
                   {dateLabel} · {timeLabel} · {durationLabel}
                 </div>
