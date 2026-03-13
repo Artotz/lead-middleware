@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LOGIN_NEXT_PARAM, resolveSafeNextPath } from "@/lib/authRedirect";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import logoText from "@/assets/logo_text.png";
@@ -9,7 +10,6 @@ import bg from "@/assets/bg.png";
 
 type BannerState =
   | { variant: "error"; message: string }
-  | { variant: "success"; message: string }
   | null;
 
 type LoginClientProps = {
@@ -24,9 +24,7 @@ export default function LoginClient({ locale }: LoginClientProps) {
 
   const queryBanner = useMemo<BannerState | null>(() => {
     const error = searchParams.get("error");
-    const message = searchParams.get("message");
     if (error) return { variant: "error", message: error };
-    if (message) return { variant: "success", message };
     return null;
   }, [searchParams]);
 
@@ -36,6 +34,10 @@ export default function LoginClient({ locale }: LoginClientProps) {
   const [loading, setLoading] = useState(false);
 
   const activeBanner = banner === undefined ? queryBanner : banner;
+  const nextPath = useMemo(
+    () => resolveSafeNextPath(searchParams.get(LOGIN_NEXT_PARAM), "/"),
+    [searchParams],
+  );
 
   const handlePasswordSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -57,7 +59,7 @@ export default function LoginClient({ locale }: LoginClientProps) {
       return;
     }
 
-    router.replace("/");
+    router.replace(nextPath);
     router.refresh();
   };
 
@@ -95,11 +97,7 @@ export default function LoginClient({ locale }: LoginClientProps) {
 
                   {activeBanner && (
                     <div
-                      className={`rounded-2xl border px-4 py-3 text-sm ${
-                        activeBanner.variant === "error"
-                          ? "border-rose-200 bg-rose-50 text-rose-800"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      }`}
+                      className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
                     >
                       {activeBanner.message}
                     </div>

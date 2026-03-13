@@ -15,6 +15,5 @@ export async function POST(request: Request) {
     return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
-  redirectUrl.searchParams.set("message", t("auth.logoutSuccess"));
   return NextResponse.redirect(redirectUrl, { status: 303 });
 }

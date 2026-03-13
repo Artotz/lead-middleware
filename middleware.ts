@@ -1,5 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  buildLoginPath,
+  LOGIN_NEXT_PARAM,
+  resolveSafeNextPath,
+} from "@/lib/authRedirect";
 
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -65,6 +70,7 @@ export async function middleware(request: NextRequest) {
   const isLoginRoute = pathname.startsWith("/login");
   const isProtectedRoute =
     pathname === "/" ||
+    pathname.startsWith("/cronograma") ||
     pathname.startsWith("/metrics") ||
     pathname.startsWith("/home") ||
     pathname.startsWith("/leads");
@@ -74,15 +80,28 @@ export async function middleware(request: NextRequest) {
     if (mockUserId && isUuid(mockUserId)) {
       return response;
     }
-    const redirectUrl = new URL("/login", request.url);
-    redirectUrl.searchParams.set("message", "Faça login para acessar o painel.");
+
+    const redirectUrl = new URL(
+      buildLoginPath({
+        next: `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      }),
+      request.url,
+    );
+
     return NextResponse.redirect(redirectUrl, {
       headers: response.headers,
     });
   }
 
   if (session && isLoginRoute) {
-    const redirectUrl = new URL("/", request.url);
+    const redirectUrl = new URL(
+      resolveSafeNextPath(
+        request.nextUrl.searchParams.get(LOGIN_NEXT_PARAM),
+        "/",
+      ),
+      request.url,
+    );
+
     return NextResponse.redirect(redirectUrl, {
       headers: response.headers,
     });

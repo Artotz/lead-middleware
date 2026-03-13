@@ -56,6 +56,7 @@ const MESSAGES = {
       },
     },
     auth: {
+      loginRequired: "Faça login para acessar o painel.",
       logoutError: "Não foi possível encerrar a sessão. Tente novamente.",
       logoutSuccess: "Você saiu da sua conta com segurança.",
     },
@@ -319,6 +320,7 @@ const MESSAGES = {
       address: "Endereço",
       consultant: "Consultor",
       createdBy: "Criado por",
+      createdAt: "Registrado em {date} · {time}",
       latestContact: "Contato mais recente",
       noCompanyContact: "Nenhum contato registrado",
       notInformed: "Não informado",

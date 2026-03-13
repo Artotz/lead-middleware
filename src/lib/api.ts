@@ -4,6 +4,7 @@ import {
   INITIAL_TICKET_FILTERS,
   TicketFiltersState,
 } from "./ticketFilters";
+import { buildLoginPath, getCurrentPathWithSearch } from "./authRedirect";
 import type {
   DailyActionMetricsRow,
   MetricsRange,
@@ -116,7 +117,9 @@ export type TicketFilterOptions = {
 const ensureAuthenticated = (response: Response) => {
   if (response.status === 401) {
     if (typeof window !== "undefined") {
-      window.location.href = "/login?message=Faça login para continuar.";
+      window.location.href = buildLoginPath({
+        next: getCurrentPathWithSearch(),
+      });
     }
     throw new Error("auth_required");
   }

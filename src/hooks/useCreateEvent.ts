@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { EventPayload, LeadEventAction, TicketEventAction } from "@/lib/events";
+import {
+  buildLoginPath,
+  getCurrentPathWithSearch,
+} from "@/lib/authRedirect";
+import type {
+  EventPayload,
+  LeadEventAction,
+  TicketEventAction,
+} from "@/lib/events";
 
 type ApiSuccess<T> = { success: true; event: T };
 type ApiError = { success: false; message?: string; details?: unknown };
@@ -9,7 +17,9 @@ type ApiError = { success: false; message?: string; details?: unknown };
 const ensureAuthenticated = (response: Response) => {
   if (response.status === 401) {
     if (typeof window !== "undefined") {
-      window.location.href = "/login?message=Faǧa login para continuar.";
+      window.location.href = buildLoginPath({
+        next: getCurrentPathWithSearch(),
+      });
     }
     throw new Error("auth_required");
   }
@@ -24,7 +34,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
   ensureAuthenticated(response);
 
-  let json: any = null;
+  let json: ApiSuccess<T> | ApiError | null = null;
   try {
     json = await response.json();
   } catch {
@@ -34,12 +44,12 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   if (!response.ok) {
     const message =
       (json as ApiError | null)?.message ??
-      "Nǜo foi possǭvel registrar aǧǜo.";
+      "Não foi possível registrar ação.";
     throw new Error(message);
   }
 
   if (!json?.success) {
-    throw new Error(json?.message ?? "Falha ao registrar aǧǜo.");
+    throw new Error(json?.message ?? "Falha ao registrar ação.");
   }
 
   return (json as ApiSuccess<T>).event;
@@ -49,7 +59,11 @@ export function useCreateEvent() {
   const [loading, setLoading] = useState(false);
 
   const createLeadEvent = useCallback(
-    async (input: { leadId: number; action: LeadEventAction; payload: EventPayload }) => {
+    async (input: {
+      leadId: number;
+      action: LeadEventAction;
+      payload: EventPayload;
+    }) => {
       setLoading(true);
       try {
         return await postJson("/api/events/lead", input);
@@ -61,7 +75,11 @@ export function useCreateEvent() {
   );
 
   const createTicketEvent = useCallback(
-    async (input: { ticketId: string; action: TicketEventAction; payload: EventPayload }) => {
+    async (input: {
+      ticketId: string;
+      action: TicketEventAction;
+      payload: EventPayload;
+    }) => {
       setLoading(true);
       try {
         return await postJson("/api/events/ticket", input);
@@ -74,4 +92,3 @@ export function useCreateEvent() {
 
   return { createLeadEvent, createTicketEvent, loading };
 }
-

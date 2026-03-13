@@ -694,6 +694,12 @@ export default function AppointmentDetailClient({
     appointment.endAt,
   )}`;
   const durationLabel = formatDuration(appointment.startAt, appointment.endAt);
+  const createdAtLabel = appointment.createdAt
+    ? t("appointment.createdAt", {
+        date: formatDateLabel(new Date(appointment.createdAt)),
+        time: formatTime(new Date(appointment.createdAt)),
+      })
+    : null;
 
   return (
     <PageShell
@@ -727,6 +733,8 @@ export default function AppointmentDetailClient({
               <Badge tone={statusTone}>{statusLabel}</Badge>
             </div>
             <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              {createdAtLabel ? <div>{createdAtLabel}</div> : null}
+              {/*
               <div>
                 <span className="font-semibold text-slate-600">
                   {t("appointment.address")}:{" "}
@@ -735,6 +743,7 @@ export default function AppointmentDetailClient({
                   company?.state ||
                   t("appointment.notInformed")}
               </div>
+              */}
               <div>
                 <span className="font-semibold text-slate-600">
                   {t("appointment.consultant")}:{" "}
