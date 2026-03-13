@@ -84,10 +84,17 @@ type AppointmentAction = {
   id: string;
   resultado: "vendido" | "perdido";
   nfOuOs: string | null;
+  valor: number | null;
   motivoPerda: string | null;
   observacao: string | null;
   createdBy: string | null;
   createdAt: string | null;
+};
+
+type CompanyContactRow = {
+  name: string | null;
+  contact: string | null;
+  created_at: string | null;
 };
 
 const MEDIA_KIND_TONES: Record<
@@ -157,6 +164,7 @@ export default function AppointmentDetailClient({
     "",
   );
   const [actionNfOs, setActionNfOs] = useState("");
+  const [actionValue, setActionValue] = useState("");
   const [actionLossReason, setActionLossReason] = useState("");
   const [actionNote, setActionNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -172,6 +180,9 @@ export default function AppointmentDetailClient({
   const appointmentActionRequestIdRef = useRef(0);
   const [fallbackCompany, setFallbackCompany] = useState<Company | null>(null);
   const fallbackCompanyRequestIdRef = useRef(0);
+  const [latestCompanyContact, setLatestCompanyContact] =
+    useState<CompanyContactRow | null>(null);
+  const latestCompanyContactRequestIdRef = useRef(0);
 
   const contextCompany = useMemo(
     () => companies.find((item) => item.id === appointment?.companyId),
@@ -180,6 +191,38 @@ export default function AppointmentDetailClient({
   const company =
     contextCompany ??
     (fallbackCompany?.id === appointment?.companyId ? fallbackCompany : null);
+
+  const loadLatestCompanyContact = useCallback(
+    async (companyId: string) => {
+      const requestId = ++latestCompanyContactRequestIdRef.current;
+      setLatestCompanyContact(null);
+
+      try {
+        const { data, error } = await supabase
+          .from("company_contacts")
+          .select("name, contact, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (requestId !== latestCompanyContactRequestIdRef.current) return;
+
+        if (error) {
+          console.error(error);
+          setLatestCompanyContact(null);
+          return;
+        }
+
+        setLatestCompanyContact((data as CompanyContactRow | null) ?? null);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== latestCompanyContactRequestIdRef.current) return;
+        setLatestCompanyContact(null);
+      }
+    },
+    [supabase],
+  );
 
   const loadAppointment = useCallback(
     async (id: string) => {
@@ -199,6 +242,7 @@ export default function AppointmentDetailClient({
         if (error) {
           console.error(error);
           setAppointment(null);
+          setLatestCompanyContact(null);
           setAppointmentLoading(false);
           setAppointmentError(t("appointment.loadError"));
           return;
@@ -206,21 +250,29 @@ export default function AppointmentDetailClient({
 
         if (!data) {
           setAppointment(null);
+          setLatestCompanyContact(null);
           setAppointmentLoading(false);
           return;
         }
 
-        setAppointment(mapAppointment(data as AppointmentRow));
+        const nextAppointment = mapAppointment(data as AppointmentRow);
+        setAppointment(nextAppointment);
+        if (nextAppointment.companyId) {
+          void loadLatestCompanyContact(nextAppointment.companyId);
+        } else {
+          setLatestCompanyContact(null);
+        }
         setAppointmentLoading(false);
       } catch (error) {
         console.error(error);
         if (requestId !== appointmentRequestIdRef.current) return;
         setAppointment(null);
+        setLatestCompanyContact(null);
         setAppointmentLoading(false);
         setAppointmentError(t("appointment.loadError"));
       }
     },
-    [supabase, t],
+    [loadLatestCompanyContact, supabase, t],
   );
 
   const loadFallbackCompany = useCallback(
@@ -369,6 +421,7 @@ export default function AppointmentDetailClient({
           id: data.id,
           resultado: data.resultado,
           nfOuOs: data.nf_ou_os ?? null,
+          valor: data.valor ?? null,
           motivoPerda: data.motivo_perda ?? null,
           observacao: data.observacao ?? null,
           createdBy: data.created_by ?? null,
@@ -504,6 +557,7 @@ export default function AppointmentDetailClient({
     if (!actionModalOpen) return;
     setActionResult("");
     setActionNfOs("");
+    setActionValue("");
     setActionLossReason("");
     setActionNote("");
     setActionError(null);
@@ -522,6 +576,11 @@ export default function AppointmentDetailClient({
         setActionError(t("appointment.action.nfOsRequired"));
         return;
       }
+      const value = Number(actionValue.replace(",", "."));
+      if (!Number.isFinite(value) || value <= 0) {
+        setActionError(t("appointment.action.valueRequired"));
+        return;
+      }
     }
     if (actionResult === "perdido" && !actionLossReason) {
       setActionError(t("appointment.action.lossReasonRequired"));
@@ -530,6 +589,11 @@ export default function AppointmentDetailClient({
     setActionLoading(true);
     setActionError(null);
 
+    const normalizedValue =
+      actionResult === "vendido"
+        ? Number(actionValue.replace(",", "."))
+        : null;
+
     try {
       const { error: insertError } = await supabase
         .from("apontamento_acoes")
@@ -537,10 +601,10 @@ export default function AppointmentDetailClient({
           apontamento_id: appointmentId,
           resultado: actionResult,
           nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
-          valor: null,
+          valor: actionResult === "vendido" ? normalizedValue : null,
           motivo_perda: actionResult === "perdido" ? actionLossReason : null,
           observacao: actionNote.trim() || null,
-          created_by: user?.email?.trim() || user?.id || null,
+          created_by: user?.email?.trim() || null,
         });
 
       if (insertError) {
@@ -590,6 +654,7 @@ export default function AppointmentDetailClient({
     supabase,
     t,
     user,
+    actionValue,
   ]);
 
   if (appointmentLoading && !appointment) {
@@ -710,6 +775,19 @@ export default function AppointmentDetailClient({
                 {appointment.createdBy?.trim() ||
                   t("appointment.notInformed")}
               </div>
+              <div>
+                <span className="font-semibold text-slate-600">
+                  {t("appointment.latestContact")}:{" "}
+                </span>
+                {latestCompanyContact
+                  ? [
+                      latestCompanyContact.name?.trim(),
+                      latestCompanyContact.contact?.trim(),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || t("appointment.noCompanyContact")
+                  : t("appointment.noCompanyContact")}
+              </div>
             </div>
           </div>
 
@@ -826,12 +904,25 @@ export default function AppointmentDetailClient({
                     : t("appointment.action.resultLost")}
                 </div>
                 {appointmentAction.resultado === "vendido" ? (
-                  <div>
-                    <span className="font-semibold text-slate-600">
-                      {t("appointment.action.nfOsLabel")}:{" "}
-                    </span>
-                    {appointmentAction.nfOuOs ?? t("appointment.notInformed")}
-                  </div>
+                  <>
+                    <div>
+                      <span className="font-semibold text-slate-600">
+                        {t("appointment.action.nfOsLabel")}:{" "}
+                      </span>
+                      {appointmentAction.nfOuOs ?? t("appointment.notInformed")}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-600">
+                        {t("appointment.action.valueLabel")}:{" "}
+                      </span>
+                      {appointmentAction.valor != null
+                        ? new Intl.NumberFormat(locale, {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(appointmentAction.valor)
+                        : t("appointment.notInformed")}
+                    </div>
+                  </>
                 ) : (
                   <div>
                     <span className="font-semibold text-slate-600">
@@ -1164,18 +1255,38 @@ export default function AppointmentDetailClient({
                   </label>
 
                   {actionResult === "vendido" && (
-                    <label className="space-y-1 text-sm font-semibold text-slate-700">
-                      <span>
-                        {t("appointment.action.nfOsLabel")}{" "}
-                        <span className="text-rose-600">*</span>
-                      </span>
-                      <input
-                        value={actionNfOs}
-                        onChange={(event) => setActionNfOs(event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                        placeholder={t("appointment.action.nfOsPlaceholder")}
-                      />
-                    </label>
+                    <>
+                      <label className="space-y-1 text-sm font-semibold text-slate-700">
+                        <span>
+                          {t("appointment.action.nfOsLabel")}{" "}
+                          <span className="text-rose-600">*</span>
+                        </span>
+                        <input
+                          value={actionNfOs}
+                          onChange={(event) => setActionNfOs(event.target.value)}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                          placeholder={t("appointment.action.nfOsPlaceholder")}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm font-semibold text-slate-700">
+                        <span>
+                          {t("appointment.action.valueLabel")}{" "}
+                          <span className="text-rose-600">*</span>
+                        </span>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={actionValue}
+                          onChange={(event) =>
+                            setActionValue(event.target.value)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                          placeholder={t("appointment.action.valuePlaceholder")}
+                          min="0"
+                          step="0.01"
+                        />
+                      </label>
+                    </>
                   )}
 
                   {actionResult === "perdido" && (

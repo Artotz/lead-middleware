@@ -319,6 +319,8 @@ const MESSAGES = {
       address: "Endereço",
       consultant: "Consultor",
       createdBy: "Criado por",
+      latestContact: "Contato mais recente",
+      noCompanyContact: "Nenhum contato registrado",
       notInformed: "Não informado",
       notes: "Notas",
       creationNotes: "Notas da sugestão",
