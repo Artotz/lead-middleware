@@ -199,6 +199,8 @@ export const OPPORTUNITY_OPTIONS = [
   { id: "lamina", label: "Lamina" },
   { id: "dentes", label: "Dentes" },
   { id: "rodante", label: "Rodante" },
+  { id: "pneus", label: "Pneus" },
+  { id: "pecas", label: "Pecas" },
   { id: "disponibilidade", label: "Disponibilidade" },
   { id: "reconexao", label: "Reconexao" },
   { id: "transferencia_aor", label: "Transferencia AOR" },

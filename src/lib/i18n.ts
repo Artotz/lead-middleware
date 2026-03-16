@@ -187,6 +187,8 @@ const MESSAGES = {
         lamina: "Lâmina",
         dentes: "Dentes",
         rodante: "Rodante",
+        pneus: "Pneus",
+        pecas: "Peças",
         disponibilidade: "Disponibilidade",
         reconexao: "Reconexão",
         transferencia_aor: "Transferência AOR",
