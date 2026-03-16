@@ -12,9 +12,11 @@ import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import {
   APPOINTMENT_SELECT,
   COMPANY_SELECT,
+  OPPORTUNITY_OPTIONS,
   formatDateLabel,
   formatDuration,
   formatTime,
+  getOpportunityLabel,
   mapCompany,
   mapAppointment,
   STATUS_TONES,
@@ -83,12 +85,25 @@ type AppointmentMediaItem = {
 type AppointmentAction = {
   id: string;
   resultado: "vendido" | "perdido";
+  tipoOportunidade: string | null;
   nfOuOs: string | null;
   valor: number | null;
   motivoPerda: string | null;
   observacao: string | null;
   createdBy: string | null;
   createdAt: string | null;
+};
+
+type AppointmentActionRow = {
+  id: string;
+  resultado: "vendido" | "perdido";
+  tipo_oportunidade?: string | null;
+  nf_ou_os: string | null;
+  valor: number | null;
+  motivo_perda: string | null;
+  observacao: string | null;
+  created_by: string | null;
+  created_at: string | null;
 };
 
 type CompanyContactRow = {
@@ -166,18 +181,20 @@ export default function AppointmentDetailClient({
   const [actionNfOs, setActionNfOs] = useState("");
   const [actionValue, setActionValue] = useState("");
   const [actionLossReason, setActionLossReason] = useState("");
+  const [actionOpportunityType, setActionOpportunityType] = useState("");
   const [actionNote, setActionNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionCloseButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [appointmentAction, setAppointmentAction] =
-    useState<AppointmentAction | null>(null);
-  const [appointmentActionLoading, setAppointmentActionLoading] =
+  const [appointmentActions, setAppointmentActions] = useState<
+    AppointmentAction[]
+  >([]);
+  const [appointmentActionsLoading, setAppointmentActionsLoading] =
     useState(false);
-  const [appointmentActionError, setAppointmentActionError] = useState<
+  const [appointmentActionsError, setAppointmentActionsError] = useState<
     string | null
   >(null);
-  const appointmentActionRequestIdRef = useRef(0);
+  const appointmentActionsRequestIdRef = useRef(0);
   const [fallbackCompany, setFallbackCompany] = useState<Company | null>(null);
   const fallbackCompanyRequestIdRef = useRef(0);
   const [latestCompanyContact, setLatestCompanyContact] =
@@ -385,55 +402,117 @@ export default function AppointmentDetailClient({
     [supabase, t],
   );
 
-  const loadAppointmentAction = useCallback(
+  const actionOpportunityOptions = useMemo(
+    () =>
+      OPPORTUNITY_OPTIONS.map((option) => ({
+        value: option.id,
+        label: t(`schedule.opportunity.${option.id}`, undefined, option.label),
+      })),
+    [t],
+  );
+
+  const isMissingColumnError = (error: {
+    code?: string | null;
+    message?: string | null;
+    details?: string | null;
+  } | null) => {
+    if (!error) return false;
+    const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+    return (
+      error.code === "PGRST204" ||
+      message.includes("could not find the 'tipo_oportunidade' column") ||
+      message.includes("tipo_oportunidade")
+    );
+  };
+
+  const logSupabaseError = (
+    context: string,
+    error: {
+      code?: string | null;
+      message?: string | null;
+      details?: string | null;
+      hint?: string | null;
+    } | null,
+  ) => {
+    console.error(context, {
+      code: error?.code ?? null,
+      message: error?.message ?? null,
+      details: error?.details ?? null,
+      hint: error?.hint ?? null,
+    });
+  };
+
+  const loadAppointmentActions = useCallback(
     async (id: string) => {
-      const requestId = ++appointmentActionRequestIdRef.current;
-      setAppointmentActionLoading(true);
-      setAppointmentActionError(null);
+      const requestId = ++appointmentActionsRequestIdRef.current;
+      setAppointmentActionsLoading(true);
+      setAppointmentActionsError(null);
       try {
-        const { data, error } = await supabase
+        const primaryResponse = await supabase
           .from("apontamento_acoes")
           .select(
-            "id, resultado, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at",
+            "id, resultado, tipo_oportunidade, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at",
           )
           .eq("apontamento_id", id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order("created_at", { ascending: false });
 
-        if (requestId !== appointmentActionRequestIdRef.current) return;
+        let data = primaryResponse.data as AppointmentActionRow[] | null;
+        let error = primaryResponse.error as {
+          code?: string | null;
+          message?: string | null;
+          details?: string | null;
+          hint?: string | null;
+        } | null;
+
+        if (error && isMissingColumnError(error)) {
+          const fallbackResponse = await supabase
+            .from("apontamento_acoes")
+            .select(
+              "id, resultado, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at",
+            )
+            .eq("apontamento_id", id)
+            .order("created_at", { ascending: false });
+          data = fallbackResponse.data as AppointmentActionRow[] | null;
+          error = fallbackResponse.error as {
+            code?: string | null;
+            message?: string | null;
+            details?: string | null;
+            hint?: string | null;
+          } | null;
+        }
+
+        if (requestId !== appointmentActionsRequestIdRef.current) return;
 
         if (error) {
-          console.error(error);
-          setAppointmentAction(null);
-          setAppointmentActionLoading(false);
-          setAppointmentActionError(t("appointment.action.loadError"));
+          logSupabaseError("Falha ao carregar ações do apontamento", error);
+          setAppointmentActions([]);
+          setAppointmentActionsLoading(false);
+          setAppointmentActionsError(t("appointment.action.loadError"));
           return;
         }
 
-        if (!data) {
-          setAppointmentAction(null);
-          setAppointmentActionLoading(false);
-          return;
-        }
+        const rows = ((data ?? []) as AppointmentActionRow[]);
 
-        setAppointmentAction({
-          id: data.id,
-          resultado: data.resultado,
-          nfOuOs: data.nf_ou_os ?? null,
-          valor: data.valor ?? null,
-          motivoPerda: data.motivo_perda ?? null,
-          observacao: data.observacao ?? null,
-          createdBy: data.created_by ?? null,
-          createdAt: data.created_at ?? null,
-        });
-        setAppointmentActionLoading(false);
+        setAppointmentActions(
+          rows.map((item) => ({
+            id: item.id,
+            resultado: item.resultado,
+            tipoOportunidade: item.tipo_oportunidade ?? null,
+            nfOuOs: item.nf_ou_os ?? null,
+            valor: item.valor ?? null,
+            motivoPerda: item.motivo_perda ?? null,
+            observacao: item.observacao ?? null,
+            createdBy: item.created_by ?? null,
+            createdAt: item.created_at ?? null,
+          })),
+        );
+        setAppointmentActionsLoading(false);
       } catch (err) {
-        console.error(err);
-        if (requestId !== appointmentActionRequestIdRef.current) return;
-        setAppointmentAction(null);
-        setAppointmentActionLoading(false);
-        setAppointmentActionError(t("appointment.action.loadError"));
+        console.error("Falha ao carregar ações do apontamento", err);
+        if (requestId !== appointmentActionsRequestIdRef.current) return;
+        setAppointmentActions([]);
+        setAppointmentActionsLoading(false);
+        setAppointmentActionsError(t("appointment.action.loadError"));
       }
     },
     [supabase, t],
@@ -447,9 +526,9 @@ export default function AppointmentDetailClient({
 
   useEffect(() => {
     if (!appointmentId) return;
-    setAppointmentAction(null);
-    void loadAppointmentAction(appointmentId);
-  }, [appointmentId, loadAppointmentAction]);
+    setAppointmentActions([]);
+    void loadAppointmentActions(appointmentId);
+  }, [appointmentId, loadAppointmentActions]);
 
   const mediaGroups = useMemo(() => {
     const groups = new Map<AppointmentMediaKind, AppointmentMediaItem[]>();
@@ -559,6 +638,7 @@ export default function AppointmentDetailClient({
     setActionNfOs("");
     setActionValue("");
     setActionLossReason("");
+    setActionOpportunityType("");
     setActionNote("");
     setActionError(null);
     const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
@@ -572,6 +652,10 @@ export default function AppointmentDetailClient({
       return;
     }
     if (actionResult === "vendido") {
+      if (!actionOpportunityType) {
+        setActionError(t("appointment.action.opportunityTypeRequired"));
+        return;
+      }
       if (!actionNfOs.trim()) {
         setActionError(t("appointment.action.nfOsRequired"));
         return;
@@ -600,6 +684,8 @@ export default function AppointmentDetailClient({
         .insert({
           apontamento_id: appointmentId,
           resultado: actionResult,
+          tipo_oportunidade:
+            actionResult === "vendido" ? actionOpportunityType : null,
           nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
           valor: actionResult === "vendido" ? normalizedValue : null,
           motivo_perda: actionResult === "perdido" ? actionLossReason : null,
@@ -608,12 +694,12 @@ export default function AppointmentDetailClient({
         });
 
       if (insertError) {
-        if (insertError.code === "23505") {
-          await loadAppointmentAction(appointmentId);
-        } else {
-          console.error(insertError);
-          setActionError(t("appointment.action.loadError"));
-        }
+        logSupabaseError("Falha ao registrar ação do apontamento", insertError);
+        setActionError(
+          isMissingColumnError(insertError)
+            ? t("appointment.action.opportunityTypeColumnMissing")
+            : t("appointment.action.loadError"),
+        );
         setActionLoading(false);
         return;
       }
@@ -635,7 +721,7 @@ export default function AppointmentDetailClient({
       if (data) {
         setAppointment(mapAppointment(data as AppointmentRow));
       }
-      await loadAppointmentAction(appointmentId);
+      await loadAppointmentActions(appointmentId);
       setActionModalOpen(false);
       setActionLoading(false);
     } catch (err) {
@@ -647,10 +733,11 @@ export default function AppointmentDetailClient({
     actionNote,
     actionLossReason,
     actionNfOs,
+    actionOpportunityType,
     actionResult,
     appointment,
     appointmentId,
-    loadAppointmentAction,
+    loadAppointmentActions,
     supabase,
     t,
     user,
@@ -867,84 +954,121 @@ export default function AppointmentDetailClient({
             <h2 className="text-sm font-semibold text-slate-900">
               {t("appointment.action.sectionTitle")}
             </h2>
-            {appointmentActionError ? (
+            <div className="mt-2 text-xs text-slate-500">
+              {t("appointment.action.count", {
+                count: appointmentActions.length,
+              })}
+            </div>
+            {appointmentActionsError ? (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                {appointmentActionError}
+                {appointmentActionsError}
               </div>
             ) : null}
-            {appointmentActionLoading ? (
+            {appointmentActionsLoading ? (
               <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
                 {t("appointment.action.loading")}
               </div>
-            ) : appointmentAction ? (
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                <div>
-                  <span className="font-semibold text-slate-600">
-                    {t("appointment.action.resultLabel")}:{" "}
-                  </span>
-                  {appointmentAction.resultado === "vendido"
-                    ? t("appointment.action.resultSold")
-                    : t("appointment.action.resultLost")}
-                </div>
-                {appointmentAction.resultado === "vendido" ? (
-                  <>
-                    <div>
-                      <span className="font-semibold text-slate-600">
-                        {t("appointment.action.nfOsLabel")}:{" "}
-                      </span>
-                      {appointmentAction.nfOuOs ?? t("appointment.notInformed")}
+            ) : appointmentActions.length ? (
+              <div className="mt-3 space-y-3">
+                {appointmentActions.map((appointmentAction) => (
+                  <div
+                    key={appointmentAction.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        tone={
+                          appointmentAction.resultado === "vendido"
+                            ? "emerald"
+                            : "rose"
+                        }
+                      >
+                        {appointmentAction.resultado === "vendido"
+                          ? t("appointment.action.resultSold")
+                          : t("appointment.action.resultLost")}
+                      </Badge>
+                      {appointmentAction.createdAt ? (
+                        <span className="text-xs text-slate-500">
+                          {t("appointment.action.createdAt", {
+                            date: formatDateLabel(
+                              new Date(appointmentAction.createdAt),
+                            ),
+                            time: formatTime(
+                              new Date(appointmentAction.createdAt),
+                            ),
+                          })}
+                        </span>
+                      ) : null}
                     </div>
-                    <div>
-                      <span className="font-semibold text-slate-600">
-                        {t("appointment.action.valueLabel")}:{" "}
-                      </span>
-                      {appointmentAction.valor != null
-                        ? new Intl.NumberFormat(locale, {
-                            style: "currency",
-                            currency: "BRL",
-                          }).format(appointmentAction.valor)
-                        : t("appointment.notInformed")}
+
+                    <div className="mt-3 grid gap-2">
+                      {appointmentAction.resultado === "vendido" ? (
+                        <>
+                          <div>
+                            <span className="font-semibold text-slate-600">
+                              {t("appointment.action.opportunityTypeLabel")}:{" "}
+                            </span>
+                            {appointmentAction.tipoOportunidade
+                              ? t(
+                                  `schedule.opportunity.${appointmentAction.tipoOportunidade}`,
+                                  undefined,
+                                  getOpportunityLabel(
+                                    appointmentAction.tipoOportunidade,
+                                  ),
+                                )
+                              : t("appointment.notInformed")}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-600">
+                              {t("appointment.action.nfOsLabel")}:{" "}
+                            </span>
+                            {appointmentAction.nfOuOs ??
+                              t("appointment.notInformed")}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-600">
+                              {t("appointment.action.valueLabel")}:{" "}
+                            </span>
+                            {appointmentAction.valor != null
+                              ? new Intl.NumberFormat(locale, {
+                                  style: "currency",
+                                  currency: "BRL",
+                                }).format(appointmentAction.valor)
+                              : t("appointment.notInformed")}
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <span className="font-semibold text-slate-600">
+                            {t("appointment.action.lossReasonLabel")}:{" "}
+                          </span>
+                          {appointmentAction.motivoPerda
+                            ? t(
+                                `appointment.action.lossReasons.${appointmentAction.motivoPerda}`,
+                                undefined,
+                                appointmentAction.motivoPerda,
+                              )
+                            : t("appointment.notInformed")}
+                        </div>
+                      )}
+                      {appointmentAction.observacao ? (
+                        <div>
+                          <span className="font-semibold text-slate-600">
+                            {t("appointment.action.noteLabel")}:{" "}
+                          </span>
+                          {appointmentAction.observacao}
+                        </div>
+                      ) : null}
+                      <div>
+                        <span className="font-semibold text-slate-600">
+                          {t("appointment.action.createdByLabel")}:{" "}
+                        </span>
+                        {appointmentAction.createdBy?.trim() ||
+                          t("appointment.notInformed")}
+                      </div>
                     </div>
-                  </>
-                ) : (
-                  <div>
-                    <span className="font-semibold text-slate-600">
-                      {t("appointment.action.lossReasonLabel")}:{" "}
-                    </span>
-                    {appointmentAction.motivoPerda
-                      ? t(
-                          `appointment.action.lossReasons.${appointmentAction.motivoPerda}`,
-                          undefined,
-                          appointmentAction.motivoPerda,
-                        )
-                      : t("appointment.notInformed")}
                   </div>
-                )}
-                {appointmentAction.observacao ? (
-                  <div>
-                    <span className="font-semibold text-slate-600">
-                      {t("appointment.action.noteLabel")}:{" "}
-                    </span>
-                    {appointmentAction.observacao}
-                  </div>
-                ) : null}
-                <div>
-                  <span className="font-semibold text-slate-600">
-                    {t("appointment.action.createdByLabel")}:{" "}
-                  </span>
-                  {appointmentAction.createdBy?.trim() ||
-                    t("appointment.notInformed")}
-                </div>
-                {appointmentAction.createdAt ? (
-                  <div className="text-xs text-slate-500">
-                    {t("appointment.action.createdAt", {
-                      date: formatDateLabel(
-                        new Date(appointmentAction.createdAt),
-                      ),
-                      time: formatTime(new Date(appointmentAction.createdAt)),
-                    })}
-                  </div>
-                ) : null}
+                ))}
               </div>
             ) : (
               <div className="mt-3 text-sm text-slate-500">
@@ -1087,24 +1211,20 @@ export default function AppointmentDetailClient({
           <button
             type="button"
             onClick={() => setActionModalOpen(true)}
-            disabled={!canRegisterAction || appointment.status === "atuado"}
+            disabled={!canRegisterAction}
             title={
-              appointment.status === "atuado"
-                ? t("appointment.action.registered")
-                : !canRegisterAction
-                  ? t("appointment.action.doneRequired")
-                  : undefined
+              !canRegisterAction
+                ? t("appointment.action.doneRequired")
+                : undefined
             }
             className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-              appointment.status === "atuado"
-                ? "border-violet-200 bg-violet-50 text-violet-700"
-                : !canRegisterAction
-                  ? "border-slate-200 bg-slate-100 text-slate-400"
-                  : "border-slate-200 bg-[#FFDE00] text-[#0B0D10] shadow-md shadow-black/40 hover:brightness-95"
+              !canRegisterAction
+                ? "border-slate-200 bg-slate-100 text-slate-400"
+                : "border-slate-200 bg-[#FFDE00] text-[#0B0D10] shadow-md shadow-black/40 hover:brightness-95"
             }`}
           >
-            {appointment.status === "atuado"
-              ? t("appointment.action.registered")
+            {appointmentActions.length
+              ? t("appointment.action.addButton")
               : t("appointment.action.button")}
           </button>
 
@@ -1263,6 +1383,28 @@ export default function AppointmentDetailClient({
 
                   {actionResult === "vendido" && (
                     <>
+                      <label className="space-y-1 text-sm font-semibold text-slate-700">
+                        <span>
+                          {t("appointment.action.opportunityTypeLabel")}{" "}
+                          <span className="text-rose-600">*</span>
+                        </span>
+                        <select
+                          value={actionOpportunityType}
+                          onChange={(event) =>
+                            setActionOpportunityType(event.target.value)
+                          }
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                        >
+                          <option value="">
+                            {t("appointment.action.opportunityTypePlaceholder")}
+                          </option>
+                          {actionOpportunityOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <label className="space-y-1 text-sm font-semibold text-slate-700">
                         <span>
                           {t("appointment.action.nfOsLabel")}{" "}

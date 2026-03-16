@@ -358,12 +358,14 @@ const MESSAGES = {
       },
       action: {
         button: "Gerar ação",
+        addButton: "Registrar nova ação",
         registered: "Ação registrada",
         dialogLabel: "Registrar ação",
         dialogTitle: "Registrar ação",
         dialogSubtitle:
           "Registre a ação realizada após a visita para atualizar o status.",
         sectionTitle: "Atuação",
+        count: "{count} registro(s)",
         loading: "Carregando atuação...",
         empty: "Nenhuma atuação registrada.",
         createdByLabel: "Registrado por",
@@ -372,6 +374,8 @@ const MESSAGES = {
         resultPlaceholder: "Selecione o resultado",
         resultSold: "Vendido",
         resultLost: "Perdido",
+        opportunityTypeLabel: "Tipo da oportunidade",
+        opportunityTypePlaceholder: "Selecione o tipo",
         nfOsLabel: "NF ou OS",
         nfOsPlaceholder: "Informe o número da NF ou OS",
         valueLabel: "Valor",
@@ -384,6 +388,9 @@ const MESSAGES = {
         confirm: "Registrar",
         saving: "Registrando...",
         resultRequired: "Selecione o resultado.",
+        opportunityTypeRequired: "Selecione o tipo da oportunidade.",
+        opportunityTypeColumnMissing:
+          "A coluna tipo_oportunidade ainda não existe no banco.",
         nfOsRequired: "Informe o número da NF ou OS.",
         valueRequired: "Informe o valor da venda.",
         lossReasonRequired: "Selecione o motivo da perda.",
