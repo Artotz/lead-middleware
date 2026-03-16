@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Bar,
   BarChart,
@@ -276,7 +283,7 @@ const parseCsv = (value: string | null) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
-export default function CronogramaClient({
+function CronogramaClientContent({
   initialTab = "cronograma",
   locale,
 }: CronogramaClientProps) {
@@ -3985,5 +3992,26 @@ export default function CronogramaClient({
         )}
       </div>
     </PageShell>
+  );
+}
+
+export default function CronogramaClient(props: CronogramaClientProps) {
+  const t = useMemo(
+    () => createTranslator(getMessages(props.locale)),
+    [props.locale],
+  );
+
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <div className="flex min-h-[calc(100vh-120px)] items-center justify-center px-4 py-10 text-sm text-slate-500">
+            {t("schedule.loading")}
+          </div>
+        </PageShell>
+      }
+    >
+      <CronogramaClientContent {...props} />
+    </Suspense>
   );
 }

@@ -1,9 +1,7 @@
-import { headers } from "next/headers";
 import CronogramaClient from "./cronograma-client";
-import { getLocaleFromHeaders } from "@/lib/i18n";
+import { DEFAULT_LOCALE } from "@/lib/i18n";
 
-export default async function CronogramaPage() {
-  const locale = getLocaleFromHeaders(await headers());
-  return <CronogramaClient locale={locale} />;
+export default function CronogramaPage() {
+  return <CronogramaClient locale={DEFAULT_LOCALE} />;
 }
 

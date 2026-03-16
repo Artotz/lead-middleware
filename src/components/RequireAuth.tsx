@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { buildLoginPath } from "@/lib/authRedirect";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTranslator, DEFAULT_LOCALE, getMessages } from "@/lib/i18n";
 
-export function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuthContent({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -36,4 +36,23 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const t = useMemo(
+    () => createTranslator(getMessages(DEFAULT_LOCALE)),
+    [],
+  );
+
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center px-4 py-10 text-sm text-slate-500">
+          {t("schedule.loading")}
+        </div>
+      }
+    >
+      <RequireAuthContent>{children}</RequireAuthContent>
+    </Suspense>
+  );
 }

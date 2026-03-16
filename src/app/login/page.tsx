@@ -1,11 +1,9 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
 import LoginClient from "./login-client";
-import { createTranslator, getLocaleFromHeaders, getMessages } from "@/lib/i18n";
+import { createTranslator, DEFAULT_LOCALE, getMessages } from "@/lib/i18n";
 
-export default async function LoginPage() {
-  const locale = getLocaleFromHeaders(await headers());
-  const t = createTranslator(getMessages(locale));
+export default function LoginPage() {
+  const t = createTranslator(getMessages(DEFAULT_LOCALE));
 
   return (
     <Suspense
@@ -15,7 +13,7 @@ export default async function LoginPage() {
         </div>
       }
     >
-      <LoginClient locale={locale} />
+      <LoginClient locale={DEFAULT_LOCALE} />
     </Suspense>
   );
 }

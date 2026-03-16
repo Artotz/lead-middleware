@@ -1,9 +1,7 @@
-import { headers } from "next/headers";
-import { createTranslator, getLocaleFromHeaders, getMessages } from "@/lib/i18n";
+import { createTranslator, DEFAULT_LOCALE, getMessages } from "@/lib/i18n";
 
-export default async function NotFound() {
-  const locale = getLocaleFromHeaders(await headers());
-  const t = createTranslator(getMessages(locale));
+export default function NotFound() {
+  const t = createTranslator(getMessages(DEFAULT_LOCALE));
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
