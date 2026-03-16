@@ -425,6 +425,19 @@ export default function AppointmentDetailClient({
     );
   };
 
+  const isSingleActionConstraintError = (error: {
+    code?: string | null;
+    message?: string | null;
+    details?: string | null;
+  } | null) => {
+    if (!error) return false;
+    const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+    return (
+      error.code === "23505" &&
+      message.includes("apontamento_acoes_unique_apontamento")
+    );
+  };
+
   const logSupabaseError = (
     context: string,
     error: {
@@ -698,6 +711,8 @@ export default function AppointmentDetailClient({
         setActionError(
           isMissingColumnError(insertError)
             ? t("appointment.action.opportunityTypeColumnMissing")
+            : isSingleActionConstraintError(insertError)
+              ? t("appointment.action.singleActionConstraint")
             : t("appointment.action.loadError"),
         );
         setActionLoading(false);

@@ -391,6 +391,8 @@ const MESSAGES = {
         opportunityTypeRequired: "Selecione o tipo da oportunidade.",
         opportunityTypeColumnMissing:
           "A coluna tipo_oportunidade ainda não existe no banco.",
+        singleActionConstraint:
+          "O banco ainda está limitando a uma ação por apontamento.",
         nfOsRequired: "Informe o número da NF ou OS.",
         valueRequired: "Informe o valor da venda.",
         lossReasonRequired: "Selecione o motivo da perda.",
