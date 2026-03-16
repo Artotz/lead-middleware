@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LOGIN_NEXT_PARAM, resolveSafeNextPath } from "@/lib/authRedirect";
+import { useAuth } from "@/contexts/AuthContext";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import logoText from "@/assets/logo_text.png";
@@ -20,6 +21,7 @@ export default function LoginClient({ locale }: LoginClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { user, loading: authLoading } = useAuth();
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
 
   const queryBanner = useMemo<BannerState | null>(() => {
@@ -39,6 +41,12 @@ export default function LoginClient({ locale }: LoginClientProps) {
     [searchParams],
   );
 
+  useEffect(() => {
+    if (authLoading || !user) return;
+    router.replace(nextPath);
+    router.refresh();
+  }, [authLoading, nextPath, router, user]);
+
   const handlePasswordSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBanner(null);
@@ -49,18 +57,14 @@ export default function LoginClient({ locale }: LoginClientProps) {
       password,
     });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       setBanner({
         variant: "error",
         message: error.message || t("login.errorDefault"),
       });
       return;
     }
-
-    router.replace(nextPath);
-    router.refresh();
   };
 
   return (
