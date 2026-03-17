@@ -193,7 +193,7 @@ const renderPieLabelLine = ({
   outerRadius = 0,
   percent = 0,
 }: PieSliceRenderProps) => {
-  if (percent <= 0) return null;
+  if (percent <= 0) return <g />;
 
   const startRadius = outerRadius + 4;
   const endRadius = outerRadius + 14;
