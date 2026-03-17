@@ -2230,11 +2230,16 @@ function CronogramaClientContent({
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Tooltip
-                          formatter={(value) => [
+                          formatter={(value, _name, item) => [
                             value,
-                            t("schedule.dashboard.tooltip.appointments"),
+                            item?.payload?.label ??
+                              t("schedule.dashboard.tooltip.appointments"),
                           ]}
-                          labelFormatter={() => ""}
+                          labelFormatter={(label) =>
+                            t("schedule.dashboard.tooltip.statusLabel", {
+                              name: String(label ?? ""),
+                            })
+                          }
                         />
                         <Pie
                           data={dashboardStatusData}
@@ -2271,7 +2276,7 @@ function CronogramaClientContent({
                             </div>
                             <div className="text-slate-600">
                               {item.count}{" "}
-                              {t("schedule.dashboard.tooltip.appointments")}
+                              {t("schedule.dashboard.tooltip.totalAppointments")}
                             </div>
                           </div>
                         </div>
@@ -2360,11 +2365,16 @@ function CronogramaClientContent({
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Tooltip
-                          formatter={(value) => [
+                          formatter={(value, _name, item) => [
                             value,
-                            t("schedule.dashboard.tooltip.opportunities"),
+                            item?.payload?.label ??
+                              t("schedule.dashboard.tooltip.opportunities"),
                           ]}
-                          labelFormatter={() => ""}
+                          labelFormatter={(label) =>
+                            t("schedule.dashboard.tooltip.opportunityTypeLabel", {
+                              name: String(label ?? ""),
+                            })
+                          }
                         />
                         <Pie
                           data={dashboardOpportunitiesData}
@@ -2434,7 +2444,9 @@ function CronogramaClientContent({
                             </div>
                             <div className="text-slate-600">
                               {item.count}{" "}
-                              {t("schedule.dashboard.tooltip.opportunities")}
+                              {t(
+                                "schedule.dashboard.tooltip.totalOpportunities",
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2485,9 +2497,22 @@ function CronogramaClientContent({
                     <Tooltip
                       formatter={(value) => [
                         value,
-                        t("schedule.dashboard.tooltip.activities"),
+                        t("schedule.dashboard.tooltip.totalActivities"),
                       ]}
-                      labelFormatter={() => ""}
+                      labelFormatter={(label) =>
+                        t("schedule.dashboard.tooltip.activityTypeLabel", {
+                          name: String(label ?? ""),
+                        })
+                      }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
                     />
                     <Bar dataKey="count" fill="#6366F1">
                       <LabelList
@@ -2540,13 +2565,22 @@ function CronogramaClientContent({
                     <Tooltip
                       formatter={(value) => [
                         value,
-                        t("schedule.dashboard.tooltip.activities"),
+                        t("schedule.dashboard.tooltip.totalActivities"),
                       ]}
                       labelFormatter={(label) =>
                         t("schedule.dashboard.tooltip.consultantLabel", {
                           name: label,
                         })
                       }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
                     />
                     <Bar dataKey="count" fill="#6366F1">
                       <LabelList
@@ -2589,9 +2623,22 @@ function CronogramaClientContent({
                     <Tooltip
                       formatter={(value) => [
                         value,
-                        t("schedule.dashboard.tooltip.companies"),
+                        t("schedule.dashboard.tooltip.totalCompanies"),
                       ]}
-                      labelFormatter={() => ""}
+                      labelFormatter={(label) =>
+                        t("schedule.dashboard.tooltip.stateLabel", {
+                          name: String(label ?? ""),
+                        })
+                      }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
                     />
                     <Bar dataKey="count" fill="#10B981">
                       <LabelList
