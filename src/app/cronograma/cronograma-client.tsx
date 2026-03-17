@@ -1270,7 +1270,12 @@ function CronogramaClientContent({
 
     const companiesByState = (() => {
       const map = new Map<string, number>();
-      dashboardCompanies.forEach((company) => {
+      const companyIds = new Set(
+        dashboardCountableAppointments.map((appointment) => appointment.companyId),
+      );
+      companyIds.forEach((companyId) => {
+        const company = dashboardCompanyById.get(companyId);
+        if (!company) return;
         const state = company.state?.trim() || t("schedule.dashboard.noState");
         map.set(state, (map.get(state) ?? 0) + 1);
       });
@@ -1329,6 +1334,7 @@ function CronogramaClientContent({
       checkOutRate,
     };
   }, [
+    dashboardCompanyById,
     dashboardCountableAppointments,
     dashboardBuckets,
     dashboardCompanies,
@@ -2720,135 +2726,139 @@ function CronogramaClientContent({
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-slate-500">
+              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
           </div>
 
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
-            </div>
-            {consultantAvgVisits.length ? (
-              <div className="mt-3 min-h-[280px] flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={consultantAvgVisits}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis
-                      allowDecimals
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value == null ? "0.0" : Number(value).toFixed(1),
-                        t("schedule.dashboard.tooltip.avgVisits"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.consultantLabel", {
-                          name: label,
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="avg" fill="#0EA5E9">
-                      <LabelList
-                        dataKey="avg"
-                        position="top"
-                        formatter={(value) => formatChartLabel(value, 1)}
+          {dashboardScope === "general" ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
+              </div>
+              {consultantAvgVisits.length ? (
+                <div className="mt-3 min-h-[280px] flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={consultantAvgVisits}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
+                      <YAxis
+                        allowDecimals
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value == null ? "0.0" : Number(value).toFixed(1),
+                          t("schedule.dashboard.tooltip.avgVisits"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.consultantLabel", {
+                            name: label,
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="avg" fill="#0EA5E9">
+                        <LabelList
+                          dataKey="avg"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value, 1)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
 
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.topConsultants")}
-            </div>
-            {dashboardMetrics.topConsultants.length ? (
-              <div className="mt-3 min-h-[280px] flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={dashboardMetrics.topConsultants}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value,
-                        t("schedule.dashboard.tooltip.appointments"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.consultantLabel", {
-                          name: label,
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="count" fill="#0EA5E9">
-                      <LabelList
-                        dataKey="count"
-                        position="top"
-                        formatter={(value) => formatChartLabel(value)}
+          {dashboardScope === "general" ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.charts.topConsultants")}
+              </div>
+              {dashboardMetrics.topConsultants.length ? (
+                <div className="mt-3 min-h-[280px] flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dashboardMetrics.topConsultants}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.appointments"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.consultantLabel", {
+                            name: label,
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#0EA5E9">
+                        <LabelList
+                          dataKey="count"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -2928,7 +2938,7 @@ function CronogramaClientContent({
                   </div>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-slate-500">
+              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
@@ -2997,7 +3007,7 @@ function CronogramaClientContent({
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-slate-500">
+              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
@@ -3084,79 +3094,81 @@ function CronogramaClientContent({
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-slate-500">
+              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
           </div>
 
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.activitiesByConsultant")}
-            </div>
-            {activityError ? (
-              <div className="mt-3 text-sm text-rose-600">{activityError}</div>
-            ) : activityLoading ? (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.activitiesLoading")}
+          {dashboardScope === "general" ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.charts.activitiesByConsultant")}
               </div>
-            ) : dashboardActivitiesByConsultant.length ? (
-              <div className="mt-3 min-h-[280px] flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={dashboardActivitiesByConsultant}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value,
-                        t("schedule.dashboard.tooltip.totalActivities"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.consultantLabel", {
-                          name: label,
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="count" fill="#6366F1">
-                      <LabelList
-                        dataKey="count"
-                        position="top"
-                        formatter={(value) => formatChartLabel(value)}
+              {activityError ? (
+                <div className="mt-3 text-sm text-rose-600">{activityError}</div>
+              ) : activityLoading ? (
+                <div className="mt-3 text-sm text-slate-500">
+                  {t("schedule.dashboard.activitiesLoading")}
+                </div>
+              ) : dashboardActivitiesByConsultant.length ? (
+                <div className="mt-3 min-h-[280px] flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dashboardActivitiesByConsultant}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="name"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.totalActivities"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.consultantLabel", {
+                            name: label,
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#6366F1">
+                        <LabelList
+                          dataKey="count"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -3210,7 +3222,7 @@ function CronogramaClientContent({
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="mt-3 text-sm text-slate-500">
+              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
