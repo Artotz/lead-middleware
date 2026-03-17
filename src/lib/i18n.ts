@@ -199,6 +199,7 @@ const MESSAGES = {
         scopeLabel: "Escopo",
         scopeGeneral: "Geral",
         scopeIndividual: "Individual",
+        allConsultants: "Todos os consultores",
         viewLabel: "Visualizacao",
         viewWeek: "Semana",
         viewMonth: "Mes",

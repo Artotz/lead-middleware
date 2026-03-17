@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -296,6 +297,135 @@ const parseCsv = (value: string | null) =>
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
 
+type ToolbarRowProps = {
+  summary: ReactNode;
+  children: ReactNode;
+  className?: string;
+};
+
+function ToolbarRow({ summary, children, className }: ToolbarRowProps) {
+  return (
+    <div
+      className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className ?? ""}`}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        {summary}
+      </div>
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type ToolbarFieldProps = {
+  label?: string;
+  srOnlyLabel?: boolean;
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+};
+
+function ToolbarField({
+  label,
+  srOnlyLabel = false,
+  children,
+  className,
+  contentClassName,
+}: ToolbarFieldProps) {
+  return (
+    <label
+      className={`flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto ${className ?? ""}`}
+    >
+      {label ? (
+        <span
+          className={
+            srOnlyLabel
+              ? "sr-only"
+              : "text-xs uppercase tracking-wide text-slate-500"
+          }
+        >
+          {label}
+        </span>
+      ) : null}
+      <div className={contentClassName}>{children}</div>
+    </label>
+  );
+}
+
+type PeriodOption = {
+  value: string;
+  label: string;
+};
+
+type PeriodNavigatorProps = {
+  label: string;
+  prevLabel: string;
+  nextLabel: string;
+  value: string;
+  options: PeriodOption[];
+  onChange: (value: string) => void;
+  onPrev: () => void;
+  onNext: () => void;
+  trailing?: ReactNode;
+  containerClassName?: string;
+};
+
+function PeriodNavigator({
+  label,
+  prevLabel,
+  nextLabel,
+  value,
+  options,
+  onChange,
+  onPrev,
+  onNext,
+  trailing,
+  containerClassName,
+}: PeriodNavigatorProps) {
+  return (
+    <div
+      className={`${containerClassName ?? ""} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+    >
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onPrev} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
+          <span className="sr-only">{prevLabel}</span>
+          &lt;
+        </button>
+        <ToolbarField
+          label={label}
+          srOnlyLabel
+          className="sm:min-w-[220px]"
+          contentClassName="w-full"
+        >
+          <select
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            aria-label={label}
+            className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </ToolbarField>
+        <button type="button" onClick={onNext} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900">
+          <span className="sr-only">{nextLabel}</span>
+          &gt;
+        </button>
+      </div>
+
+      {trailing ? (
+        <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
+          {trailing}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CronogramaClientContent({
   initialTab = "cronograma",
   locale,
@@ -521,6 +651,109 @@ function CronogramaClientContent({
   const suggestionHighlightClass =
     "border-warning/80 bg-amber-100 ring-1 ring-warning/30";
   const canCreateAppointment = role === "admin";
+  const toolbarInputClass =
+    "w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+
+  const scopeControl = (
+    <ToolbarField
+      label={t("schedule.dashboard.scopeLabel")}
+      srOnlyLabel
+      className="sm:min-w-[160px]"
+      contentClassName="w-full"
+    >
+      <select
+        value={dashboardScope}
+        onChange={(event) =>
+          setDashboardScope(event.target.value as DashboardScope)
+        }
+        aria-label={t("schedule.dashboard.scopeLabel")}
+        className={toolbarInputClass}
+      >
+        <option value="general">{t("schedule.dashboard.scopeGeneral")}</option>
+        <option value="individual">
+          {t("schedule.dashboard.scopeIndividual")}
+        </option>
+      </select>
+    </ToolbarField>
+  );
+
+  const consultantControl = (options?: {
+    forceDisabled?: boolean;
+    disabledLabel?: string;
+  }) => {
+    const isDisabled =
+      Boolean(options?.forceDisabled) ||
+      dashboardScope !== "individual" ||
+      !consultants.length;
+    const value =
+      dashboardScope === "individual"
+        ? (selectedConsultantId ?? "")
+        : "__all_consultants__";
+
+    return (
+      <ToolbarField
+        label={t("schedule.consultant")}
+        srOnlyLabel
+        className="sm:min-w-[220px]"
+        contentClassName="w-full"
+      >
+        <select
+          value={value}
+          onChange={(event) => {
+            const next = event.target.value || null;
+            setSelectedConsultantId(next);
+          }}
+          disabled={isDisabled}
+          aria-label={t("schedule.consultant")}
+          className={toolbarInputClass}
+        >
+          {dashboardScope !== "individual" ? (
+            <option value="__all_consultants__">
+              {options?.disabledLabel ?? t("schedule.dashboard.allConsultants")}
+            </option>
+          ) : consultants.length ? (
+            consultants.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))
+          ) : (
+            <option value="">{t("schedule.emptyConsultant")}</option>
+          )}
+        </select>
+      </ToolbarField>
+    );
+  };
+
+  const scheduleConsultantControl = (
+    <ToolbarField
+      label={t("schedule.consultant")}
+      srOnlyLabel
+      className="sm:min-w-[220px]"
+      contentClassName="w-full"
+    >
+      <select
+        value={selectedConsultantId ?? ""}
+        onChange={(event) => {
+          const next = event.target.value || null;
+          setSelectedConsultantId(next);
+        }}
+        disabled={!consultants.length}
+        aria-label={t("schedule.consultant")}
+        className={toolbarInputClass}
+      >
+        {consultants.length ? (
+          consultants.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))
+        ) : (
+          <option value="">{t("schedule.emptyConsultant")}</option>
+        )}
+      </select>
+    </ToolbarField>
+  );
 
   const isSuggestedAppointment = useCallback(
     (appointment: Appointment) => {
@@ -738,6 +971,41 @@ function CronogramaClientContent({
       }),
     [locale],
   );
+  const yearNumberFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+      }),
+    [locale],
+  );
+
+  const monthSelectOptions = useMemo(() => {
+    const options: PeriodOption[] = [];
+    const baseYear = selectedMonth.getFullYear();
+    for (let year = baseYear - 4; year <= baseYear + 3; year += 1) {
+      for (let month = 0; month < 12; month += 1) {
+        const date = new Date(year, month, 1);
+        options.push({
+          value: toMonthKey(date),
+          label: formatMonthLabel(date),
+        });
+      }
+    }
+    return options;
+  }, [selectedMonth]);
+
+  const yearSelectOptions = useMemo(() => {
+    const options: PeriodOption[] = [];
+    const baseYear = selectedMonth.getFullYear();
+    for (let year = baseYear - 7; year <= baseYear + 7; year += 1) {
+      const date = new Date(year, 0, 1);
+      options.push({
+        value: String(year),
+        label: yearNumberFormatter.format(date),
+      });
+    }
+    return options;
+  }, [selectedMonth, yearNumberFormatter]);
 
   const dashboardBuckets = useMemo(() => {
     if (dashboardView === "week") {
@@ -1067,8 +1335,9 @@ function CronogramaClientContent({
         id,
         label: t(`schedule.opportunity.${id}`, undefined, id),
         count: dashboardMetrics.opportunityTotals.get(id) ?? 0,
-      })),
-    [dashboardMetrics.opportunityTotals, opportunityIds, t],
+      }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, locale)),
+    [dashboardMetrics.opportunityTotals, locale, opportunityIds, t],
   );
 
   const activityLabelMap = useMemo(
@@ -2078,10 +2347,28 @@ function CronogramaClientContent({
     });
   }, [dashboardRange.endAt, dashboardRange.startAt, dashboardView, selectedMonth, t]);
 
-  const dashboardPeriodDisplayLabel =
-    dashboardView === "year"
-      ? String(selectedMonth.getFullYear())
-      : formatMonthLabel(selectedMonth);
+  const handleSchedulePeriodChange = useCallback(
+    (value: string) => {
+      const nextMonth = parseMonth(value, selectedMonth);
+      setSelectedMonth(nextMonth);
+    },
+    [selectedMonth],
+  );
+
+  const handleDashboardPeriodChange = useCallback(
+    (value: string) => {
+      if (dashboardView === "year") {
+        const parsedYear = Number(value);
+        if (Number.isInteger(parsedYear)) {
+          setSelectedMonth(new Date(parsedYear, 0, 1));
+        }
+        return;
+      }
+      const nextMonth = parseMonth(value, selectedMonth);
+      setSelectedMonth(nextMonth);
+    },
+    [dashboardView, selectedMonth],
+  );
 
   const shiftDashboardPeriod = useCallback(
     (direction: -1 | 1) => {
@@ -2208,143 +2495,79 @@ function CronogramaClientContent({
     return (
       <div className={`${panelClass} p-4`}>
         <div className="flex flex-col gap-3">
-          <div
-            className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
+          <ToolbarRow
+            className={toolbarCardClass}
+            summary={<span>{dashboardPeriodLabel}</span>}
           >
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              {dashboardPeriodLabel}
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                <span className="sr-only">
-                  {t("schedule.dashboard.viewLabel")}
-                </span>
-                <select
-                  value={dashboardView}
-                  onChange={(event) =>
-                    setDashboardView(event.target.value as DashboardView)
-                  }
-                  aria-label={t("schedule.dashboard.viewLabel")}
-                  className="min-w-[120px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                >
-                  <option value="week">
-                    {t("schedule.dashboard.viewWeek")}
-                  </option>
-                  <option value="month">
-                    {t("schedule.dashboard.viewMonth")}
-                  </option>
-                  <option value="year">
-                    {t("schedule.dashboard.viewYear")}
-                  </option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                <span className="sr-only">
-                  {t("schedule.dashboard.scopeLabel")}
-                </span>
-                <select
-                  value={dashboardScope}
-                  onChange={(event) =>
-                    setDashboardScope(event.target.value as DashboardScope)
-                  }
-                  aria-label={t("schedule.dashboard.scopeLabel")}
-                  className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                >
-                  <option value="general">
-                    {t("schedule.dashboard.scopeGeneral")}
-                  </option>
-                  <option value="individual">
-                    {t("schedule.dashboard.scopeIndividual")}
-                  </option>
-                </select>
-              </label>
-              {dashboardScope === "individual" ? (
-                <>
-                  <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-                    <span className="sr-only">{t("schedule.consultant")}</span>
-                    <select
-                      value={selectedConsultantId ?? ""}
-                      onChange={(event) => {
-                        const next = event.target.value || null;
-                        setSelectedConsultantId(next);
-                      }}
-                      disabled={!consultants.length}
-                      aria-label={t("schedule.consultant")}
-                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      {consultants.length ? (
-                        consultants.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">{t("schedule.emptyConsultant")}</option>
-                      )}
-                    </select>
-                  </label>
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          <div
-            className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
-          >
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => shiftDashboardPeriod(-1)}
-                className={softButtonClass}
+            {scopeControl}
+            {consultantControl()}
+            <ToolbarField
+              label={t("schedule.dashboard.viewLabel")}
+              srOnlyLabel
+              className="sm:min-w-[140px]"
+              contentClassName="w-full"
+            >
+              <select
+                value={dashboardView}
+                onChange={(event) =>
+                  setDashboardView(event.target.value as DashboardView)
+                }
+                aria-label={t("schedule.dashboard.viewLabel")}
+                className={toolbarInputClass}
               >
-                <span className="sr-only">
-                  {t(
-                    dashboardView === "year"
-                      ? "schedule.dashboard.prevYear"
-                      : "schedule.prevMonth",
-                  )}
-                </span>
-                &lt;
-              </button>
-              <span className="text-sm font-semibold text-slate-800">
-                {dashboardPeriodDisplayLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => shiftDashboardPeriod(1)}
-                className={softButtonClass}
-              >
-                <span className="sr-only">
-                  {t(
-                    dashboardView === "year"
-                      ? "schedule.dashboard.nextYear"
-                      : "schedule.nextMonth",
-                  )}
-                </span>
-                &gt;
-              </button>
-            </div>
+                <option value="week">{t("schedule.dashboard.viewWeek")}</option>
+                <option value="month">
+                  {t("schedule.dashboard.viewMonth")}
+                </option>
+                <option value="year">{t("schedule.dashboard.viewYear")}</option>
+              </select>
+            </ToolbarField>
+          </ToolbarRow>
 
-            {dashboardView === "week" ? (
-              <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
-                {weeks.map((week, index) => {
-                  const isActive = index === selectedWeekIndex;
-                  return (
-                    <button
-                      key={`${toDateKey(week.startAt)}-${index}`}
-                      type="button"
-                      onClick={() => setSelectedWeekIndex(index)}
-                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                        isActive ? toggleActiveClass : toggleInactiveClass
-                      }`}
-                    >
-                      {week.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
+          <PeriodNavigator
+            containerClassName={toolbarCardClass}
+            label={t("schedule.dashboard.viewLabel")}
+            prevLabel={t(
+              dashboardView === "year"
+                ? "schedule.dashboard.prevYear"
+                : "schedule.prevMonth",
+            )}
+            nextLabel={t(
+              dashboardView === "year"
+                ? "schedule.dashboard.nextYear"
+                : "schedule.nextMonth",
+            )}
+            value={
+              dashboardView === "year"
+                ? String(selectedMonth.getFullYear())
+                : toMonthKey(selectedMonth)
+            }
+            options={
+              dashboardView === "year" ? yearSelectOptions : monthSelectOptions
+            }
+            onChange={handleDashboardPeriodChange}
+            onPrev={() => shiftDashboardPeriod(-1)}
+            onNext={() => shiftDashboardPeriod(1)}
+            trailing={
+              dashboardView === "week"
+                ? weeks.map((week, index) => {
+                    const isActive = index === selectedWeekIndex;
+                    return (
+                      <button
+                        key={`${toDateKey(week.startAt)}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedWeekIndex(index)}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                          isActive ? toggleActiveClass : toggleInactiveClass
+                        }`}
+                      >
+                        {week.label}
+                      </button>
+                    );
+                  })
+                : null
+            }
+          />
 
           <div className="text-xs text-slate-500">
             {dashboardScope === "general"
@@ -2397,6 +2620,15 @@ function CronogramaClientContent({
                       labelFormatter={(_label, payload) =>
                         String(payload?.[0]?.payload?.fullLabel ?? "")
                       }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
                     />
                     <Line
                       type="monotone"
@@ -2465,6 +2697,137 @@ function CronogramaClientContent({
                         dataKey="avg"
                         position="top"
                         formatter={(value) => formatChartLabel(value, 1)}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.topConsultants")}
+            </div>
+            {dashboardMetrics.topConsultants.length ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={dashboardMetrics.topConsultants}
+                    margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      domain={[
+                        0,
+                        (dataMax: number) =>
+                          Math.max(1, Math.ceil(dataMax * 1.15)),
+                      ]}
+                    />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.appointments"),
+                      ]}
+                      labelFormatter={(label) =>
+                        t("schedule.dashboard.tooltip.consultantLabel", {
+                          name: label,
+                        })
+                      }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
+                    />
+                    <Bar dataKey="count" fill="#0EA5E9">
+                      <LabelList
+                        dataKey="count"
+                        position="top"
+                        formatter={(value) => formatChartLabel(value)}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.activitiesByType")}
+            </div>
+            {activityError ? (
+              <div className="mt-3 text-sm text-rose-600">{activityError}</div>
+            ) : activityLoading ? (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.activitiesLoading")}
+              </div>
+            ) : dashboardActivitiesData.length ? (
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={dashboardActivitiesData}
+                    margin={{ top: 24, right: 12, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="label"
+                      interval={0}
+                      tick={{ fontSize: 10 }}
+                      tickMargin={8}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      domain={[
+                        0,
+                        (dataMax: number) =>
+                          Math.max(1, Math.ceil(dataMax * 1.15)),
+                      ]}
+                    />
+                    <Tooltip
+                      formatter={(value) => [
+                        value,
+                        t("schedule.dashboard.tooltip.totalActivities"),
+                      ]}
+                      labelFormatter={(label) =>
+                        t("schedule.dashboard.tooltip.activityTypeLabel", {
+                          name: String(label ?? ""),
+                        })
+                      }
+                      contentStyle={{
+                        backgroundColor: "#FFFFFF",
+                        color: "#0F172A",
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                      }}
+                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                      itemStyle={{ color: "#0F172A" }}
+                    />
+                    <Bar dataKey="count" fill="#6366F1">
+                      <LabelList
+                        dataKey="count"
+                        position="top"
+                        formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
                   </BarChart>
@@ -2552,213 +2915,40 @@ function CronogramaClientContent({
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.topConsultants")}
-            </div>
-            {dashboardMetrics.topConsultants.length ? (
-              <div className="mt-3 h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={dashboardMetrics.topConsultants}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value,
-                        t("schedule.dashboard.tooltip.appointments"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.consultantLabel", {
-                          name: label,
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="count" fill="#0EA5E9">
-                      <LabelList
-                        dataKey="count"
-                        position="top"
-                        formatter={(value) => formatChartLabel(value)}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.opportunitiesByType")}
             </div>
             {dashboardOpportunitiesData.length ? (
-              <div className="mt-3">
-                <div className="flex flex-col gap-4 md:flex-row">
-                  <div className="h-56 w-full md:w-2/3">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Tooltip
-                          formatter={(value, _name, item) => [
-                            value,
-                            item?.payload?.label ??
-                              t("schedule.dashboard.tooltip.opportunities"),
-                          ]}
-                          labelFormatter={(label) =>
-                            t("schedule.dashboard.tooltip.opportunityTypeLabel", {
-                              name: String(label ?? ""),
-                            })
-                          }
-                        />
-                        <Pie
-                          data={dashboardOpportunitiesData}
-                          dataKey="count"
-                          nameKey="label"
-                          innerRadius={50}
-                          outerRadius={80}
-                          paddingAngle={3}
-                        >
-                          {dashboardOpportunitiesData.map((item, index) => (
-                            <Cell
-                              key={item.id}
-                              fill={
-                                [
-                                  "#F59E0B",
-                                  "#F97316",
-                                  "#14B8A6",
-                                  "#38BDF8",
-                                  "#6366F1",
-                                  "#A855F7",
-                                  "#EC4899",
-                                  "#22C55E",
-                                  "#0EA5E9",
-                                  "#64748B",
-                                  "#EAB308",
-                                  "#F43F5E",
-                                ][index % 12]
-                              }
-                            />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="w-full md:w-1/3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("schedule.dashboard.legendTitle")}
-                    </div>
-                    <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      {dashboardOpportunitiesData.map((item, index) => (
-                        <div
-                          key={`legend-${item.id}`}
-                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
-                        >
-                          <span
-                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
-                            style={{
-                              backgroundColor: [
-                                "#F59E0B",
-                                "#F97316",
-                                "#14B8A6",
-                                "#38BDF8",
-                                "#6366F1",
-                                "#A855F7",
-                                "#EC4899",
-                                "#22C55E",
-                                "#0EA5E9",
-                                "#64748B",
-                                "#EAB308",
-                                "#F43F5E",
-                              ][index % 12],
-                            }}
-                          />
-                          <div className="flex-1">
-                            <div className="font-semibold text-slate-900">
-                              {item.label}
-                            </div>
-                            <div className="text-slate-600">
-                              {item.count}{" "}
-                              {t(
-                                "schedule.dashboard.tooltip.totalOpportunities",
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.activitiesByType")}
-            </div>
-            {activityError ? (
-              <div className="mt-3 text-sm text-rose-600">{activityError}</div>
-            ) : activityLoading ? (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.activitiesLoading")}
-              </div>
-            ) : dashboardActivitiesData.length ? (
-              <div className="mt-3 h-56">
+              <div
+                className="mt-3"
+                style={{
+                  height: `${Math.max(
+                    280,
+                    dashboardOpportunitiesData.length * 28 + 80,
+                  )}px`,
+                }}
+              >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={dashboardActivitiesData}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 0 }}
+                    layout="vertical"
+                    data={dashboardOpportunitiesData}
+                    margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="label"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                      tickMargin={8}
-                    />
+                    <XAxis type="number" />
                     <YAxis
+                      type="category"
+                      dataKey="label"
+                      width={140}
                       allowDecimals={false}
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
+                      tick={{ fontSize: 10 }}
                     />
                     <Tooltip
                       formatter={(value) => [
                         value,
-                        t("schedule.dashboard.tooltip.totalActivities"),
+                        t("schedule.dashboard.tooltip.opportunities"),
                       ]}
                       labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.activityTypeLabel", {
+                        t("schedule.dashboard.tooltip.opportunityTypeLabel", {
                           name: String(label ?? ""),
                         })
                       }
@@ -2772,10 +2962,31 @@ function CronogramaClientContent({
                       labelStyle={{ color: "#0F172A", fontWeight: 600 }}
                       itemStyle={{ color: "#0F172A" }}
                     />
-                    <Bar dataKey="count" fill="#6366F1">
+                    <Bar dataKey="count">
+                      {dashboardOpportunitiesData.map((item, index) => (
+                        <Cell
+                          key={item.id}
+                          fill={
+                            [
+                              "#F59E0B",
+                              "#F97316",
+                              "#14B8A6",
+                              "#38BDF8",
+                              "#6366F1",
+                              "#A855F7",
+                              "#EC4899",
+                              "#22C55E",
+                              "#0EA5E9",
+                              "#64748B",
+                              "#EAB308",
+                              "#F43F5E",
+                            ][index % 12]
+                          }
+                        />
+                      ))}
                       <LabelList
                         dataKey="count"
-                        position="top"
+                        position="right"
                         formatter={(value) => formatChartLabel(value)}
                       />
                     </Bar>
@@ -2925,17 +3136,16 @@ function CronogramaClientContent({
         {activeTab === "cronograma" ? (
           <div className={`${panelClass} p-3 sm:p-4`}>
             <div className="flex flex-col gap-3">
-              <div
-                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
-              >
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <ToolbarRow
+                className={toolbarCardClass}
+                summary={
                   <span>
                     {t("schedule.appointmentsCount", {
                       count: totalAppointments,
                     })}
                   </span>
-                </div>
-                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                }
+              >
                   {viewMode === "board" ? (
                     <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-600 shadow-sm">
                       <button
@@ -2967,36 +3177,13 @@ function CronogramaClientContent({
                       </button>
                     </div>
                   ) : null}
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.consultant")}</span>
-                    <select
-                      value={selectedConsultantId ?? ""}
-                      onChange={(event) => {
-                        const next = event.target.value || null;
-                        setSelectedConsultantId(next);
-                      }}
-                      disabled={!consultants.length}
-                      aria-label={t("schedule.consultant")}
-                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      {consultants.length ? (
-                        consultants.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">
-                          {t("schedule.emptyConsultant")}
-                        </option>
-                      )}
-                    </select>
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {t("schedule.statusFilterLabel")}
-                    </span>
-                    <div className="min-w-[180px]">
+                  {scheduleConsultantControl}
+                  <ToolbarField
+                    label={t("schedule.statusFilterLabel")}
+                    className="sm:min-w-[240px]"
+                    contentClassName="w-full"
+                  >
+                    <div className="w-full min-w-[180px]">
                       <LeadTypesMultiSelect
                         value={cronogramaStatus}
                         options={appointmentStatusOptions}
@@ -3022,7 +3209,7 @@ function CronogramaClientContent({
                         )}
                       />
                     </div>
-                  </label>
+                  </ToolbarField>
                   {/* <button
                     type="button"
                     onClick={() => refresh()}
@@ -3068,56 +3255,34 @@ function CronogramaClientContent({
                       setViewMode("board");
                     }}
                   />
-                </div>
-              </div>
+              </ToolbarRow>
 
-              <div
-                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
-              >
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedMonth((prev) => addMonths(prev, -1))
-                    }
-                    className={softButtonClass}
-                  >
-                    <span className="sr-only">{t("schedule.prevMonth")}</span>
-                    &lt;
-                  </button>
-                  <span className="text-sm font-semibold text-slate-800">
-                    {formatMonthLabel(selectedMonth)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedMonth((prev) => addMonths(prev, 1))
-                    }
-                    className={softButtonClass}
-                  >
-                    <span className="sr-only">{t("schedule.nextMonth")}</span>
-                    &gt;
-                  </button>
-                </div>
-
-                <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
-                  {weeks.map((week, index) => {
-                    const isActive = index === selectedWeekIndex;
-                    return (
-                      <button
-                        key={`${toDateKey(week.startAt)}-${index}`}
-                        type="button"
-                        onClick={() => setSelectedWeekIndex(index)}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                          isActive ? toggleActiveClass : toggleInactiveClass
-                        }`}
-                      >
-                        {week.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <PeriodNavigator
+                containerClassName={toolbarCardClass}
+                label={t("schedule.selectWeek")}
+                prevLabel={t("schedule.prevMonth")}
+                nextLabel={t("schedule.nextMonth")}
+                value={toMonthKey(selectedMonth)}
+                options={monthSelectOptions}
+                onChange={handleSchedulePeriodChange}
+                onPrev={() => setSelectedMonth((prev) => addMonths(prev, -1))}
+                onNext={() => setSelectedMonth((prev) => addMonths(prev, 1))}
+                trailing={weeks.map((week, index) => {
+                  const isActive = index === selectedWeekIndex;
+                  return (
+                    <button
+                      key={`${toDateKey(week.startAt)}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedWeekIndex(index)}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                        isActive ? toggleActiveClass : toggleInactiveClass
+                      }`}
+                    >
+                      {week.label}
+                    </button>
+                  );
+                })}
+              />
 
               <CreateAppointmentModal
                 open={showCreateModal}
@@ -3573,178 +3738,141 @@ function CronogramaClientContent({
         ) : activeTab === "agendamentos" ? (
           <div className={`${panelClass} p-3 sm:p-4`}>
             <div className="flex flex-col gap-3">
-              <div
-                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
-              >
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  {isAppointmentsLoading ? (
+              <ToolbarRow
+                className={toolbarCardClass}
+                summary={
+                  isAppointmentsLoading ? (
                     <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
-                    <>
-                      <span>
-                        {t("schedule.appointmentsCount", {
-                          count: filteredAppointments.length,
-                        })}
-                      </span>
-                      {/* <span>{t("schedule.appointmentsControlsHint")}</span> */}
-                    </>
-                  )}
-                </div>
-                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">
-                      {t("schedule.dashboard.scopeLabel")}
+                    <span>
+                      {t("schedule.appointmentsCount", {
+                        count: filteredAppointments.length,
+                      })}
                     </span>
-                    <select
-                      value={dashboardScope}
-                      onChange={(event) =>
-                        setDashboardScope(event.target.value as DashboardScope)
+                  )
+                }
+              >
+                {scopeControl}
+                {consultantControl()}
+                <ToolbarField
+                  label={t("schedule.statusFilterLabel")}
+                  className="sm:min-w-[240px]"
+                  contentClassName="w-full"
+                >
+                  <div className="w-full min-w-[180px]">
+                    <LeadTypesMultiSelect
+                      value={appointmentStatus}
+                      options={appointmentStatusOptions}
+                      onChange={(next) =>
+                        setAppointmentStatus(
+                          next.filter(
+                            (status): status is SupabaseAppointmentStatus =>
+                              status === "scheduled" ||
+                              status === "in_progress" ||
+                              status === "done" ||
+                              status === "absent" ||
+                              status === "atuado",
+                          ),
+                        )
                       }
-                      aria-label={t("schedule.dashboard.scopeLabel")}
-                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      <option value="general">
-                        {t("schedule.dashboard.scopeGeneral")}
-                      </option>
-                      <option value="individual">
-                        {t("schedule.dashboard.scopeIndividual")}
-                      </option>
-                    </select>
-                  </label>
-                  {dashboardScope === "individual" ? (
-                    <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                      <span className="sr-only">{t("schedule.consultant")}</span>
-                      <select
-                        value={selectedConsultantId ?? ""}
-                        onChange={(event) => {
-                          const next = event.target.value || null;
-                          setSelectedConsultantId(next);
-                        }}
-                        disabled={!consultants.length}
-                        aria-label={t("schedule.consultant")}
-                        className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                      >
-                        {consultants.length ? (
-                          consultants.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">
-                            {t("schedule.emptyConsultant")}
-                          </option>
-                        )}
-                      </select>
-                    </label>
-                  ) : null}
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.search")}</span>
-                    <input
-                      type="search"
-                      value={appointmentSearch}
-                      onChange={(event) =>
-                        setAppointmentSearch(event.target.value)
-                      }
-                      placeholder={t("schedule.appointmentsSearchPlaceholder")}
-                      disabled={
-                        dashboardScope === "individual" && !selectedConsultantId
-                      }
-                      aria-label={t("schedule.search")}
-                      className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                      placeholder={t("schedule.statusAll")}
+                      searchPlaceholder={t(
+                        "schedule.statusFilterSearchPlaceholder",
+                      )}
+                      noResultsText={t("schedule.statusFilterNoResults")}
+                      selectedCountTemplate={t(
+                        "schedule.multiSelectSelectedCount",
+                      )}
                     />
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {t("schedule.statusFilterLabel")}
-                    </span>
-                    <div className="min-w-[180px]">
-                      <LeadTypesMultiSelect
-                        value={appointmentStatus}
-                        options={appointmentStatusOptions}
-                        onChange={(next) =>
-                          setAppointmentStatus(
-                            next.filter(
-                              (status): status is SupabaseAppointmentStatus =>
-                                status === "scheduled" ||
-                                status === "in_progress" ||
-                                status === "done" ||
-                                status === "absent" ||
-                                status === "atuado",
-                            ),
-                          )
-                        }
-                        placeholder={t("schedule.statusAll")}
-                        searchPlaceholder={t(
-                          "schedule.statusFilterSearchPlaceholder",
-                        )}
-                        noResultsText={t("schedule.statusFilterNoResults")}
-                        selectedCountTemplate={t(
-                          "schedule.multiSelectSelectedCount",
-                        )}
-                      />
-                    </div>
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {t("schedule.opportunityFilterLabel")}
-                    </span>
-                    <div className="min-w-[210px]">
-                      <LeadTypesMultiSelect
-                        value={appointmentOpportunity}
-                        options={appointmentOpportunityOptions}
-                        onChange={(next) => setAppointmentOpportunity(next)}
-                        placeholder={t("schedule.opportunityAll")}
-                        searchPlaceholder={t(
-                          "schedule.opportunityFilterSearchPlaceholder",
-                        )}
-                        noResultsText={t(
-                          "schedule.opportunityFilterNoResults",
-                        )}
-                        selectedCountTemplate={t(
-                          "schedule.multiSelectSelectedCount",
-                        )}
-                      />
-                    </div>
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {t("schedule.orderBy")}
-                    </span>
-                    <select
-                      value={appointmentSort}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (
-                          value === "date_desc" ||
-                          value === "date_asc" ||
-                          value === "alpha_asc" ||
-                          value === "alpha_desc"
-                        ) {
-                          setAppointmentSort(value);
-                          return;
-                        }
-                        setAppointmentSort("date_desc");
-                      }}
-                      aria-label={t("schedule.appointmentSortLabel")}
-                      className="min-w-[180px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      <option value="date_asc">
-                        {t("schedule.appointmentSortDateAsc")}
-                      </option>
-                      <option value="date_desc">
-                        {t("schedule.appointmentSortDateDesc")}
-                      </option>
-                      <option value="alpha_asc">
-                        {t("schedule.appointmentSortAlphaAsc")}
-                      </option>
-                      <option value="alpha_desc">
-                        {t("schedule.appointmentSortAlphaDesc")}
-                      </option>
-                    </select>
-                  </label>
-                </div>
-              </div>
+                  </div>
+                </ToolbarField>
+                <ToolbarField
+                  label={t("schedule.opportunityFilterLabel")}
+                  className="sm:min-w-[270px]"
+                  contentClassName="w-full"
+                >
+                  <div className="w-full min-w-[210px]">
+                    <LeadTypesMultiSelect
+                      value={appointmentOpportunity}
+                      options={appointmentOpportunityOptions}
+                      onChange={(next) => setAppointmentOpportunity(next)}
+                      placeholder={t("schedule.opportunityAll")}
+                      searchPlaceholder={t(
+                        "schedule.opportunityFilterSearchPlaceholder",
+                      )}
+                      noResultsText={t(
+                        "schedule.opportunityFilterNoResults",
+                      )}
+                      selectedCountTemplate={t(
+                        "schedule.multiSelectSelectedCount",
+                      )}
+                    />
+                  </div>
+                </ToolbarField>
+              </ToolbarRow>
+
+              <ToolbarRow
+                className={toolbarCardClass}
+                summary={<span className="sr-only">.</span>}
+              >
+                <ToolbarField
+                  label={t("schedule.search")}
+                  srOnlyLabel
+                  className="sm:min-w-[260px]"
+                  contentClassName="w-full"
+                >
+                  <input
+                    type="search"
+                    value={appointmentSearch}
+                    onChange={(event) =>
+                      setAppointmentSearch(event.target.value)
+                    }
+                    placeholder={t("schedule.appointmentsSearchPlaceholder")}
+                    disabled={
+                      dashboardScope === "individual" && !selectedConsultantId
+                    }
+                    aria-label={t("schedule.search")}
+                    className={toolbarInputClass}
+                  />
+                </ToolbarField>
+                <ToolbarField
+                  label={t("schedule.orderBy")}
+                  className="sm:min-w-[220px]"
+                  contentClassName="w-full"
+                >
+                  <select
+                    value={appointmentSort}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (
+                        value === "date_desc" ||
+                        value === "date_asc" ||
+                        value === "alpha_asc" ||
+                        value === "alpha_desc"
+                      ) {
+                        setAppointmentSort(value);
+                        return;
+                      }
+                      setAppointmentSort("date_desc");
+                    }}
+                    aria-label={t("schedule.appointmentSortLabel")}
+                    className={toolbarInputClass}
+                  >
+                    <option value="date_asc">
+                      {t("schedule.appointmentSortDateAsc")}
+                    </option>
+                    <option value="date_desc">
+                      {t("schedule.appointmentSortDateDesc")}
+                    </option>
+                    <option value="alpha_asc">
+                      {t("schedule.appointmentSortAlphaAsc")}
+                    </option>
+                    <option value="alpha_desc">
+                      {t("schedule.appointmentSortAlphaDesc")}
+                    </option>
+                  </select>
+                </ToolbarField>
+              </ToolbarRow>
 
               <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
                 {isAppointmentsLoading ? (
@@ -3844,7 +3972,7 @@ function CronogramaClientContent({
                   ))
                 ) : (
                   paginatedAppointments.map((appointment) => {
-                    const company = companyById.get(appointment.companyId);
+                    const company = listCompanyById.get(appointment.companyId);
                     const companyName =
                       company?.name ?? t("appointment.companyMissing");
                     const companyDocument =
@@ -3959,11 +4087,10 @@ function CronogramaClientContent({
         ) : (
           <div className={`${panelClass} p-3 sm:p-4`}>
             <div className="flex flex-col gap-3">
-              <div
-                className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
-              >
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  {isCompaniesLoading ? (
+              <ToolbarRow
+                className={toolbarCardClass}
+                summary={
+                  isCompaniesLoading ? (
                     <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
                     <span>
@@ -3971,75 +4098,16 @@ function CronogramaClientContent({
                         count: filteredCompanies.length,
                       })}
                     </span>
-                  )}
-                </div>
-                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">
-                      {t("schedule.dashboard.scopeLabel")}
-                    </span>
-                    <select
-                      value={dashboardScope}
-                      onChange={(event) =>
-                        setDashboardScope(event.target.value as DashboardScope)
-                      }
-                      aria-label={t("schedule.dashboard.scopeLabel")}
-                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      <option value="general">
-                        {t("schedule.dashboard.scopeGeneral")}
-                      </option>
-                      <option value="individual">
-                        {t("schedule.dashboard.scopeIndividual")}
-                      </option>
-                    </select>
-                  </label>
-                  {dashboardScope === "individual" ? (
-                    <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                      <span className="sr-only">{t("schedule.consultant")}</span>
-                      <select
-                        value={selectedConsultantId ?? ""}
-                        onChange={(event) => {
-                          const next = event.target.value || null;
-                          setSelectedConsultantId(next);
-                        }}
-                        disabled={!consultants.length}
-                        aria-label={t("schedule.consultant")}
-                        className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                      >
-                        {consultants.length ? (
-                          consultants.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="">
-                            {t("schedule.emptyConsultant")}
-                          </option>
-                        )}
-                      </select>
-                    </label>
-                  ) : null}
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.search")}</span>
-                    <input
-                      type="search"
-                      value={companySearch}
-                      onChange={(event) => setCompanySearch(event.target.value)}
-                      placeholder={
-                        dashboardScope === "general" || selectedConsultantId
-                          ? t("schedule.searchPlaceholderWithConsultant")
-                          : t("schedule.searchPlaceholderNoConsultant")
-                      }
-                      disabled={
-                        dashboardScope === "individual" && !selectedConsultantId
-                      }
-                      aria-label={t("schedule.search")}
-                      className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                  )
+                }
+              >
+                {scopeControl}
+                {consultantControl()}
+                <ToolbarField
+                  className="sm:min-w-[210px]"
+                  contentClassName="w-full"
+                >
+                  <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={showOutsidePortfolio}
@@ -4052,53 +4120,81 @@ function CronogramaClientContent({
                       className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <span>{t("schedule.outsidePortfolioToggle")}</span>
-                  </label>
-                  <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {t("schedule.orderBy")}
-                    </span>
-                    <select
-                      value={companySort}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (
-                          value === "preventivas" ||
-                          value === "reconexoes" ||
-                          value === "cotacoes" ||
-                          value === "last_visit"
-                        ) {
-                          setCompanySort(value);
-                          return;
-                        }
-                        setCompanySort("name");
-                      }}
-                      aria-label={t("schedule.orderBy")}
-                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
-                    >
-                      <option value="name">{t("schedule.orderByName")}</option>
-                      <option value="preventivas">
-                        {t("schedule.orderByPreventivas")}
-                      </option>
-                      <option value="reconexoes">
-                        {t("schedule.orderByReconexoes")}
-                      </option>
-                      <option value="cotacoes">
-                        {t("schedule.orderByQuotes")}
-                      </option>
-                      <option value="last_visit">
-                        {t("schedule.orderByLastVisit")}
-                      </option>
-                    </select>
-                  </label>
-                  {/* <button
-                    type="button"
-                    onClick={() => refresh()}
-                    className={`w-full sm:w-auto ${softButtonClass}`}
+                  </div>
+                </ToolbarField>
+                {/* <button
+                  type="button"
+                  onClick={() => refresh()}
+                  className={`w-full sm:w-auto ${softButtonClass}`}
+                >
+                  Atualizar
+                </button> */}
+              </ToolbarRow>
+              <ToolbarRow
+                className={toolbarCardClass}
+                summary={<span className="sr-only">.</span>}
+              >
+                <ToolbarField
+                  label={t("schedule.search")}
+                  srOnlyLabel
+                  className="sm:min-w-[260px]"
+                  contentClassName="w-full"
+                >
+                  <input
+                    type="search"
+                    value={companySearch}
+                    onChange={(event) => setCompanySearch(event.target.value)}
+                    placeholder={
+                      dashboardScope === "general" || selectedConsultantId
+                        ? t("schedule.searchPlaceholderWithConsultant")
+                        : t("schedule.searchPlaceholderNoConsultant")
+                    }
+                    disabled={
+                      dashboardScope === "individual" && !selectedConsultantId
+                    }
+                    aria-label={t("schedule.search")}
+                    className={toolbarInputClass}
+                  />
+                </ToolbarField>
+                <ToolbarField
+                  label={t("schedule.orderBy")}
+                  className="sm:min-w-[220px]"
+                  contentClassName="w-full"
+                >
+                  <select
+                    value={companySort}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (
+                        value === "preventivas" ||
+                        value === "reconexoes" ||
+                        value === "cotacoes" ||
+                        value === "last_visit"
+                      ) {
+                        setCompanySort(value);
+                        return;
+                      }
+                      setCompanySort("name");
+                    }}
+                    aria-label={t("schedule.orderBy")}
+                    className={toolbarInputClass}
                   >
-                    Atualizar
-                  </button> */}
-                </div>
-              </div>
+                    <option value="name">{t("schedule.orderByName")}</option>
+                    <option value="preventivas">
+                      {t("schedule.orderByPreventivas")}
+                    </option>
+                    <option value="reconexoes">
+                      {t("schedule.orderByReconexoes")}
+                    </option>
+                    <option value="cotacoes">
+                      {t("schedule.orderByQuotes")}
+                    </option>
+                    <option value="last_visit">
+                      {t("schedule.orderByLastVisit")}
+                    </option>
+                  </select>
+                </ToolbarField>
+              </ToolbarRow>
               <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
                 {isCompaniesLoading ? (
                   <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
