@@ -1,13 +1,13 @@
 "use client";
 
 export const COMPANY_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira, isCompany";
 
 export const APPOINTMENT_SELECT =
   "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, creation_notes, created_by, created_at, updated_at, oportunidades";
 
 export const COMPANY_LIST_SELECT =
-  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira";
+  "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira, isCompany";
 
 export const APPOINTMENT_LIST_SELECT =
   "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, created_by, oportunidades";
@@ -44,6 +44,7 @@ export type Company = {
   referencia: string | null;
   emailCsa: string | null;
   foraCarteira: boolean | null;
+  isCompany: boolean | null;
   createdAt: string | null;
 };
 
@@ -97,6 +98,7 @@ type SupabaseCompanyRow = {
   referencia: string | null;
   email_csa: string | null;
   fora_carteira: boolean | null;
+  isCompany: boolean | null;
   created_at?: string | null;
 };
 
@@ -227,6 +229,7 @@ export const mapCompany = (row: SupabaseCompanyRow): Company => ({
   referencia: row.referencia ?? null,
   emailCsa: row.email_csa ?? null,
   foraCarteira: row.fora_carteira ?? null,
+  isCompany: row.isCompany ?? null,
   createdAt: row.created_at ?? null,
 });
 

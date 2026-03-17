@@ -1121,6 +1121,18 @@ function CronogramaClientContent({
     dashboardScope === "general" ? generalAppointments : appointments;
   const dashboardCompanies =
     dashboardScope === "general" ? generalCompanies : companies;
+  const dashboardCompanyById = useMemo(
+    () => new Map(dashboardCompanies.map((company) => [company.id, company])),
+    [dashboardCompanies],
+  );
+  const dashboardCountableAppointments = useMemo(
+    () =>
+      dashboardAppointments.filter(
+        (appointment) =>
+          dashboardCompanyById.get(appointment.companyId)?.isCompany !== false,
+      ),
+    [dashboardAppointments, dashboardCompanyById],
+  );
   const dashboardLoading =
     dashboardScope === "general" ? generalLoading : loading;
   const dashboardError = dashboardScope === "general" ? generalError : error;
@@ -1140,7 +1152,7 @@ function CronogramaClientContent({
 
   const appointmentConsultantById = useMemo(() => {
     const map = new Map<string, string>();
-    dashboardAppointments.forEach((appointment) => {
+    dashboardCountableAppointments.forEach((appointment) => {
       const rawConsultant =
         normalizeConsultantText(appointment.consultantName) ||
         normalizeConsultantText(appointment.consultantId) ||
@@ -1155,7 +1167,7 @@ function CronogramaClientContent({
     });
     return map;
   }, [
-    dashboardAppointments,
+    dashboardCountableAppointments,
     consultantNameMap,
     normalizeConsultantText,
     t,
@@ -1179,7 +1191,7 @@ function CronogramaClientContent({
     const byConsultantBucket = new Map<string, Map<string, number>>();
     const opportunityTotals = new Map<string, number>();
 
-    dashboardAppointments.forEach((appointment) => {
+    dashboardCountableAppointments.forEach((appointment) => {
       statusTotals[appointment.status] += 1;
       if (appointment.checkInAt) checkIns += 1;
       if (appointment.checkOutAt) checkOuts += 1;
@@ -1273,7 +1285,7 @@ function CronogramaClientContent({
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
 
-    const totalAppointments = dashboardAppointments.length;
+    const totalAppointments = dashboardCountableAppointments.length;
     const totalCompanies = dashboardCompanies.length;
     const avgRealDurationMinutes =
       realDurationCount > 0
@@ -1317,7 +1329,7 @@ function CronogramaClientContent({
       checkOutRate,
     };
   }, [
-    dashboardAppointments,
+    dashboardCountableAppointments,
     dashboardBuckets,
     dashboardCompanies,
     dashboardView,
@@ -2050,7 +2062,7 @@ function CronogramaClientContent({
     if (activeTab !== "dashboard") return;
     if (dashboardLoading) return;
 
-    const appointmentIds = dashboardAppointments
+    const appointmentIds = dashboardCountableAppointments
       .map((item) => item.id)
       .filter(Boolean);
 
@@ -2123,7 +2135,7 @@ function CronogramaClientContent({
   }, [
     activeTab,
     appointmentConsultantById,
-    dashboardAppointments,
+    dashboardCountableAppointments,
     dashboardLoading,
     supabase,
     t,
