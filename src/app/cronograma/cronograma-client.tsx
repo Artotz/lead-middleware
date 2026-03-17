@@ -145,6 +145,73 @@ const formatChartLabel = (value: unknown, decimals?: number) => {
   return String(numeric);
 };
 
+const RADIAN = Math.PI / 180;
+
+type PieSliceRenderProps = {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  outerRadius?: number;
+  percent?: number;
+  value?: number | string;
+};
+
+const renderPieOuterLabel = ({
+  cx = 0,
+  cy = 0,
+  midAngle = 0,
+  outerRadius = 0,
+  percent = 0,
+  value,
+}: PieSliceRenderProps) => {
+  const numericValue = toNumber(value);
+  if (numericValue == null || numericValue <= 0 || percent <= 0) return null;
+
+  const radius = outerRadius + 18;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#475569"
+      fontSize={12}
+      fontWeight={600}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+    >
+      {`${numericValue} (${Math.round(percent * 100)}%)`}
+    </text>
+  );
+};
+
+const renderPieLabelLine = ({
+  cx = 0,
+  cy = 0,
+  midAngle = 0,
+  outerRadius = 0,
+  percent = 0,
+}: PieSliceRenderProps) => {
+  if (percent <= 0) return null;
+
+  const startRadius = outerRadius + 4;
+  const endRadius = outerRadius + 14;
+  const startX = cx + startRadius * Math.cos(-midAngle * RADIAN);
+  const startY = cy + startRadius * Math.sin(-midAngle * RADIAN);
+  const endX = cx + endRadius * Math.cos(-midAngle * RADIAN);
+  const endY = cy + endRadius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <path
+      d={`M ${startX} ${startY} L ${endX} ${endY}`}
+      fill="none"
+      stroke="#94A3B8"
+      strokeWidth={1}
+    />
+  );
+};
+
 const formatAverageDuration = (minutes: number | null, t: Translate) => {
   if (minutes == null || minutes <= 0) return t("schedule.noData");
   const rounded = Math.round(minutes);
@@ -2599,14 +2666,14 @@ function CronogramaClientContent({
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.appointmentsByPeriod")}
             </div>
             {dashboardMetrics.appointmentsByDay.some(
               (item) => item.total > 0,
             ) ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={dashboardMetrics.appointmentsByDay}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -2647,12 +2714,12 @@ function CronogramaClientContent({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
             </div>
             {consultantAvgVisits.length ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={consultantAvgVisits}
@@ -2709,12 +2776,12 @@ function CronogramaClientContent({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.topConsultants")}
             </div>
             {dashboardMetrics.topConsultants.length ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={dashboardMetrics.topConsultants}
@@ -2771,7 +2838,91 @@ function CronogramaClientContent({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("schedule.dashboard.charts.statusDistribution")}
+            </div>
+            {dashboardStatusData.some((item) => item.count > 0) ? (
+              <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
+                <div className="h-full min-h-[260px] w-full md:w-2/3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip
+                          formatter={(value, _name, item) => [
+                            value,
+                            item?.payload?.label ??
+                              t("schedule.dashboard.tooltip.appointments"),
+                          ]}
+                          labelFormatter={(label) =>
+                            t("schedule.dashboard.tooltip.statusLabel", {
+                              name: String(label ?? ""),
+                            })
+                          }
+                          contentStyle={{
+                            backgroundColor: "#FFFFFF",
+                            color: "#0F172A",
+                            borderRadius: "8px",
+                            border: "1px solid #E2E8F0",
+                            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                          }}
+                          labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                          itemStyle={{ color: "#0F172A" }}
+                        />
+                        <Pie
+                          data={dashboardStatusData}
+                          dataKey="count"
+                          nameKey="label"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={62}
+                          outerRadius={96}
+                          paddingAngle={3}
+                          label={renderPieOuterLabel}
+                          labelLine={renderPieLabelLine}
+                        >
+                          {dashboardStatusData.map((item) => (
+                            <Cell key={item.id} fill={item.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-1/3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("schedule.dashboard.legendTitle")}
+                    </div>
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      {dashboardStatusData.map((item) => (
+                        <div
+                          key={`legend-${item.id}`}
+                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
+                        >
+                          <span
+                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <div className="flex-1">
+                            <div className="font-semibold text-slate-900">
+                              {item.label}
+                            </div>
+                            <div className="text-slate-600">
+                              {item.count}{" "}
+                              {t("schedule.dashboard.tooltip.totalAppointments")}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-slate-500">
+                {t("schedule.dashboard.noChartData")}
+              </div>
+            )}
+          </div>
+
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.activitiesByType")}
             </div>
@@ -2782,7 +2933,7 @@ function CronogramaClientContent({
                 {t("schedule.dashboard.activitiesLoading")}
               </div>
             ) : dashboardActivitiesData.length ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={dashboardActivitiesData}
@@ -2832,79 +2983,6 @@ function CronogramaClientContent({
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.statusDistribution")}
-            </div>
-            {dashboardStatusData.some((item) => item.count > 0) ? (
-              <div className="mt-3">
-                <div className="flex flex-col gap-4 md:flex-row">
-                  <div className="h-56 w-full md:w-2/3">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Tooltip
-                          formatter={(value, _name, item) => [
-                            value,
-                            item?.payload?.label ??
-                              t("schedule.dashboard.tooltip.appointments"),
-                          ]}
-                          labelFormatter={(label) =>
-                            t("schedule.dashboard.tooltip.statusLabel", {
-                              name: String(label ?? ""),
-                            })
-                          }
-                        />
-                        <Pie
-                          data={dashboardStatusData}
-                          dataKey="count"
-                          nameKey="label"
-                          innerRadius={50}
-                          outerRadius={80}
-                          paddingAngle={3}
-                        >
-                          {dashboardStatusData.map((item) => (
-                            <Cell key={item.id} fill={item.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="w-full md:w-1/3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("schedule.dashboard.legendTitle")}
-                    </div>
-                    <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      {dashboardStatusData.map((item) => (
-                        <div
-                          key={`legend-${item.id}`}
-                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
-                        >
-                          <span
-                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <div className="flex-1">
-                            <div className="font-semibold text-slate-900">
-                              {item.label}
-                            </div>
-                            <div className="text-slate-600">
-                              {item.count}{" "}
-                              {t("schedule.dashboard.tooltip.totalAppointments")}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="mt-3 text-sm text-slate-500">
@@ -3000,7 +3078,7 @@ function CronogramaClientContent({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.activitiesByConsultant")}
             </div>
@@ -3011,7 +3089,7 @@ function CronogramaClientContent({
                 {t("schedule.dashboard.activitiesLoading")}
               </div>
             ) : dashboardActivitiesByConsultant.length ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={dashboardActivitiesByConsultant}
@@ -3068,12 +3146,12 @@ function CronogramaClientContent({
             )}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.companiesByState")}
             </div>
             {dashboardMetrics.companiesByState.length ? (
-              <div className="mt-3 h-56">
+              <div className="mt-3 min-h-[280px] flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={dashboardMetrics.companiesByState}
