@@ -402,6 +402,15 @@ function CronogramaClientContent({
   const [generalLoading, setGeneralLoading] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const generalRequestIdRef = useRef(0);
+  const [generalListCompanies, setGeneralListCompanies] = useState<Company[]>(
+    [],
+  );
+  const [generalListCompaniesLoading, setGeneralListCompaniesLoading] =
+    useState(false);
+  const [generalListCompaniesError, setGeneralListCompaniesError] = useState<
+    string | null
+  >(null);
+  const generalListCompaniesRequestIdRef = useRef(0);
   const [activityCounts, setActivityCounts] = useState<Map<string, number>>(
     new Map(),
   );
@@ -658,6 +667,7 @@ function CronogramaClientContent({
   const dashboardLoading =
     dashboardScope === "general" ? generalLoading : loading;
   const dashboardError = dashboardScope === "general" ? generalError : error;
+  const isGeneralScope = dashboardScope === "general";
 
   const consultantNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1029,6 +1039,10 @@ function CronogramaClientContent({
   const companyById = useMemo(() => {
     return new Map(companies.map((company) => [company.id, company]));
   }, [companies]);
+  const listCompanyById = useMemo(() => {
+    const source = isGeneralScope ? generalListCompanies : companies;
+    return new Map(source.map((company) => [company.id, company]));
+  }, [companies, generalListCompanies, isGeneralScope]);
 
   const selectedConsultant = useMemo(
     () => consultants.find((item) => item.id === selectedConsultantId) ?? null,
@@ -1040,7 +1054,7 @@ function CronogramaClientContent({
   const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase();
 
   const filteredAppointments = useMemo(() => {
-    if (!selectedConsultant) return [];
+    if (!isGeneralScope && !selectedConsultant) return [];
     return listAppointments.filter((appointment) => {
       if (
         appointmentStatus.length > 0 &&
@@ -1058,7 +1072,7 @@ function CronogramaClientContent({
         }
       }
       if (!normalizedAppointmentSearch) return true;
-      const company = companyById.get(appointment.companyId);
+      const company = listCompanyById.get(appointment.companyId);
       const tokens = [
         company?.name,
         company?.document,
@@ -1076,7 +1090,8 @@ function CronogramaClientContent({
     appointmentStatus,
     appointmentOpportunity,
     listAppointments,
-    companyById,
+    isGeneralScope,
+    listCompanyById,
     normalizedAppointmentSearch,
     selectedConsultant,
     t,
@@ -1091,8 +1106,8 @@ function CronogramaClientContent({
       if (appointmentSort === "date_asc") {
         return a.startAt.localeCompare(b.startAt);
       }
-      const companyA = companyById.get(a.companyId)?.name ?? "";
-      const companyB = companyById.get(b.companyId)?.name ?? "";
+      const companyA = listCompanyById.get(a.companyId)?.name ?? "";
+      const companyB = listCompanyById.get(b.companyId)?.name ?? "";
       const nameComparison = companyA.localeCompare(companyB, "pt-BR");
       if (appointmentSort === "alpha_desc") {
         return nameComparison !== 0
@@ -1104,7 +1119,7 @@ function CronogramaClientContent({
         : a.startAt.localeCompare(b.startAt);
     });
     return sorted;
-  }, [appointmentSort, companyById, filteredAppointments]);
+  }, [appointmentSort, filteredAppointments, listCompanyById]);
 
   useEffect(() => {
     setAppointmentPage(1);
@@ -1158,14 +1173,19 @@ function CronogramaClientContent({
     );
   }, [companies, selectedConsultant]);
 
+  const companiesForListScope = useMemo(() => {
+    if (isGeneralScope) return generalListCompanies;
+    return companiesByConsultant;
+  }, [companiesByConsultant, generalListCompanies, isGeneralScope]);
+
   const companiesByPortfolio = useMemo(() => {
-    if (!companiesByConsultant.length) return [];
-    return companiesByConsultant.filter((company) =>
+    if (!companiesForListScope.length) return [];
+    return companiesForListScope.filter((company) =>
       showOutsidePortfolio
         ? Boolean(company.foraCarteira)
         : !company.foraCarteira,
     );
-  }, [companiesByConsultant, showOutsidePortfolio]);
+  }, [companiesForListScope, showOutsidePortfolio]);
 
   const companyIdsByConsultant = useMemo(
     () =>
@@ -1214,7 +1234,7 @@ function CronogramaClientContent({
   }, [companiesByPortfolio]);
 
   useEffect(() => {
-    if (!selectedConsultantId) {
+    if (!isGeneralScope && !selectedConsultantId) {
       setProtheusCounts(new Map());
       setProtheusError(null);
       setProtheusLoading(false);
@@ -1279,10 +1299,10 @@ function CronogramaClientContent({
     };
 
     void loadCounts();
-  }, [protheusLookup, selectedConsultantId, supabase, t]);
+  }, [isGeneralScope, protheusLookup, selectedConsultantId, supabase, t]);
 
   useEffect(() => {
-    if (!selectedConsultantId) {
+    if (!isGeneralScope && !selectedConsultantId) {
       setOpenQuotesTotals(new Map());
       setOpenQuotesError(null);
       setOpenQuotesLoading(false);
@@ -1360,10 +1380,10 @@ function CronogramaClientContent({
     };
 
     void loadOpenQuotes();
-  }, [openQuotesLookup, selectedConsultantId, supabase, t]);
+  }, [isGeneralScope, openQuotesLookup, selectedConsultantId, supabase, t]);
 
   useEffect(() => {
-    if (!selectedConsultantId) {
+    if (!isGeneralScope && !selectedConsultantId) {
       setLastVisitByCompany(new Map());
       setLastVisitError(null);
       setLastVisitLoading(false);
@@ -1383,7 +1403,7 @@ function CronogramaClientContent({
       setLastVisitError(null);
       let latestVisits = new Map<string, Date>();
       const chunkSize = 200;
-      const consultantKey = selectedConsultantId.trim();
+      const consultantKey = isGeneralScope ? "" : selectedConsultantId?.trim() ?? "";
 
       for (
         let index = 0;
@@ -1446,7 +1466,45 @@ function CronogramaClientContent({
     };
 
     void loadLastVisits();
-  }, [companyIdsByConsultant, selectedConsultantId, supabase, t]);
+  }, [companyIdsByConsultant, isGeneralScope, selectedConsultantId, supabase, t]);
+
+  const loadGeneralListCompanies = useCallback(async () => {
+    const requestId = ++generalListCompaniesRequestIdRef.current;
+    setGeneralListCompaniesLoading(true);
+    setGeneralListCompaniesError(null);
+    try {
+      const { data, error: companiesError } = await supabase
+        .from("companies")
+        .select(COMPANY_LIST_SELECT)
+        .order("name", { ascending: true });
+
+      if (requestId !== generalListCompaniesRequestIdRef.current) return;
+
+      if (companiesError) {
+        console.error(companiesError);
+        setGeneralListCompanies([]);
+        setGeneralListCompaniesError(t("schedule.dashboard.loadCompaniesError"));
+        setGeneralListCompaniesLoading(false);
+        return;
+      }
+
+      setGeneralListCompanies((data ?? []).map(mapCompany));
+      setGeneralListCompaniesLoading(false);
+    } catch (err) {
+      console.error(err);
+      if (requestId !== generalListCompaniesRequestIdRef.current) return;
+      setGeneralListCompanies([]);
+      setGeneralListCompaniesError(t("schedule.dashboard.loadCompaniesError"));
+      setGeneralListCompaniesLoading(false);
+    }
+  }, [supabase, t]);
+
+  useEffect(() => {
+    const isListTab =
+      activeTab === "agendamentos" || activeTab === "empresas";
+    if (!isListTab || !isGeneralScope) return;
+    void loadGeneralListCompanies();
+  }, [activeTab, isGeneralScope, loadGeneralListCompanies]);
 
   const loadGeneralDashboard = useCallback(async () => {
     const requestId = ++generalRequestIdRef.current;
@@ -1748,7 +1806,7 @@ function CronogramaClientContent({
     if (activeTab !== "agendamentos") return;
     const requestId = ++listAppointmentsRequestIdRef.current;
 
-    if (!selectedConsultantId?.trim()) {
+    if (!isGeneralScope && !selectedConsultantId?.trim()) {
       setListAppointments([]);
       setListAppointmentsError(null);
       setListAppointmentsLoading(false);
@@ -1763,11 +1821,13 @@ function CronogramaClientContent({
           .from("apontamentos")
           .select(APPOINTMENT_LIST_SELECT)
           .order("starts_at", { ascending: false });
-        const consultantKey = selectedConsultantId.trim();
-        if (consultantKey.includes("@")) {
-          query = query.eq("consultant_name", consultantKey);
-        } else {
-          query = query.eq("consultant_id", consultantKey);
+        const consultantKey = selectedConsultantId?.trim() ?? "";
+        if (!isGeneralScope && consultantKey) {
+          if (consultantKey.includes("@")) {
+            query = query.eq("consultant_name", consultantKey);
+          } else {
+            query = query.eq("consultant_id", consultantKey);
+          }
         }
         const { data, error: appointmentsError } = await query;
 
@@ -1793,13 +1853,17 @@ function CronogramaClientContent({
     };
 
     void loadAppointmentsList();
-  }, [activeTab, selectedConsultantId, supabase, t]);
+  }, [activeTab, isGeneralScope, selectedConsultantId, supabase, t]);
 
   const isCompaniesLoading =
-    Boolean(selectedConsultantId) &&
-    (loading || loadedConsultantId !== selectedConsultantId);
-  const isAppointmentsLoading =
-    Boolean(selectedConsultantId) && listAppointmentsLoading;
+    isGeneralScope
+      ? generalListCompaniesLoading
+      : Boolean(selectedConsultantId) &&
+        (loading || loadedConsultantId !== selectedConsultantId);
+  const isAppointmentsLoading = isGeneralScope
+    ? listAppointmentsLoading
+    : Boolean(selectedConsultantId) && listAppointmentsLoading;
+  const companiesListError = isGeneralScope ? generalListCompaniesError : error;
 
   const companyColumns = [
     { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
@@ -3334,30 +3398,52 @@ function CronogramaClientContent({
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.consultant")}</span>
+                    <span className="sr-only">
+                      {t("schedule.dashboard.scopeLabel")}
+                    </span>
                     <select
-                      value={selectedConsultantId ?? ""}
-                      onChange={(event) => {
-                        const next = event.target.value || null;
-                        setSelectedConsultantId(next);
-                      }}
-                      disabled={!consultants.length}
-                      aria-label={t("schedule.consultant")}
-                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                      value={dashboardScope}
+                      onChange={(event) =>
+                        setDashboardScope(event.target.value as DashboardScope)
+                      }
+                      aria-label={t("schedule.dashboard.scopeLabel")}
+                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
-                      {consultants.length ? (
-                        consultants.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">
-                          {t("schedule.emptyConsultant")}
-                        </option>
-                      )}
+                      <option value="general">
+                        {t("schedule.dashboard.scopeGeneral")}
+                      </option>
+                      <option value="individual">
+                        {t("schedule.dashboard.scopeIndividual")}
+                      </option>
                     </select>
                   </label>
+                  {dashboardScope === "individual" ? (
+                    <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                      <span className="sr-only">{t("schedule.consultant")}</span>
+                      <select
+                        value={selectedConsultantId ?? ""}
+                        onChange={(event) => {
+                          const next = event.target.value || null;
+                          setSelectedConsultantId(next);
+                        }}
+                        disabled={!consultants.length}
+                        aria-label={t("schedule.consultant")}
+                        className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                      >
+                        {consultants.length ? (
+                          consultants.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">
+                            {t("schedule.emptyConsultant")}
+                          </option>
+                        )}
+                      </select>
+                    </label>
+                  ) : null}
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="sr-only">{t("schedule.search")}</span>
                     <input
@@ -3367,7 +3453,9 @@ function CronogramaClientContent({
                         setAppointmentSearch(event.target.value)
                       }
                       placeholder={t("schedule.appointmentsSearchPlaceholder")}
-                      disabled={!selectedConsultantId}
+                      disabled={
+                        dashboardScope === "individual" && !selectedConsultantId
+                      }
                       aria-label={t("schedule.search")}
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
@@ -3540,7 +3628,7 @@ function CronogramaClientContent({
               </div>
 
               <div className="divide-y divide-slate-200">
-                {!selectedConsultant ? (
+                {dashboardScope === "individual" && !selectedConsultant ? (
                   <div className="px-5 py-4 text-sm text-slate-500">
                     {t("schedule.selectConsultantToViewAppointments")}
                   </div>
@@ -3654,7 +3742,15 @@ function CronogramaClientContent({
                   })
                 )}
 
-                {selectedConsultant &&
+                {dashboardScope === "individual" &&
+                  selectedConsultant &&
+                  !isAppointmentsLoading &&
+                  filteredAppointments.length === 0 && (
+                    <div className="px-5 py-4 text-sm text-slate-500">
+                      {t("schedule.noAppointmentsFound")}
+                    </div>
+                  )}
+                {dashboardScope === "general" &&
                   !isAppointmentsLoading &&
                   filteredAppointments.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
@@ -3685,30 +3781,52 @@ function CronogramaClientContent({
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
-                    <span className="sr-only">{t("schedule.consultant")}</span>
+                    <span className="sr-only">
+                      {t("schedule.dashboard.scopeLabel")}
+                    </span>
                     <select
-                      value={selectedConsultantId ?? ""}
-                      onChange={(event) => {
-                        const next = event.target.value || null;
-                        setSelectedConsultantId(next);
-                      }}
-                      disabled={!consultants.length}
-                      aria-label={t("schedule.consultant")}
-                      className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                      value={dashboardScope}
+                      onChange={(event) =>
+                        setDashboardScope(event.target.value as DashboardScope)
+                      }
+                      aria-label={t("schedule.dashboard.scopeLabel")}
+                      className="min-w-[140px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
                     >
-                      {consultants.length ? (
-                        consultants.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="">
-                          {t("schedule.emptyConsultant")}
-                        </option>
-                      )}
+                      <option value="general">
+                        {t("schedule.dashboard.scopeGeneral")}
+                      </option>
+                      <option value="individual">
+                        {t("schedule.dashboard.scopeIndividual")}
+                      </option>
                     </select>
                   </label>
+                  {dashboardScope === "individual" ? (
+                    <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
+                      <span className="sr-only">{t("schedule.consultant")}</span>
+                      <select
+                        value={selectedConsultantId ?? ""}
+                        onChange={(event) => {
+                          const next = event.target.value || null;
+                          setSelectedConsultantId(next);
+                        }}
+                        disabled={!consultants.length}
+                        aria-label={t("schedule.consultant")}
+                        className="min-w-[160px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                      >
+                        {consultants.length ? (
+                          consultants.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">
+                            {t("schedule.emptyConsultant")}
+                          </option>
+                        )}
+                      </select>
+                    </label>
+                  ) : null}
                   <label className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto">
                     <span className="sr-only">{t("schedule.search")}</span>
                     <input
@@ -3716,11 +3834,13 @@ function CronogramaClientContent({
                       value={companySearch}
                       onChange={(event) => setCompanySearch(event.target.value)}
                       placeholder={
-                        selectedConsultantId
+                        dashboardScope === "general" || selectedConsultantId
                           ? t("schedule.searchPlaceholderWithConsultant")
                           : t("schedule.searchPlaceholderNoConsultant")
                       }
-                      disabled={!selectedConsultantId}
+                      disabled={
+                        dashboardScope === "individual" && !selectedConsultantId
+                      }
                       aria-label={t("schedule.search")}
                       className="min-w-[200px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
@@ -3732,7 +3852,9 @@ function CronogramaClientContent({
                       onChange={(event) =>
                         setShowOutsidePortfolio(event.target.checked)
                       }
-                      disabled={!selectedConsultantId}
+                      disabled={
+                        dashboardScope === "individual" && !selectedConsultantId
+                      }
                       className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <span>{t("schedule.outsidePortfolioToggle")}</span>
@@ -3839,9 +3961,9 @@ function CronogramaClientContent({
                 </div>
               </div>
 
-              {error ? (
+              {companiesListError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
-                  {error}
+                  {companiesListError}
                 </div>
               ) : null}
               {protheusError ? (
@@ -3872,7 +3994,7 @@ function CronogramaClientContent({
               </div>
 
               <div className="divide-y divide-slate-200">
-                {!selectedConsultant ? (
+                {dashboardScope === "individual" && !selectedConsultant ? (
                   <div className="px-5 py-4 text-sm text-slate-500">
                     {t("schedule.selectConsultantToViewCompanies")}
                   </div>
@@ -4026,7 +4148,15 @@ function CronogramaClientContent({
                   ))
                 )}
 
-                {selectedConsultant &&
+                {dashboardScope === "individual" &&
+                  selectedConsultant &&
+                  !isCompaniesLoading &&
+                  filteredCompanies.length === 0 && (
+                    <div className="px-5 py-4 text-sm text-slate-500">
+                      {t("schedule.noCompaniesFound")}
+                    </div>
+                  )}
+                {dashboardScope === "general" &&
                   !isCompaniesLoading &&
                   filteredCompanies.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
