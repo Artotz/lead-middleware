@@ -89,6 +89,7 @@ type TimelineLayoutItem = TimelineItem & {
 };
 
 type DashboardScope = "general" | "individual";
+type DashboardView = "week" | "month" | "year";
 
 type OrcamentoResumoRow = {
   cnpj: string | number | null;
@@ -159,6 +160,18 @@ const formatAverageDuration = (minutes: number | null, t: Translate) => {
   }
   return t("schedule.dashboard.durationMinutes", { minutes: mins });
 };
+
+const DASHBOARD_VIEW_VALUES = ["week", "month", "year"] as const;
+
+const getMonthRange = (date: Date) => ({
+  startAt: new Date(date.getFullYear(), date.getMonth(), 1),
+  endAt: new Date(date.getFullYear(), date.getMonth() + 1, 0),
+});
+
+const getYearRange = (date: Date) => ({
+  startAt: new Date(date.getFullYear(), 0, 1),
+  endAt: new Date(date.getFullYear(), 11, 31),
+});
 
 const normalizeCnpj = (value: string | number | null | undefined) => {
   const digits = String(value ?? "").replace(/\D/g, "");
@@ -338,11 +351,16 @@ function CronogramaClientContent({
     );
     return {
       activeTab: parseEnum(searchParams.get("tab"), TAB_VALUES, initialTab),
-      viewMode: parseEnum(searchParams.get("view"), VIEW_MODE_VALUES, "board"),
+      viewMode: parseEnum(searchParams.get("view"), VIEW_MODE_VALUES, "grid"),
       dashboardScope: parseEnum(
         searchParams.get("dscope"),
         DASHBOARD_SCOPE_VALUES,
         "general",
+      ),
+      dashboardView: parseEnum(
+        searchParams.get("dview"),
+        DASHBOARD_VIEW_VALUES,
+        "week",
       ),
       companySort: parseEnum(searchParams.get("csort"), COMPANY_SORT_VALUES, "name"),
       companyPage: parsePositiveInt(searchParams.get("cpage"), 1),
@@ -395,6 +413,9 @@ function CronogramaClientContent({
   >(urlState.activeTab);
   const [dashboardScope, setDashboardScope] =
     useState<DashboardScope>(urlState.dashboardScope);
+  const [dashboardView, setDashboardView] = useState<DashboardView>(
+    urlState.dashboardView,
+  );
   const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
     [],
   );
@@ -548,6 +569,17 @@ function CronogramaClientContent({
   }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
 
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
+  const dashboardRange = useMemo(() => {
+    if (dashboardView === "year") return getYearRange(selectedMonth);
+    if (dashboardView === "month") return getMonthRange(selectedMonth);
+    if (selectedWeek) {
+      return {
+        startAt: selectedWeek.startAt,
+        endAt: selectedWeek.endAt,
+      };
+    }
+    return getMonthRange(selectedMonth);
+  }, [dashboardView, selectedMonth, selectedWeek]);
   const defaultCreateDate = useMemo(() => {
     if (!selectedWeek) return today;
     const todayKey = toDateKey(today);
@@ -558,9 +590,13 @@ function CronogramaClientContent({
   }, [selectedWeek, today]);
 
   useEffect(() => {
+    if (activeTab === "dashboard") {
+      setRange(dashboardRange);
+      return;
+    }
     if (!selectedWeek) return;
     setRange({ startAt: selectedWeek.startAt, endAt: selectedWeek.endAt });
-  }, [selectedWeek, setRange]);
+  }, [activeTab, dashboardRange, selectedWeek, setRange]);
 
   useEffect(() => {
     if (skipConsultantResetRef.current) {
@@ -586,10 +622,12 @@ function CronogramaClientContent({
     else next.delete("consultor");
     next.set("month", toMonthKey(selectedMonth));
     next.set("week", String(selectedWeekIndex + 1));
-    if (viewMode !== "board") next.set("view", viewMode);
+    if (viewMode !== "grid") next.set("view", viewMode);
     else next.delete("view");
     if (dashboardScope !== "general") next.set("dscope", dashboardScope);
     else next.delete("dscope");
+    if (dashboardView !== "week") next.set("dview", dashboardView);
+    else next.delete("dview");
     if (companySearch.trim()) next.set("csearch", companySearch.trim());
     else next.delete("csearch");
     if (companySort !== "name") next.set("csort", companySort);
@@ -635,6 +673,7 @@ function CronogramaClientContent({
     companySearch,
     companySort,
     dashboardScope,
+    dashboardView,
     initialTab,
     pathname,
     router,
@@ -659,6 +698,89 @@ function CronogramaClientContent({
       };
     });
   }, [selectedWeek, today]);
+
+  const dayNumberFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        day: "2-digit",
+      }),
+    [locale],
+  );
+  const monthShortFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: "short",
+      }),
+    [locale],
+  );
+  const monthDayFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        day: "2-digit",
+        month: "short",
+      }),
+    [locale],
+  );
+  const fullDateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }),
+    [locale],
+  );
+  const monthYearFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: "long",
+        year: "numeric",
+      }),
+    [locale],
+  );
+
+  const dashboardBuckets = useMemo(() => {
+    if (dashboardView === "week") {
+      return weekDays.map((day) => ({
+        key: toDateKey(day.date),
+        label: day.shortLabel,
+        fullLabel: fullDateFormatter.format(day.date),
+      }));
+    }
+    if (dashboardView === "month") {
+      const monthRange = getMonthRange(selectedMonth);
+      const totalDays = monthRange.endAt.getDate();
+      return Array.from({ length: totalDays }, (_, index) => {
+        const date = new Date(
+          selectedMonth.getFullYear(),
+          selectedMonth.getMonth(),
+          index + 1,
+        );
+        return {
+          key: toDateKey(date),
+          label: dayNumberFormatter.format(date),
+          fullLabel: monthDayFormatter.format(date),
+        };
+      });
+    }
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(selectedMonth.getFullYear(), index, 1);
+      return {
+        key: `${selectedMonth.getFullYear()}-${String(index + 1).padStart(2, "0")}`,
+        label: monthShortFormatter.format(date),
+        fullLabel: monthYearFormatter.format(date),
+      };
+    });
+  }, [
+    dashboardView,
+    dayNumberFormatter,
+    fullDateFormatter,
+    monthDayFormatter,
+    monthShortFormatter,
+    monthYearFormatter,
+    selectedMonth,
+    weekDays,
+  ]);
 
   const dashboardAppointments =
     dashboardScope === "general" ? generalAppointments : appointments;
@@ -718,8 +840,8 @@ function CronogramaClientContent({
     let realDurationCount = 0;
 
     const byConsultant = new Map<string, number>();
-    const byDay = new Map<string, number>();
-    const byConsultantDay = new Map<string, Map<string, number>>();
+    const byBucket = new Map<string, number>();
+    const byConsultantBucket = new Map<string, Map<string, number>>();
     const opportunityTotals = new Map<string, number>();
 
     dashboardAppointments.forEach((appointment) => {
@@ -775,23 +897,27 @@ function CronogramaClientContent({
 
       const startDate = new Date(appointment.startAt);
       if (Number.isNaN(startDate.getTime())) return;
-      const dayKey = toDateKey(startDate);
-      byDay.set(dayKey, (byDay.get(dayKey) ?? 0) + 1);
+      const bucketKey =
+        dashboardView === "year"
+          ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`
+          : toDateKey(startDate);
+      byBucket.set(bucketKey, (byBucket.get(bucketKey) ?? 0) + 1);
 
-      const dayConsultants = byConsultantDay.get(dayKey) ?? new Map();
-      dayConsultants.set(
+      const bucketConsultants = byConsultantBucket.get(bucketKey) ?? new Map();
+      bucketConsultants.set(
         consultantLabel,
-        (dayConsultants.get(consultantLabel) ?? 0) + 1,
+        (bucketConsultants.get(consultantLabel) ?? 0) + 1,
       );
-      byConsultantDay.set(dayKey, dayConsultants);
+      byConsultantBucket.set(bucketKey, bucketConsultants);
     });
 
-    const appointmentsByDay = weekDays.map((day) => {
-      const key = toDateKey(day.date);
+    const appointmentsByDay = dashboardBuckets.map((bucket) => {
+      const key = bucket.key;
       return {
         key,
-        label: day.shortLabel,
-        total: byDay.get(key) ?? 0,
+        label: bucket.label,
+        fullLabel: bucket.fullLabel,
+        total: byBucket.get(key) ?? 0,
       };
     });
 
@@ -818,11 +944,11 @@ function CronogramaClientContent({
       realDurationCount > 0
         ? Math.round(realDurationMs / 60000 / realDurationCount)
         : null;
-    const daysWithVisits = Array.from(byDay.values()).filter(
+    const periodsWithVisits = Array.from(byBucket.values()).filter(
       (value) => value > 0,
     ).length;
-    const avgVisitsPerDayAllConsultants = daysWithVisits
-      ? Math.round((totalAppointments / daysWithVisits) * 10) / 10
+    const avgVisitsPerDayAllConsultants = periodsWithVisits
+      ? Math.round((totalAppointments / periodsWithVisits) * 10) / 10
       : 0;
     const doneRate = totalAppointments
       ? Math.round(
@@ -844,7 +970,7 @@ function CronogramaClientContent({
       totalCompanies,
       statusTotals,
       appointmentsByDay,
-      byConsultantDay,
+      byConsultantBucket,
       companiesByState,
       topConsultants,
       opportunityTotals,
@@ -857,11 +983,12 @@ function CronogramaClientContent({
     };
   }, [
     dashboardAppointments,
+    dashboardBuckets,
     dashboardCompanies,
+    dashboardView,
     consultantNameMap,
     normalizeConsultantText,
     t,
-    weekDays,
   ]);
 
   const dashboardStatusData = useMemo(
@@ -902,7 +1029,7 @@ function CronogramaClientContent({
 
   const consultantAvgVisits = useMemo(() => {
     const totals = new Map<string, { total: number; days: number }>();
-    dashboardMetrics.byConsultantDay.forEach((consultants) => {
+    dashboardMetrics.byConsultantBucket.forEach((consultants) => {
       consultants.forEach((count, name) => {
         if (!count) return;
         const entry = totals.get(name) ?? { total: 0, days: 0 };
@@ -922,7 +1049,7 @@ function CronogramaClientContent({
       .filter((item) => item.days > 0)
       .sort((a, b) => b.avg - a.avg || b.total - a.total)
       .slice(0, 6);
-  }, [dashboardMetrics.byConsultantDay]);
+  }, [dashboardMetrics.byConsultantBucket]);
 
   const opportunityIds = useMemo(() => {
     const base = OPPORTUNITY_OPTIONS.map((item) => item.id);
@@ -1934,6 +2061,41 @@ function CronogramaClientContent({
     [t],
   );
 
+  const dashboardPeriodLabel = useMemo(() => {
+    if (dashboardView === "year") {
+      return t("schedule.dashboard.periodYear", {
+        year: dashboardRange.startAt.getFullYear(),
+      });
+    }
+    if (dashboardView === "month") {
+      return t("schedule.dashboard.periodMonth", {
+        month: formatMonthLabel(selectedMonth),
+      });
+    }
+    return t("schedule.dashboard.period", {
+      start: formatDateLabel(dashboardRange.startAt),
+      end: formatDateLabel(dashboardRange.endAt),
+    });
+  }, [dashboardRange.endAt, dashboardRange.startAt, dashboardView, selectedMonth, t]);
+
+  const dashboardPeriodDisplayLabel =
+    dashboardView === "year"
+      ? String(selectedMonth.getFullYear())
+      : formatMonthLabel(selectedMonth);
+
+  const shiftDashboardPeriod = useCallback(
+    (direction: -1 | 1) => {
+      if (dashboardView === "year") {
+        setSelectedMonth(
+          (prev) => new Date(prev.getFullYear() + direction, prev.getMonth(), 1),
+        );
+        return;
+      }
+      setSelectedMonth((prev) => addMonths(prev, direction));
+    },
+    [dashboardView],
+  );
+
   const renderDashboard = () => {
     if (dashboardScope === "individual" && !selectedConsultantId) {
       return (
@@ -2011,13 +2173,6 @@ function CronogramaClientContent({
       dashboardMetrics.totalAppointments === 0 &&
       dashboardMetrics.totalCompanies === 0;
 
-    const periodLabel = selectedWeek
-      ? t("schedule.dashboard.period", {
-          start: formatDateLabel(selectedWeek.startAt),
-          end: formatDateLabel(selectedWeek.endAt),
-        })
-      : "";
-
     const averageDurationLabel = formatAverageDuration(
       dashboardMetrics.avgRealDurationMinutes,
       t,
@@ -2057,9 +2212,32 @@ function CronogramaClientContent({
             className={`${toolbarCardClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}
           >
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              {periodLabel}
+              {dashboardPeriodLabel}
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                <span className="sr-only">
+                  {t("schedule.dashboard.viewLabel")}
+                </span>
+                <select
+                  value={dashboardView}
+                  onChange={(event) =>
+                    setDashboardView(event.target.value as DashboardView)
+                  }
+                  aria-label={t("schedule.dashboard.viewLabel")}
+                  className="min-w-[120px] bg-transparent text-sm font-semibold text-slate-800 focus:outline-none"
+                >
+                  <option value="week">
+                    {t("schedule.dashboard.viewWeek")}
+                  </option>
+                  <option value="month">
+                    {t("schedule.dashboard.viewMonth")}
+                  </option>
+                  <option value="year">
+                    {t("schedule.dashboard.viewYear")}
+                  </option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
                 <span className="sr-only">
                   {t("schedule.dashboard.scopeLabel")}
@@ -2116,42 +2294,56 @@ function CronogramaClientContent({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedMonth((prev) => addMonths(prev, -1))}
+                onClick={() => shiftDashboardPeriod(-1)}
                 className={softButtonClass}
               >
-                <span className="sr-only">{t("schedule.prevMonth")}</span>
+                <span className="sr-only">
+                  {t(
+                    dashboardView === "year"
+                      ? "schedule.dashboard.prevYear"
+                      : "schedule.prevMonth",
+                  )}
+                </span>
                 &lt;
               </button>
               <span className="text-sm font-semibold text-slate-800">
-                {formatMonthLabel(selectedMonth)}
+                {dashboardPeriodDisplayLabel}
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedMonth((prev) => addMonths(prev, 1))}
+                onClick={() => shiftDashboardPeriod(1)}
                 className={softButtonClass}
               >
-                <span className="sr-only">{t("schedule.nextMonth")}</span>
+                <span className="sr-only">
+                  {t(
+                    dashboardView === "year"
+                      ? "schedule.dashboard.nextYear"
+                      : "schedule.nextMonth",
+                  )}
+                </span>
                 &gt;
               </button>
             </div>
 
-            <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
-              {weeks.map((week, index) => {
-                const isActive = index === selectedWeekIndex;
-                return (
-                  <button
-                    key={`${toDateKey(week.startAt)}-${index}`}
-                    type="button"
-                    onClick={() => setSelectedWeekIndex(index)}
-                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                      isActive ? toggleActiveClass : toggleInactiveClass
-                    }`}
-                  >
-                    {week.label}
-                  </button>
-                );
-              })}
-            </div>
+            {dashboardView === "week" ? (
+              <div className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 sm:w-auto sm:flex-wrap sm:overflow-visible">
+                {weeks.map((week, index) => {
+                  const isActive = index === selectedWeekIndex;
+                  return (
+                    <button
+                      key={`${toDateKey(week.startAt)}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedWeekIndex(index)}
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                        isActive ? toggleActiveClass : toggleInactiveClass
+                      }`}
+                    >
+                      {week.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="text-xs text-slate-500">
@@ -2186,7 +2378,7 @@ function CronogramaClientContent({
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.appointmentsByDay")}
+              {t("schedule.dashboard.charts.appointmentsByPeriod")}
             </div>
             {dashboardMetrics.appointmentsByDay.some(
               (item) => item.total > 0,
@@ -2202,7 +2394,9 @@ function CronogramaClientContent({
                         value,
                         t("schedule.dashboard.tooltip.appointments"),
                       ]}
-                      labelFormatter={() => ""}
+                      labelFormatter={(_label, payload) =>
+                        String(payload?.[0]?.payload?.fullLabel ?? "")
+                      }
                     />
                     <Line
                       type="monotone"
@@ -2223,7 +2417,7 @@ function CronogramaClientContent({
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.consultantAvgVisitsPerDay")}
+              {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
             </div>
             {consultantAvgVisits.length ? (
               <div className="mt-3 h-56">
@@ -2857,8 +3051,8 @@ function CronogramaClientContent({
                   </button>
                   <Tabs
                     tabs={[
-                      { id: "board", label: t("schedule.viewBoard") },
                       { id: "grid", label: t("schedule.viewGrid") },
+                      { id: "board", label: t("schedule.viewBoard") },
                       { id: "map", label: t("schedule.viewMap") },
                     ]}
                     activeTabId={viewMode}

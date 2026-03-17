@@ -199,9 +199,15 @@ const MESSAGES = {
         scopeLabel: "Escopo",
         scopeGeneral: "Geral",
         scopeIndividual: "Individual",
+        viewLabel: "Visualizacao",
+        viewWeek: "Semana",
+        viewMonth: "Mes",
+        viewYear: "Ano",
         scopeHintGeneral: "Visão consolidada do período selecionado.",
         scopeHintIndividual: "Visão do consultor selecionado.",
         period: "Período {start} - {end}",
+        periodMonth: "Mes {month}",
+        periodYear: "Ano {year}",
         noDataPeriod: "Sem dados no período.",
         loading: "Carregando dashboard...",
         activitiesLoading: "Carregando atividades...",
@@ -210,6 +216,8 @@ const MESSAGES = {
           "Não foi possível carregar as empresas do dashboard.",
         activitiesLoadError: "Não foi possível carregar as atividades.",
         retry: "Tentar novamente",
+        prevYear: "Ano anterior",
+        nextYear: "Proximo ano",
         noData: "Sem dados disponíveis para o período.",
         noChartData: "Sem dados suficientes para o gráfico.",
         selectConsultant: "Selecione um consultor para ver o dashboard.",
@@ -228,8 +236,11 @@ const MESSAGES = {
         },
         charts: {
           appointmentsByDay: "Apontamentos por dia",
+          appointmentsByPeriod: "Apontamentos por periodo",
           consultantVisitsByDay: "Visitas por dia por consultor",
           consultantAvgVisitsPerDay: "Média de visitas/dia por consultor",
+          consultantAvgVisitsPerPeriod:
+            "Media de visitas por periodo por consultor",
           statusDistribution: "Distribuição por status",
           topConsultants: "Visitas no Período",
           opportunitiesByType: "Oportunidades por tipo",
@@ -589,3 +600,4 @@ export const createTranslator = (messages: Messages): Translate => {
     );
   };
 };
+
