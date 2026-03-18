@@ -702,6 +702,10 @@ function CronogramaClientContent({
   const lastVisitRequestIdRef = useRef(0);
   const skipConsultantResetRef = useRef(true);
   const queryConsultantAppliedRef = useRef(false);
+  const allowInitialUrlSyncRef = useRef(false);
+  const consultantUrlDirtyRef = useRef(searchParams.has("consultor"));
+  const monthUrlDirtyRef = useRef(searchParams.has("month"));
+  const weekUrlDirtyRef = useRef(searchParams.has("week"));
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -768,6 +772,7 @@ function CronogramaClientContent({
           value={value}
           onChange={(event) => {
             const next = event.target.value || null;
+            consultantUrlDirtyRef.current = true;
             setSelectedConsultantId(next);
           }}
           disabled={isDisabled}
@@ -803,6 +808,7 @@ function CronogramaClientContent({
         value={selectedConsultantId ?? ""}
         onChange={(event) => {
           const next = event.target.value || null;
+          consultantUrlDirtyRef.current = true;
           setSelectedConsultantId(next);
         }}
         disabled={!consultants.length}
@@ -915,13 +921,29 @@ function CronogramaClientContent({
   }, [selectedConsultantId]);
 
   useEffect(() => {
+    if (!allowInitialUrlSyncRef.current) {
+      allowInitialUrlSyncRef.current = true;
+      return;
+    }
+
     const next = new URLSearchParams(searchParams.toString());
     if (activeTab !== initialTab) next.set("tab", activeTab);
     else next.delete("tab");
-    if (selectedConsultantId) next.set("consultor", selectedConsultantId);
-    else next.delete("consultor");
-    next.set("month", toMonthKey(selectedMonth));
-    next.set("week", String(selectedWeekIndex + 1));
+    if (consultantUrlDirtyRef.current && selectedConsultantId) {
+      next.set("consultor", selectedConsultantId);
+    } else {
+      next.delete("consultor");
+    }
+    if (monthUrlDirtyRef.current) {
+      next.set("month", toMonthKey(selectedMonth));
+    } else {
+      next.delete("month");
+    }
+    if (weekUrlDirtyRef.current) {
+      next.set("week", String(selectedWeekIndex + 1));
+    } else {
+      next.delete("week");
+    }
     if (viewMode !== "grid") next.set("view", viewMode);
     else next.delete("view");
     if (dashboardScope !== "general") next.set("dscope", dashboardScope);
@@ -2435,6 +2457,8 @@ function CronogramaClientContent({
   const handleSchedulePeriodChange = useCallback(
     (value: string) => {
       const nextMonth = parseMonth(value, selectedMonth);
+      monthUrlDirtyRef.current = true;
+      weekUrlDirtyRef.current = true;
       setSelectedMonth(nextMonth);
     },
     [selectedMonth],
@@ -2442,6 +2466,8 @@ function CronogramaClientContent({
 
   const handleDashboardPeriodChange = useCallback(
     (value: string) => {
+      monthUrlDirtyRef.current = true;
+      weekUrlDirtyRef.current = true;
       if (dashboardView === "year") {
         const parsedYear = Number(value);
         if (Number.isInteger(parsedYear)) {
@@ -2457,6 +2483,8 @@ function CronogramaClientContent({
 
   const shiftDashboardPeriod = useCallback(
     (direction: -1 | 1) => {
+      monthUrlDirtyRef.current = true;
+      weekUrlDirtyRef.current = true;
       if (dashboardView === "year") {
         setSelectedMonth(
           (prev) => new Date(prev.getFullYear() + direction, prev.getMonth(), 1),
@@ -2641,7 +2669,10 @@ function CronogramaClientContent({
                       <button
                         key={`${toDateKey(week.startAt)}-${index}`}
                         type="button"
-                        onClick={() => setSelectedWeekIndex(index)}
+                        onClick={() => {
+                          weekUrlDirtyRef.current = true;
+                          setSelectedWeekIndex(index);
+                        }}
                         className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                           isActive ? toggleActiveClass : toggleInactiveClass
                         }`}
@@ -3367,15 +3398,26 @@ function CronogramaClientContent({
                 value={toMonthKey(selectedMonth)}
                 options={monthSelectOptions}
                 onChange={handleSchedulePeriodChange}
-                onPrev={() => setSelectedMonth((prev) => addMonths(prev, -1))}
-                onNext={() => setSelectedMonth((prev) => addMonths(prev, 1))}
+                onPrev={() => {
+                  monthUrlDirtyRef.current = true;
+                  weekUrlDirtyRef.current = true;
+                  setSelectedMonth((prev) => addMonths(prev, -1));
+                }}
+                onNext={() => {
+                  monthUrlDirtyRef.current = true;
+                  weekUrlDirtyRef.current = true;
+                  setSelectedMonth((prev) => addMonths(prev, 1));
+                }}
                 trailing={weeks.map((week, index) => {
                   const isActive = index === selectedWeekIndex;
                   return (
                     <button
                       key={`${toDateKey(week.startAt)}-${index}`}
                       type="button"
-                      onClick={() => setSelectedWeekIndex(index)}
+                      onClick={() => {
+                        weekUrlDirtyRef.current = true;
+                        setSelectedWeekIndex(index);
+                      }}
                       className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
                         isActive ? toggleActiveClass : toggleInactiveClass
                       }`}

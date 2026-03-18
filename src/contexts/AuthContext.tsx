@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error: null,
   });
   const didValidateUserRef = useRef(false);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const resolveUserRole = useCallback(
     async (userId: string | undefined): Promise<UserRole> => {
@@ -106,15 +111,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      setState((prev) => ({
-        ...prev,
-        user: session?.user ?? null,
-        session,
-        loading: true,
-        error: null,
-      }));
+
+      const currentUserId = stateRef.current.user?.id ?? null;
+      const nextUserId = session?.user?.id ?? null;
+      const sameUser = currentUserId !== null && currentUserId === nextUserId;
+
+      // Token refresh on focus should not blank authenticated screens.
+      if (event === "TOKEN_REFRESHED" && sameUser) {
+        setState((prev) => ({
+          ...prev,
+          session,
+          error: null,
+        }));
+        return;
+      }
+
+      setState((prev) => {
+        if (!session) {
+          return {
+            user: null,
+            session: null,
+            role: "standard",
+            loading: false,
+            error: null,
+          };
+        }
+
+        return {
+          ...prev,
+          user: session.user,
+          session,
+          loading: sameUser ? prev.loading : true,
+          error: null,
+        };
+      });
 
       void (async () => {
         if (!active) return;

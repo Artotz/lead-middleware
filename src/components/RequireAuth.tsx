@@ -27,7 +27,7 @@ function RequireAuthContent({ children }: { children: React.ReactNode }) {
     }
   }, [loading, pathname, router, searchParams, t, user]);
 
-  if (loading || !user) {
+  if (!user) {
     return (
       <div className="flex min-h-[calc(100vh-120px)] items-center justify-center px-4 py-10 text-sm text-slate-500">
         {t("schedule.loading")}
