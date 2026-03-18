@@ -424,10 +424,6 @@ const MESSAGES = {
         lossReasonRequired: "Selecione o motivo da perda.",
         loadError: "Não foi possível registrar a ação.",
         doneRequired: "Disponível após concluir a visita",
-        button: "Nova ação",
-        dialogTitle: "Criar ação",
-        dialogSubtitle:
-          "A nova ação nasce em andamento e já define o tipo de oportunidade.",
         progressButton: "Agir",
         progressDialogTitle: "Concluir ação",
         progressDialogSubtitle:
