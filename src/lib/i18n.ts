@@ -55,6 +55,10 @@ const MESSAGES = {
         metrics: "Métricas",
       },
     },
+    pageShell: {
+      back: "Voltar para a página anterior",
+      backDisabled: "Não há página anterior para voltar",
+    },
     auth: {
       loginRequired: "Faça login para acessar o painel.",
       logoutError: "Não foi possível encerrar a sessão. Tente novamente.",
