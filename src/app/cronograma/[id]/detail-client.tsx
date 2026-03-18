@@ -84,7 +84,7 @@ type AppointmentMediaItem = {
 
 type AppointmentAction = {
   id: string;
-  resultado: "vendido" | "perdido";
+  resultado: "em_andamento" | "vendido" | "perdido";
   tipoOportunidade: string | null;
   nfOuOs: string | null;
   valor: number | null;
@@ -96,7 +96,7 @@ type AppointmentAction = {
 
 type AppointmentActionRow = {
   id: string;
-  resultado: "vendido" | "perdido";
+  resultado: "em_andamento" | "vendido" | "perdido";
   tipo_oportunidade?: string | null;
   nf_ou_os: string | null;
   valor: number | null;
@@ -175,6 +175,9 @@ export default function AppointmentDetailClient({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [editingAction, setEditingAction] = useState<AppointmentAction | null>(
+    null,
+  );
   const [actionResult, setActionResult] = useState<"vendido" | "perdido" | "">(
     "",
   );
@@ -644,9 +647,16 @@ export default function AppointmentDetailClient({
 
   const canRegisterAction =
     appointment?.status === "done" || appointment?.status === "atuado";
+  const isEditingAction = editingAction !== null;
 
   useEffect(() => {
     if (!actionModalOpen) return;
+    const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, [actionModalOpen]);
+
+  const openCreateActionModal = useCallback(() => {
+    setEditingAction(null);
     setActionResult("");
     setActionNfOs("");
     setActionValue("");
@@ -654,13 +664,28 @@ export default function AppointmentDetailClient({
     setActionOpportunityType("");
     setActionNote("");
     setActionError(null);
-    const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
-    return () => window.clearTimeout(id);
-  }, [actionModalOpen]);
+    setActionModalOpen(true);
+  }, []);
+
+  const openUpdateActionModal = useCallback((action: AppointmentAction) => {
+    setEditingAction(action);
+    setActionResult("");
+    setActionNfOs(action.nfOuOs ?? "");
+    setActionValue(action.valor != null ? String(action.valor) : "");
+    setActionLossReason(action.motivoPerda ?? "");
+    setActionOpportunityType(action.tipoOportunidade ?? "");
+    setActionNote(action.observacao ?? "");
+    setActionError(null);
+    setActionModalOpen(true);
+  }, []);
 
   const handleConfirmAction = useCallback(async () => {
     if (!appointment || !appointmentId) return;
-    if (!actionResult) {
+    if (!actionOpportunityType) {
+      setActionError(t("appointment.action.opportunityTypeRequired"));
+      return;
+    }
+    if (isEditingAction && !actionResult) {
       setActionError(t("appointment.action.resultRequired"));
       return;
     }
@@ -692,51 +717,75 @@ export default function AppointmentDetailClient({
         : null;
 
     try {
-      const { error: insertError } = await supabase
-        .from("apontamento_acoes")
-        .insert({
-          apontamento_id: appointmentId,
-          resultado: actionResult,
-          tipo_oportunidade:
-            actionResult === "vendido" ? actionOpportunityType : null,
-          nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
-          valor: actionResult === "vendido" ? normalizedValue : null,
-          motivo_perda: actionResult === "perdido" ? actionLossReason : null,
-          observacao: actionNote.trim() || null,
-          created_by: user?.email?.trim() || null,
-        });
+      if (isEditingAction && editingAction) {
+        const { error: actionUpdateError } = await supabase
+          .from("apontamento_acoes")
+          .update({
+            resultado: actionResult,
+            tipo_oportunidade: actionOpportunityType,
+            nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
+            valor: actionResult === "vendido" ? normalizedValue : null,
+            motivo_perda: actionResult === "perdido" ? actionLossReason : null,
+            observacao: actionNote.trim() || null,
+          })
+          .eq("id", editingAction.id);
 
-      if (insertError) {
-        logSupabaseError("Falha ao registrar ação do apontamento", insertError);
-        setActionError(
-          isMissingColumnError(insertError)
-            ? t("appointment.action.opportunityTypeColumnMissing")
-            : isSingleActionConstraintError(insertError)
-              ? t("appointment.action.singleActionConstraint")
-            : t("appointment.action.loadError"),
-        );
-        setActionLoading(false);
-        return;
-      }
+        if (actionUpdateError) {
+          logSupabaseError(
+            "Falha ao atualizar ação do apontamento",
+            actionUpdateError,
+          );
+          setActionError(t("appointment.action.loadError"));
+          setActionLoading(false);
+          return;
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from("apontamento_acoes")
+          .insert({
+            apontamento_id: appointmentId,
+            resultado: "em_andamento",
+            tipo_oportunidade: actionOpportunityType,
+            nf_ou_os: null,
+            valor: null,
+            motivo_perda: null,
+            observacao: actionNote.trim() || null,
+            created_by: user?.email?.trim() || null,
+          });
 
-      const { data, error: updateError } = await supabase
-        .from("apontamentos")
-        .update({ status: "atuado" })
-        .eq("id", appointmentId)
-        .select(APPOINTMENT_SELECT)
-        .maybeSingle();
+        if (insertError) {
+          logSupabaseError("Falha ao registrar ação do apontamento", insertError);
+          setActionError(
+            isMissingColumnError(insertError)
+              ? t("appointment.action.opportunityTypeColumnMissing")
+              : isSingleActionConstraintError(insertError)
+                ? t("appointment.action.singleActionConstraint")
+                : t("appointment.action.loadError"),
+          );
+          setActionLoading(false);
+          return;
+        }
 
-      if (updateError) {
-        console.error(updateError);
-        setActionError(t("appointment.action.loadError"));
-        setActionLoading(false);
-        return;
-      }
+        const { data, error: appointmentUpdateError } = await supabase
+          .from("apontamentos")
+          .update({ status: "atuado" })
+          .eq("id", appointmentId)
+          .select(APPOINTMENT_SELECT)
+          .maybeSingle();
 
-      if (data) {
-        setAppointment(mapAppointment(data as AppointmentRow));
+        if (appointmentUpdateError) {
+          console.error(appointmentUpdateError);
+          setActionError(t("appointment.action.loadError"));
+          setActionLoading(false);
+          return;
+        }
+
+        if (data) {
+          setAppointment(mapAppointment(data as AppointmentRow));
+        }
       }
       await loadAppointmentActions(appointmentId);
+      setEditingAction(null);
       setActionModalOpen(false);
       setActionLoading(false);
     } catch (err) {
@@ -752,6 +801,8 @@ export default function AppointmentDetailClient({
     actionResult,
     appointment,
     appointmentId,
+    editingAction,
+    isEditingAction,
     loadAppointmentActions,
     supabase,
     t,
@@ -966,13 +1017,36 @@ export default function AppointmentDetailClient({
           ) : null}
 
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
-            <h2 className="text-sm font-semibold text-slate-900">
-              {t("appointment.action.sectionTitle")}
-            </h2>
-            <div className="mt-2 text-xs text-slate-500">
-              {t("appointment.action.count", {
-                count: appointmentActions.length,
-              })}
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {t("appointment.action.sectionTitle")}
+                </h2>
+                <div className="mt-2 text-xs text-slate-500">
+                  {t("appointment.action.count", {
+                    count: appointmentActions.length,
+                  })}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openCreateActionModal}
+                disabled={!canRegisterAction}
+                title={
+                  !canRegisterAction
+                    ? t("appointment.action.doneRequired")
+                    : undefined
+                }
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                  !canRegisterAction
+                    ? "border-slate-200 bg-slate-100 text-slate-400"
+                    : "border-slate-200 bg-[#FFDE00] text-[#0B0D10] shadow-md shadow-black/20 hover:brightness-95"
+                }`}
+              >
+                {appointmentActions.length
+                  ? t("appointment.action.addButton")
+                  : t("appointment.action.button")}
+              </button>
             </div>
             {appointmentActionsError ? (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -995,12 +1069,16 @@ export default function AppointmentDetailClient({
                         tone={
                           appointmentAction.resultado === "vendido"
                             ? "emerald"
-                            : "rose"
+                            : appointmentAction.resultado === "perdido"
+                              ? "rose"
+                              : "amber"
                         }
                       >
                         {appointmentAction.resultado === "vendido"
                           ? t("appointment.action.resultSold")
-                          : t("appointment.action.resultLost")}
+                          : appointmentAction.resultado === "perdido"
+                            ? t("appointment.action.resultLost")
+                            : t("appointment.action.resultInProgress")}
                       </Badge>
                       {appointmentAction.createdAt ? (
                         <span className="text-xs text-slate-500">
@@ -1017,22 +1095,22 @@ export default function AppointmentDetailClient({
                     </div>
 
                     <div className="mt-3 grid gap-2">
+                      <div>
+                        <span className="font-semibold text-slate-600">
+                          {t("appointment.action.opportunityTypeLabel")}:{" "}
+                        </span>
+                        {appointmentAction.tipoOportunidade
+                          ? t(
+                              `schedule.opportunity.${appointmentAction.tipoOportunidade}`,
+                              undefined,
+                              getOpportunityLabel(
+                                appointmentAction.tipoOportunidade,
+                              ),
+                            )
+                          : t("appointment.notInformed")}
+                      </div>
                       {appointmentAction.resultado === "vendido" ? (
                         <>
-                          <div>
-                            <span className="font-semibold text-slate-600">
-                              {t("appointment.action.opportunityTypeLabel")}:{" "}
-                            </span>
-                            {appointmentAction.tipoOportunidade
-                              ? t(
-                                  `schedule.opportunity.${appointmentAction.tipoOportunidade}`,
-                                  undefined,
-                                  getOpportunityLabel(
-                                    appointmentAction.tipoOportunidade,
-                                  ),
-                                )
-                              : t("appointment.notInformed")}
-                          </div>
                           <div>
                             <span className="font-semibold text-slate-600">
                               {t("appointment.action.nfOsLabel")}:{" "}
@@ -1052,7 +1130,7 @@ export default function AppointmentDetailClient({
                               : t("appointment.notInformed")}
                           </div>
                         </>
-                      ) : (
+                      ) : appointmentAction.resultado === "perdido" ? (
                         <div>
                           <span className="font-semibold text-slate-600">
                             {t("appointment.action.lossReasonLabel")}:{" "}
@@ -1065,7 +1143,18 @@ export default function AppointmentDetailClient({
                               )
                             : t("appointment.notInformed")}
                         </div>
-                      )}
+                      ) : null}
+                      {appointmentAction.resultado === "em_andamento" ? (
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => openUpdateActionModal(appointmentAction)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                          >
+                            {t("appointment.action.progressButton")}
+                          </button>
+                        </div>
+                      ) : null}
                       {appointmentAction.observacao ? (
                         <div>
                           <span className="font-semibold text-slate-600">
@@ -1223,26 +1312,6 @@ export default function AppointmentDetailClient({
         </div>
 
         <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setActionModalOpen(true)}
-            disabled={!canRegisterAction}
-            title={
-              !canRegisterAction
-                ? t("appointment.action.doneRequired")
-                : undefined
-            }
-            className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-              !canRegisterAction
-                ? "border-slate-200 bg-slate-100 text-slate-400"
-                : "border-slate-200 bg-[#FFDE00] text-[#0B0D10] shadow-md shadow-black/40 hover:brightness-95"
-            }`}
-          >
-            {appointmentActions.length
-              ? t("appointment.action.addButton")
-              : t("appointment.action.button")}
-          </button>
-
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h2 className="text-sm font-semibold text-slate-900">
               {t("schedule.timeline.title")}
@@ -1336,7 +1405,10 @@ export default function AppointmentDetailClient({
               className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
               onMouseDown={(e) => {
                 e.stopPropagation();
-                if (e.target === e.currentTarget) setActionModalOpen(false);
+                if (e.target === e.currentTarget) {
+                  setActionModalOpen(false);
+                  setEditingAction(null);
+                }
               }}
               onClick={(e) => e.stopPropagation()}
               role="dialog"
@@ -1347,16 +1419,23 @@ export default function AppointmentDetailClient({
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-4">
                   <div className="space-y-1">
                     <h2 className="text-base font-semibold text-slate-900">
-                      {t("appointment.action.dialogTitle")}
+                      {isEditingAction
+                        ? t("appointment.action.progressDialogTitle")
+                        : t("appointment.action.dialogTitle")}
                     </h2>
                     <p className="text-xs text-slate-500">
-                      {t("appointment.action.dialogSubtitle")}
+                      {isEditingAction
+                        ? t("appointment.action.progressDialogSubtitle")
+                        : t("appointment.action.dialogSubtitle")}
                     </p>
                   </div>
                   <button
                     ref={actionCloseButtonRef}
                     type="button"
-                    onClick={() => setActionModalOpen(false)}
+                    onClick={() => {
+                      setActionModalOpen(false);
+                      setEditingAction(null);
+                    }}
                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                   >
                     {t("createAppointment.close")}
@@ -1372,115 +1451,120 @@ export default function AppointmentDetailClient({
 
                   <label className="space-y-1 text-sm font-semibold text-slate-700">
                     <span>
-                      {t("appointment.action.resultLabel")}{" "}
+                      {t("appointment.action.opportunityTypeLabel")}{" "}
                       <span className="text-rose-600">*</span>
                     </span>
                     <select
-                      value={actionResult}
+                      value={actionOpportunityType}
                       onChange={(event) =>
-                        setActionResult(
-                          event.target.value as "vendido" | "perdido" | "",
-                        )
+                        setActionOpportunityType(event.target.value)
                       }
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                     >
                       <option value="">
-                        {t("appointment.action.resultPlaceholder")}
+                        {t("appointment.action.opportunityTypePlaceholder")}
                       </option>
-                      <option value="vendido">
-                        {t("appointment.action.resultSold")}
-                      </option>
-                      <option value="perdido">
-                        {t("appointment.action.resultLost")}
-                      </option>
+                      {actionOpportunityOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </label>
 
-                  {actionResult === "vendido" && (
+                  {isEditingAction ? (
                     <>
                       <label className="space-y-1 text-sm font-semibold text-slate-700">
                         <span>
-                          {t("appointment.action.opportunityTypeLabel")}{" "}
+                          {t("appointment.action.resultLabel")}{" "}
                           <span className="text-rose-600">*</span>
                         </span>
                         <select
-                          value={actionOpportunityType}
+                          value={actionResult}
                           onChange={(event) =>
-                            setActionOpportunityType(event.target.value)
+                            setActionResult(
+                              event.target.value as "vendido" | "perdido" | "",
+                            )
                           }
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                         >
                           <option value="">
-                            {t("appointment.action.opportunityTypePlaceholder")}
+                            {t("appointment.action.resultPlaceholder")}
                           </option>
-                          {actionOpportunityOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
+                          <option value="vendido">
+                            {t("appointment.action.resultSold")}
+                          </option>
+                          <option value="perdido">
+                            {t("appointment.action.resultLost")}
+                          </option>
                         </select>
                       </label>
-                      <label className="space-y-1 text-sm font-semibold text-slate-700">
-                        <span>
-                          {t("appointment.action.nfOsLabel")}{" "}
-                          <span className="text-rose-600">*</span>
-                        </span>
-                        <input
-                          value={actionNfOs}
-                          onChange={(event) => setActionNfOs(event.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                          placeholder={t("appointment.action.nfOsPlaceholder")}
-                        />
-                      </label>
-                      <label className="space-y-1 text-sm font-semibold text-slate-700">
-                        <span>
-                          {t("appointment.action.valueLabel")}{" "}
-                          <span className="text-rose-600">*</span>
-                        </span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={actionValue}
-                          onChange={(event) =>
-                            setActionValue(event.target.value)
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                          placeholder={t("appointment.action.valuePlaceholder")}
-                          min="0"
-                          step="0.01"
-                        />
-                      </label>
-                    </>
-                  )}
 
-                  {actionResult === "perdido" && (
-                    <label className="space-y-1 text-sm font-semibold text-slate-700">
-                      <span>
-                        {t("appointment.action.lossReasonLabel")}{" "}
-                        <span className="text-rose-600">*</span>
-                      </span>
-                      <select
-                        value={actionLossReason}
-                        onChange={(event) =>
-                          setActionLossReason(event.target.value)
-                        }
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                      >
-                        <option value="">
-                          {t("appointment.action.lossReasonPlaceholder")}
-                        </option>
-                        {lossReasons.map((reason) => (
-                          <option key={reason} value={reason}>
-                            {t(
-                              `appointment.action.lossReasons.${reason}`,
-                              undefined,
-                              reason,
-                            )}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
+                      {actionResult === "vendido" ? (
+                        <>
+                          <label className="space-y-1 text-sm font-semibold text-slate-700">
+                            <span>
+                              {t("appointment.action.nfOsLabel")}{" "}
+                              <span className="text-rose-600">*</span>
+                            </span>
+                            <input
+                              value={actionNfOs}
+                              onChange={(event) => setActionNfOs(event.target.value)}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                              placeholder={t("appointment.action.nfOsPlaceholder")}
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm font-semibold text-slate-700">
+                            <span>
+                              {t("appointment.action.valueLabel")}{" "}
+                              <span className="text-rose-600">*</span>
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={actionValue}
+                              onChange={(event) =>
+                                setActionValue(event.target.value)
+                              }
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                              placeholder={t("appointment.action.valuePlaceholder")}
+                              min="0"
+                              step="0.01"
+                            />
+                          </label>
+                        </>
+                      ) : null}
+
+                      {actionResult === "perdido" ? (
+                        <label className="space-y-1 text-sm font-semibold text-slate-700">
+                          <span>
+                            {t("appointment.action.lossReasonLabel")}{" "}
+                            <span className="text-rose-600">*</span>
+                          </span>
+                          <select
+                            value={actionLossReason}
+                            onChange={(event) =>
+                              setActionLossReason(event.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                          >
+                            <option value="">
+                              {t("appointment.action.lossReasonPlaceholder")}
+                            </option>
+                            {lossReasons.map((reason) => (
+                              <option key={reason} value={reason}>
+                                {t(
+                                  `appointment.action.lossReasons.${reason}`,
+                                  undefined,
+                                  reason,
+                                )}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </>
+                  ) : null}
 
                   <label className="space-y-1 text-sm font-semibold text-slate-700">
                     <span>{t("appointment.action.noteLabel")}</span>
@@ -1497,7 +1581,10 @@ export default function AppointmentDetailClient({
                 <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
                   <button
                     type="button"
-                    onClick={() => setActionModalOpen(false)}
+                    onClick={() => {
+                      setActionModalOpen(false);
+                      setEditingAction(null);
+                    }}
                     disabled={actionLoading}
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
                   >
@@ -1510,8 +1597,12 @@ export default function AppointmentDetailClient({
                     className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {actionLoading
-                      ? t("appointment.action.saving")
-                      : t("appointment.action.confirm")}
+                      ? isEditingAction
+                        ? t("appointment.action.progressSaving")
+                        : t("appointment.action.saving")
+                      : isEditingAction
+                        ? t("appointment.action.progressConfirm")
+                        : t("appointment.action.confirm")}
                   </button>
                 </div>
               </div>

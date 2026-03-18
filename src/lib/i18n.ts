@@ -411,8 +411,8 @@ const MESSAGES = {
         noteLabel: "Observação",
         notePlaceholder: "Descreva a ação realizada (opcional)",
         cancel: "Cancelar",
-        confirm: "Registrar",
-        saving: "Registrando...",
+        confirm: "Criar acao",
+        saving: "Criando...",
         resultRequired: "Selecione o resultado.",
         opportunityTypeRequired: "Selecione o tipo da oportunidade.",
         opportunityTypeColumnMissing:
@@ -424,6 +424,17 @@ const MESSAGES = {
         lossReasonRequired: "Selecione o motivo da perda.",
         loadError: "Não foi possível registrar a ação.",
         doneRequired: "Disponível após concluir a visita",
+        button: "Nova acao",
+        dialogTitle: "Criar acao",
+        dialogSubtitle:
+          "A nova acao nasce em andamento e ja define o tipo de oportunidade.",
+        progressButton: "Agir",
+        progressDialogTitle: "Concluir acao",
+        progressDialogSubtitle:
+          "Atualize a acao em andamento para vendido ou perdido.",
+        resultInProgress: "Em andamento",
+        progressConfirm: "Salvar resultado",
+        progressSaving: "Salvando...",
         lossReasons: {
           preco_da_peca: "Preço da peça",
           preco_da_mao_de_obra: "Preço da mão de obra",
