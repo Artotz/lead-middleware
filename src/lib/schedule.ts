@@ -203,6 +203,7 @@ export const OPPORTUNITY_OPTIONS = [
   { id: "rodante", label: "Rodante" },
   { id: "pneus", label: "Pneus" },
   { id: "pecas", label: "Pecas" },
+  { id: "oleo_lubrificantes", label: "Oleo / Lubrificantes" },
   { id: "disponibilidade", label: "Disponibilidade" },
   { id: "reconexao", label: "Reconexao" },
   { id: "transferencia_aor", label: "Transferencia AOR" },

@@ -1062,7 +1062,7 @@ export default function AppointmentDetailClient({
                 {appointmentActions.map((appointmentAction) => (
                   <div
                     key={appointmentAction.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                    className="flex flex-col rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
@@ -1144,17 +1144,6 @@ export default function AppointmentDetailClient({
                             : t("appointment.notInformed")}
                         </div>
                       ) : null}
-                      {appointmentAction.resultado === "em_andamento" ? (
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={() => openUpdateActionModal(appointmentAction)}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-                          >
-                            {t("appointment.action.progressButton")}
-                          </button>
-                        </div>
-                      ) : null}
                       {appointmentAction.observacao ? (
                         <div>
                           <span className="font-semibold text-slate-600">
@@ -1171,6 +1160,17 @@ export default function AppointmentDetailClient({
                           t("appointment.notInformed")}
                       </div>
                     </div>
+                    {appointmentAction.resultado === "em_andamento" ? (
+                      <div className="mt-auto pt-4">
+                        <button
+                          type="button"
+                          onClick={() => openUpdateActionModal(appointmentAction)}
+                          className="rounded-xl border border-slate-200 bg-[#FFDE00] px-4 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/20 transition hover:brightness-95"
+                        >
+                          {t("appointment.action.progressButton")}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

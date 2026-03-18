@@ -193,6 +193,7 @@ const MESSAGES = {
         rodante: "Rodante",
         pneus: "Pneus",
         pecas: "Peças",
+        oleo_lubrificantes: "Óleo / Lubrificantes",
         disponibilidade: "Disponibilidade",
         reconexao: "Reconexão",
         transferencia_aor: "Transferência AOR",
@@ -424,7 +425,7 @@ const MESSAGES = {
         lossReasonRequired: "Selecione o motivo da perda.",
         loadError: "Não foi possível registrar a ação.",
         doneRequired: "Disponível após concluir a visita",
-        progressButton: "Agir",
+        progressButton: "Registrar resultado",
         progressDialogTitle: "Concluir ação",
         progressDialogSubtitle:
           "Atualize a ação em andamento para vendido ou perdido.",
