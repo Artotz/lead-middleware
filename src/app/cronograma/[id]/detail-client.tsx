@@ -534,6 +534,8 @@ export default function AppointmentDetailClient({
     [supabase, t],
   );
 
+  const loggedUserEmail = user?.email?.trim().toLowerCase() ?? "";
+
   useEffect(() => {
     if (!appointmentId) return;
     setMedia([]);
@@ -1160,10 +1162,13 @@ export default function AppointmentDetailClient({
                           t("appointment.notInformed")}
                       </div>
                     </div>
-                    {appointmentAction.resultado === "em_andamento" ? (
-                      <div className="mt-auto pt-4">
-                        <button
-                          type="button"
+                      {appointmentAction.resultado === "em_andamento" &&
+                      loggedUserEmail !== "" &&
+                      appointmentAction.createdBy?.trim().toLowerCase() ===
+                        loggedUserEmail ? (
+                        <div className="mt-auto pt-4">
+                          <button
+                            type="button"
                           onClick={() => openUpdateActionModal(appointmentAction)}
                           className="rounded-xl border border-slate-200 bg-[#FFDE00] px-4 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/20 transition hover:brightness-95"
                         >
