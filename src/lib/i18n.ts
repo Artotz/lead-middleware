@@ -83,6 +83,10 @@ const MESSAGES = {
       opportunityAll: "Todas",
       opportunityFilterSearchPlaceholder: "Buscar oportunidade...",
       opportunityFilterNoResults: "Nenhuma oportunidade encontrada.",
+      visibleColumnsLabel: "Colunas",
+      visibleColumnsPlaceholder: "Selecionar colunas",
+      visibleColumnsSearchPlaceholder: "Buscar coluna...",
+      visibleColumnsNoResults: "Nenhuma coluna encontrada.",
       zoomOut: "Diminuir zoom da semana",
       zoomIn: "Aumentar zoom da semana",
       zoomLabel: "Zoom",
@@ -169,6 +173,7 @@ const MESSAGES = {
         time: "Horário",
         status: "Status",
         opportunities: "Oportunidades",
+        quotes: "Cotações",
       },
       map: {
         companies: "Empresas",

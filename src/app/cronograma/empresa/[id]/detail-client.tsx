@@ -926,7 +926,7 @@ export default function CompanyDetailClient({
                       key={serie}
                       tone={opportunityTab === "preventiva" ? "amber" : "slate"}
                     >
-                      {t("company.serie")} {serie}
+                      {serie}
                     </Badge>
                   ))}
                 </div>

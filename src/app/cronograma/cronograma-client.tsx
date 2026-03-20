@@ -325,6 +325,26 @@ const APPOINTMENT_STATUS_VALUES = [
   "absent",
   "atuado",
 ] as const;
+const COMPANY_COLUMN_VALUES = [
+  "empresa",
+  "estado",
+  "csa",
+  "carteira",
+  "classe",
+  "referencia",
+  "ultimaVisita",
+  "oportunidades",
+  "cotacoes",
+] as const;
+const APPOINTMENT_COLUMN_VALUES = [
+  "empresa",
+  "consultor",
+  "data",
+  "horario",
+  "status",
+  "oportunidades",
+  "cotacoes",
+] as const;
 
 const parseEnum = <T extends string>(
   value: string | null,
@@ -363,6 +383,17 @@ const parseCsv = (value: string | null) =>
     ?.split(",")
     .map((item) => item.trim())
     .filter(Boolean) ?? [];
+
+const sanitizeSelection = <T extends string>(
+  values: string[],
+  allowed: readonly T[],
+  fallback: readonly T[],
+): T[] => {
+  const validValues = values.filter((value): value is T =>
+    allowed.includes(value as T),
+  );
+  return validValues.length ? Array.from(new Set(validValues)) : [...fallback];
+};
 
 type ToolbarRowProps = {
   summary: ReactNode;
@@ -569,10 +600,20 @@ function CronogramaClientContent({
         APPOINTMENT_SORT_VALUES,
         "date_desc",
       ),
+      appointmentColumns: sanitizeSelection(
+        parseCsv(searchParams.get("acols")),
+        APPOINTMENT_COLUMN_VALUES,
+        APPOINTMENT_COLUMN_VALUES,
+      ),
       appointmentPage: parsePositiveInt(searchParams.get("apage"), 1),
       appointmentStatus,
       cronogramaStatus,
       appointmentOpportunity,
+      companyColumns: sanitizeSelection(
+        parseCsv(searchParams.get("ccols")),
+        COMPANY_COLUMN_VALUES,
+        COMPANY_COLUMN_VALUES,
+      ),
       selectedMonth,
       selectedWeekIndex: defaultWeekIndex,
       consultantId: searchParams.get("consultor")?.trim() || null,
@@ -645,6 +686,9 @@ function CronogramaClientContent({
   const [appointmentSearch, setAppointmentSearch] = useState(
     urlState.appointmentSearch,
   );
+  const [appointmentVisibleColumns, setAppointmentVisibleColumns] = useState(
+    urlState.appointmentColumns,
+  );
   const [appointmentStatus, setAppointmentStatus] = useState<
     SupabaseAppointmentStatus[]
   >(urlState.appointmentStatus);
@@ -680,6 +724,9 @@ function CronogramaClientContent({
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
   const [companySearch, setCompanySearch] = useState(urlState.companySearch);
+  const [companyVisibleColumns, setCompanyVisibleColumns] = useState(
+    urlState.companyColumns,
+  );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [protheusCounts, setProtheusCounts] = useState<
@@ -969,8 +1016,21 @@ function CronogramaClientContent({
     }
     if (appointmentSort !== "date_desc") next.set("asort", appointmentSort);
     else next.delete("asort");
+    if (
+      appointmentVisibleColumns.join(",") !==
+      APPOINTMENT_COLUMN_VALUES.join(",")
+    ) {
+      next.set("acols", appointmentVisibleColumns.join(","));
+    } else {
+      next.delete("acols");
+    }
     if (appointmentPage > 1) next.set("apage", String(appointmentPage));
     else next.delete("apage");
+    if (companyVisibleColumns.join(",") !== COMPANY_COLUMN_VALUES.join(",")) {
+      next.set("ccols", companyVisibleColumns.join(","));
+    } else {
+      next.delete("ccols");
+    }
     if (activeTab === "cronograma" && cronogramaStatus.length) {
       next.set("cstatus", cronogramaStatus.join(","));
     } else {
@@ -989,10 +1049,12 @@ function CronogramaClientContent({
     appointmentPage,
     appointmentSearch,
     appointmentSort,
+    appointmentVisibleColumns,
     appointmentStatus,
     cronogramaStatus,
     companyPage,
     companySearch,
+    companyVisibleColumns,
     companySort,
     dashboardScope,
     dashboardView,
@@ -2368,52 +2430,93 @@ function CronogramaClientContent({
     : Boolean(selectedConsultantId) && listAppointmentsLoading;
   const companiesListError = isGeneralScope ? generalListCompaniesError : error;
 
-  const companyColumns = [
-    { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
-    { id: "estado", label: t("company.info.state"), width: "0.7fr" },
-    { id: "csa", label: t("company.info.csa"), width: "0.9fr" },
-    { id: "carteira", label: t("company.info.carteira"), width: "1.2fr" },
-    { id: "classe", label: t("company.info.class"), width: "1.2fr" },
-    { id: "referencia", label: t("company.info.reference"), width: "1.1fr" },
-    { id: "ultimaVisita", label: t("schedule.lastVisitDays"), width: "1.1fr" },
-    { id: "oportunidades", label: t("company.opportunities"), width: "1fr" },
-    { id: "cotacoes", label: t("schedule.orderByQuotes"), width: "1.2fr" },
-  ] as const;
+  const companyColumns = useMemo(
+    () =>
+      [
+        { id: "empresa", label: t("company.info.name"), width: "1.8fr" },
+        { id: "estado", label: t("company.info.state"), width: "0.7fr" },
+        { id: "csa", label: t("company.info.csa"), width: "0.9fr" },
+        { id: "carteira", label: t("company.info.carteira"), width: "1.2fr" },
+        { id: "classe", label: t("company.info.class"), width: "1.2fr" },
+        {
+          id: "referencia",
+          label: t("company.info.reference"),
+          width: "1.1fr",
+        },
+        {
+          id: "ultimaVisita",
+          label: t("schedule.lastVisitDays"),
+          width: "1.1fr",
+        },
+        {
+          id: "oportunidades",
+          label: t("company.opportunities"),
+          width: "1fr",
+        },
+        {
+          id: "cotacoes",
+          label: t("schedule.orderByQuotes"),
+          width: "1.2fr",
+        },
+      ] as const,
+    [t],
+  );
 
-  const companyGridTemplateColumns = companyColumns
+  const visibleCompanyColumns = companyColumns.filter((column) =>
+    companyVisibleColumns.includes(column.id),
+  );
+
+  const companyGridTemplateColumns = visibleCompanyColumns
     .map((column) => column.width)
     .join(" ");
 
-  const appointmentColumns = [
-    {
-      id: "empresa",
-      label: t("schedule.appointmentList.company"),
-      width: "1.6fr",
-    },
-    {
-      id: "consultor",
-      label: t("schedule.appointmentList.consultant"),
-      width: "1.1fr",
-    },
-    { id: "data", label: t("schedule.appointmentList.date"), width: "0.8fr" },
-    {
-      id: "horario",
-      label: t("schedule.appointmentList.time"),
-      width: "0.9fr",
-    },
-    {
-      id: "status",
-      label: t("schedule.appointmentList.status"),
-      width: "0.7fr",
-    },
-    {
-      id: "oportunidades",
-      label: t("schedule.appointmentList.opportunities"),
-      width: "1.3fr",
-    },
-  ] as const;
+  const appointmentColumns = useMemo(
+    () =>
+      [
+        {
+          id: "empresa",
+          label: t("schedule.appointmentList.company"),
+          width: "1.6fr",
+        },
+        {
+          id: "consultor",
+          label: t("schedule.appointmentList.consultant"),
+          width: "1.1fr",
+        },
+        {
+          id: "data",
+          label: t("schedule.appointmentList.date"),
+          width: "0.8fr",
+        },
+        {
+          id: "horario",
+          label: t("schedule.appointmentList.time"),
+          width: "0.9fr",
+        },
+        {
+          id: "status",
+          label: t("schedule.appointmentList.status"),
+          width: "0.7fr",
+        },
+        {
+          id: "oportunidades",
+          label: t("schedule.appointmentList.opportunities"),
+          width: "1.3fr",
+        },
+        {
+          id: "cotacoes",
+          label: t("schedule.appointmentList.quotes"),
+          width: "1.1fr",
+        },
+      ] as const,
+    [t],
+  );
 
-  const appointmentGridTemplateColumns = appointmentColumns
+  const visibleAppointmentColumns = appointmentColumns.filter((column) =>
+    appointmentVisibleColumns.includes(column.id),
+  );
+
+  const appointmentGridTemplateColumns = visibleAppointmentColumns
     .map((column) => column.width)
     .join(" ");
 
@@ -2435,6 +2538,296 @@ function CronogramaClientContent({
         label: t(`schedule.opportunity.${option.id}`, undefined, option.label),
       })),
     [t],
+  );
+
+  const companyColumnOptions = useMemo(
+    () =>
+      companyColumns.map((column) => ({
+        value: column.id,
+        label: column.label,
+      })),
+    [companyColumns],
+  );
+
+  const appointmentColumnOptions = useMemo(
+    () =>
+      appointmentColumns.map((column) => ({
+        value: column.id,
+        label: column.label,
+      })),
+    [appointmentColumns],
+  );
+
+  const renderAppointmentCell = useCallback(
+    (
+      columnId: (typeof APPOINTMENT_COLUMN_VALUES)[number],
+      appointment: Appointment,
+    ) => {
+      const company = listCompanyById.get(appointment.companyId);
+      const companyName = company?.name ?? t("appointment.companyMissing");
+      const companyDocument =
+        company?.document ?? t("schedule.companyDocumentMissing");
+      const startDate = new Date(appointment.startAt);
+      const dateLabel = Number.isNaN(startDate.getTime())
+        ? t("schedule.noData")
+        : formatDateLabel(startDate);
+      const timeLabel = `${formatTime(appointment.startAt)} - ${formatTime(appointment.endAt)}`;
+      const isExpired = isExpiredAppointment(appointment, todayStart);
+      const statusLabel = isExpired
+        ? t("schedule.statusExpired")
+        : t(`schedule.status.${appointment.status}`);
+      const statusTone = isExpired ? "stone" : STATUS_TONES[appointment.status];
+      const consultantLabel =
+        appointment.consultantName ||
+        appointment.consultantId ||
+        t("appointment.notInformed");
+
+      switch (columnId) {
+        case "empresa":
+          return (
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-slate-900">
+                {companyName}
+              </div>
+              <div className="truncate text-xs text-slate-500">
+                {companyDocument}
+              </div>
+            </div>
+          );
+        case "consultor":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">{consultantLabel}</div>
+            </div>
+          );
+        case "data":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">{dateLabel}</div>
+            </div>
+          );
+        case "horario":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">{timeLabel}</div>
+            </div>
+          );
+        case "status":
+          return (
+            <div className="min-w-0">
+              <Badge tone={statusTone} className="max-w-[140px] truncate">
+                {statusLabel}
+              </Badge>
+            </div>
+          );
+        case "oportunidades":
+          return (
+            <div className="min-w-0">
+              {appointment.oportunidades?.length ? (
+                <div className="flex flex-wrap gap-1">
+                  {appointment.oportunidades.map((opportunity) => (
+                    <Badge
+                      key={`${appointment.id}-${opportunity}`}
+                      tone="violet"
+                      className="max-w-[140px] truncate"
+                    >
+                      {t(
+                        `schedule.opportunity.${opportunity}`,
+                        undefined,
+                        opportunity,
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.noData")}
+                </span>
+              )}
+            </div>
+          );
+        case "cotacoes":
+          return (
+            <div className="min-w-0">
+              {openQuotesError ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.noData")}
+                </span>
+              ) : openQuotesLoading && !openQuotesTotals.has(appointment.companyId) ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.loading")}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-slate-700">
+                  {formatCurrency(openQuotesTotals.get(appointment.companyId) ?? 0)}
+                </span>
+              )}
+            </div>
+          );
+      }
+    },
+    [
+      formatCurrency,
+      listCompanyById,
+      openQuotesError,
+      openQuotesLoading,
+      openQuotesTotals,
+      t,
+      todayStart,
+    ],
+  );
+
+  const renderCompanyCell = useCallback(
+    (columnId: (typeof COMPANY_COLUMN_VALUES)[number], company: Company) => {
+      switch (columnId) {
+        case "empresa":
+          return (
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-slate-900">
+                {company.name}
+              </div>
+              <div className="truncate text-xs text-slate-500">
+                {company.document ?? t("schedule.companyDocumentMissing")}
+              </div>
+            </div>
+          );
+        case "estado":
+          return (
+            <div className="min-w-0">
+              <Badge tone="sky" className="max-w-[120px] truncate">
+                {company.state ?? t("schedule.noState")}
+              </Badge>
+            </div>
+          );
+        case "csa":
+          return (
+            <div className="min-w-0">
+              <Badge tone="emerald" className="max-w-[140px] truncate">
+                {company.csa ?? t("schedule.noCsa")}
+              </Badge>
+            </div>
+          );
+        case "carteira":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">
+                {company.carteiraDef ?? t("schedule.noCarteira")}
+              </div>
+              <div className="truncate text-xs text-slate-500">
+                {company.carteiraDef2 ?? t("schedule.noCarteira2")}
+              </div>
+            </div>
+          );
+        case "classe":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">
+                {company.clientClass ?? t("schedule.noClass")}
+              </div>
+              <div className="truncate text-xs text-slate-500">
+                {company.classeCliente ?? t("schedule.noClientClass")}
+              </div>
+            </div>
+          );
+        case "referencia":
+          return (
+            <div className="min-w-0">
+              <div className="truncate text-slate-700">
+                {company.referencia ?? t("schedule.noReference")}
+              </div>
+              <div className="truncate text-xs text-slate-500">
+                {company.validacao ?? t("schedule.noValidation")}
+              </div>
+            </div>
+          );
+        case "ultimaVisita":
+          return (
+            <div className="min-w-0">
+              {lastVisitError ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.noData")}
+                </span>
+              ) : lastVisitLoading && !lastVisitByCompany.has(company.id) ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.loading")}
+                </span>
+              ) : (
+                (() => {
+                  const days = getDaysSinceLastVisit(company.id);
+                  if (days == null) {
+                    return (
+                      <span className="text-xs text-slate-400">
+                        {t("schedule.noVisits")}
+                      </span>
+                    );
+                  }
+                  const label =
+                    days === 1
+                      ? t("schedule.daySingular")
+                      : t("schedule.dayPlural");
+                  const lastVisit = lastVisitByCompany.get(company.id);
+                  return (
+                    <div className="truncate text-xs font-semibold text-slate-700">
+                      <span
+                        title={
+                          lastVisit ? formatDateLabel(lastVisit) : undefined
+                        }
+                      >
+                        {days} {label}
+                      </span>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          );
+        case "oportunidades":
+          return (
+            <div className="min-w-0">
+              {(() => {
+                const counts =
+                  protheusCounts.get(company.id) ?? buildEmptyProtheusCounts();
+                return (
+                  <div className="flex flex-wrap items-center gap-1 text-xs">
+                    <Badge tone="amber">P {counts.preventivas}</Badge>
+                    <Badge tone="slate">R {counts.reconexoes}</Badge>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        case "cotacoes":
+          return (
+            <div className="min-w-0">
+              {openQuotesError ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.noData")}
+                </span>
+              ) : openQuotesLoading && !openQuotesTotals.has(company.id) ? (
+                <span className="text-xs text-slate-400">
+                  {t("schedule.loading")}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-slate-700">
+                  {formatCurrency(openQuotesTotals.get(company.id) ?? 0)}
+                </span>
+              )}
+            </div>
+          );
+      }
+    },
+    [
+      formatCurrency,
+      getDaysSinceLastVisit,
+      lastVisitByCompany,
+      lastVisitError,
+      lastVisitLoading,
+      openQuotesError,
+      openQuotesLoading,
+      openQuotesTotals,
+      protheusCounts,
+      t,
+    ],
   );
 
   const dashboardPeriodLabel = useMemo(() => {
@@ -3980,6 +4373,36 @@ function CronogramaClientContent({
                   />
                 </ToolbarField>
                 <ToolbarField
+                  label={t("schedule.visibleColumnsLabel")}
+                  className="sm:min-w-[250px]"
+                  contentClassName="w-full"
+                >
+                  <div className="w-full min-w-[190px]">
+                    <LeadTypesMultiSelect
+                      value={appointmentVisibleColumns}
+                      options={appointmentColumnOptions}
+                      onChange={(next) =>
+                        setAppointmentVisibleColumns((current) => {
+                          const valid = sanitizeSelection(
+                            next,
+                            APPOINTMENT_COLUMN_VALUES,
+                            APPOINTMENT_COLUMN_VALUES,
+                          );
+                          return valid.length ? valid : current;
+                        })
+                      }
+                      placeholder={t("schedule.visibleColumnsPlaceholder")}
+                      searchPlaceholder={t(
+                        "schedule.visibleColumnsSearchPlaceholder",
+                      )}
+                      noResultsText={t("schedule.visibleColumnsNoResults")}
+                      selectedCountTemplate={t(
+                        "schedule.multiSelectSelectedCount",
+                      )}
+                    />
+                  </div>
+                </ToolbarField>
+                <ToolbarField
                   label={t("schedule.orderBy")}
                   className="sm:min-w-[220px]"
                   contentClassName="w-full"
@@ -4088,7 +4511,7 @@ function CronogramaClientContent({
                 className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600"
                 style={{ gridTemplateColumns: appointmentGridTemplateColumns }}
               >
-                {appointmentColumns.map((column) => (
+                {visibleAppointmentColumns.map((column) => (
                   <span key={column.id}>{column.label}</span>
                 ))}
               </div>
@@ -4107,7 +4530,7 @@ function CronogramaClientContent({
                         gridTemplateColumns: appointmentGridTemplateColumns,
                       }}
                     >
-                      {appointmentColumns.map((column) => (
+                      {visibleAppointmentColumns.map((column) => (
                         <div key={`${index}-${column.id}`} className="min-w-0">
                           <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
                         </div>
@@ -4116,30 +4539,6 @@ function CronogramaClientContent({
                   ))
                 ) : (
                   paginatedAppointments.map((appointment) => {
-                    const company = listCompanyById.get(appointment.companyId);
-                    const companyName =
-                      company?.name ?? t("appointment.companyMissing");
-                    const companyDocument =
-                      company?.document ?? t("schedule.companyDocumentMissing");
-                    const startDate = new Date(appointment.startAt);
-                    const dateLabel = Number.isNaN(startDate.getTime())
-                      ? t("schedule.noData")
-                      : formatDateLabel(startDate);
-                    const timeLabel = `${formatTime(appointment.startAt)} - ${formatTime(appointment.endAt)}`;
-                    const isExpired = isExpiredAppointment(
-                      appointment,
-                      todayStart,
-                    );
-                    const statusLabel = isExpired
-                      ? t("schedule.statusExpired")
-                      : t(`schedule.status.${appointment.status}`);
-                    const statusTone = isExpired
-                      ? "stone"
-                      : STATUS_TONES[appointment.status];
-                    const consultantLabel =
-                      appointment.consultantName ||
-                      appointment.consultantId ||
-                      t("appointment.notInformed");
                     return (
                       <Link
                         key={appointment.id}
@@ -4149,60 +4548,11 @@ function CronogramaClientContent({
                           gridTemplateColumns: appointmentGridTemplateColumns,
                         }}
                       >
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-900">
-                            {companyName}
+                        {visibleAppointmentColumns.map((column) => (
+                          <div key={`${appointment.id}-${column.id}`}>
+                            {renderAppointmentCell(column.id, appointment)}
                           </div>
-                          <div className="truncate text-xs text-slate-500">
-                            {companyDocument}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {consultantLabel}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {dateLabel}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">
-                            {timeLabel}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <Badge
-                            tone={statusTone}
-                            className="max-w-[140px] truncate"
-                          >
-                            {statusLabel}
-                          </Badge>
-                        </div>
-                        <div className="min-w-0">
-                          {appointment.oportunidades?.length ? (
-                            <div className="flex flex-wrap gap-1">
-                              {appointment.oportunidades.map((opportunity) => (
-                                <Badge
-                                  key={`${appointment.id}-${opportunity}`}
-                                  tone="violet"
-                                  className="max-w-[140px] truncate"
-                                >
-                                  {t(
-                                    `schedule.opportunity.${opportunity}`,
-                                    undefined,
-                                    opportunity,
-                                  )}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              {t("schedule.noData")}
-                            </span>
-                          )}
-                        </div>
+                        ))}
                       </Link>
                     );
                   })
@@ -4299,6 +4649,36 @@ function CronogramaClientContent({
                     aria-label={t("schedule.search")}
                     className={toolbarInputClass}
                   />
+                </ToolbarField>
+                <ToolbarField
+                  label={t("schedule.visibleColumnsLabel")}
+                  className="sm:min-w-[250px]"
+                  contentClassName="w-full"
+                >
+                  <div className="w-full min-w-[190px]">
+                    <LeadTypesMultiSelect
+                      value={companyVisibleColumns}
+                      options={companyColumnOptions}
+                      onChange={(next) =>
+                        setCompanyVisibleColumns((current) => {
+                          const valid = sanitizeSelection(
+                            next,
+                            COMPANY_COLUMN_VALUES,
+                            COMPANY_COLUMN_VALUES,
+                          );
+                          return valid.length ? valid : current;
+                        })
+                      }
+                      placeholder={t("schedule.visibleColumnsPlaceholder")}
+                      searchPlaceholder={t(
+                        "schedule.visibleColumnsSearchPlaceholder",
+                      )}
+                      noResultsText={t("schedule.visibleColumnsNoResults")}
+                      selectedCountTemplate={t(
+                        "schedule.multiSelectSelectedCount",
+                      )}
+                    />
+                  </div>
                 </ToolbarField>
                 <ToolbarField
                   label={t("schedule.orderBy")}
@@ -4422,7 +4802,7 @@ function CronogramaClientContent({
                 className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600"
                 style={{ gridTemplateColumns: companyGridTemplateColumns }}
               >
-                {companyColumns.map((column) => (
+                {visibleCompanyColumns.map((column) => (
                   <span key={column.id}>{column.label}</span>
                 ))}
               </div>
@@ -4441,7 +4821,7 @@ function CronogramaClientContent({
                         gridTemplateColumns: companyGridTemplateColumns,
                       }}
                     >
-                      {companyColumns.map((column) => (
+                      {visibleCompanyColumns.map((column) => (
                         <div key={`${index}-${column.id}`} className="min-w-0">
                           <div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" />
                         </div>
@@ -4458,126 +4838,11 @@ function CronogramaClientContent({
                         gridTemplateColumns: companyGridTemplateColumns,
                       }}
                     >
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-slate-900">
-                          {company.name}
+                      {visibleCompanyColumns.map((column) => (
+                        <div key={`${company.id}-${column.id}`}>
+                          {renderCompanyCell(column.id, company)}
                         </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {company.document ??
-                            t("schedule.companyDocumentMissing")}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <Badge tone="sky" className="max-w-[120px] truncate">
-                          {company.state ?? t("schedule.noState")}
-                        </Badge>
-                      </div>
-                      <div className="min-w-0">
-                        <Badge
-                          tone="emerald"
-                          className="max-w-[140px] truncate"
-                        >
-                          {company.csa ?? t("schedule.noCsa")}
-                        </Badge>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-slate-700">
-                          {company.carteiraDef ?? t("schedule.noCarteira")}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {company.carteiraDef2 ?? t("schedule.noCarteira2")}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-slate-700">
-                          {company.clientClass ?? t("schedule.noClass")}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {company.classeCliente ?? t("schedule.noClientClass")}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-slate-700">
-                          {company.referencia ?? t("schedule.noReference")}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {company.validacao ?? t("schedule.noValidation")}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        {lastVisitError ? (
-                          <span className="text-xs text-slate-400">
-                            {t("schedule.noData")}
-                          </span>
-                        ) : lastVisitLoading &&
-                          !lastVisitByCompany.has(company.id) ? (
-                          <span className="text-xs text-slate-400">
-                            {t("schedule.loading")}
-                          </span>
-                        ) : (
-                          (() => {
-                            const days = getDaysSinceLastVisit(company.id);
-                            if (days == null) {
-                              return (
-                                <span className="text-xs text-slate-400">
-                                  {t("schedule.noVisits")}
-                                </span>
-                              );
-                            }
-                            const label =
-                              days === 1
-                                ? t("schedule.daySingular")
-                                : t("schedule.dayPlural");
-                            const lastVisit = lastVisitByCompany.get(
-                              company.id,
-                            );
-                            return (
-                              <div className="truncate text-xs font-semibold text-slate-700">
-                                <span
-                                  title={
-                                    lastVisit
-                                      ? formatDateLabel(lastVisit)
-                                      : undefined
-                                  }
-                                >
-                                  {days} {label}
-                                </span>
-                              </div>
-                            );
-                          })()
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        {(() => {
-                          const counts =
-                            protheusCounts.get(company.id) ??
-                            buildEmptyProtheusCounts();
-                          return (
-                            <div className="flex flex-wrap items-center gap-1 text-xs">
-                              <Badge tone="amber">P {counts.preventivas}</Badge>
-                              <Badge tone="slate">R {counts.reconexoes}</Badge>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="min-w-0">
-                        {openQuotesError ? (
-                          <span className="text-xs text-slate-400">
-                            {t("schedule.noData")}
-                          </span>
-                        ) : openQuotesLoading &&
-                          !openQuotesTotals.has(company.id) ? (
-                          <span className="text-xs text-slate-400">
-                            {t("schedule.loading")}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-700">
-                            {formatCurrency(
-                              openQuotesTotals.get(company.id) ?? 0,
-                            )}
-                          </span>
-                        )}
-                      </div>
+                      ))}
                     </Link>
                   ))
                 )}
