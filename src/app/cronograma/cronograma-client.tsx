@@ -4512,7 +4512,9 @@ function CronogramaClientContent({
                 style={{ gridTemplateColumns: appointmentGridTemplateColumns }}
               >
                 {visibleAppointmentColumns.map((column) => (
-                  <span key={column.id}>{column.label}</span>
+                  <span key={column.id} className="min-w-0 truncate">
+                    {column.label}
+                  </span>
                 ))}
               </div>
 
@@ -4549,7 +4551,10 @@ function CronogramaClientContent({
                         }}
                       >
                         {visibleAppointmentColumns.map((column) => (
-                          <div key={`${appointment.id}-${column.id}`}>
+                          <div
+                            key={`${appointment.id}-${column.id}`}
+                            className="min-w-0 overflow-hidden"
+                          >
                             {renderAppointmentCell(column.id, appointment)}
                           </div>
                         ))}
@@ -4803,7 +4808,9 @@ function CronogramaClientContent({
                 style={{ gridTemplateColumns: companyGridTemplateColumns }}
               >
                 {visibleCompanyColumns.map((column) => (
-                  <span key={column.id}>{column.label}</span>
+                  <span key={column.id} className="min-w-0 truncate">
+                    {column.label}
+                  </span>
                 ))}
               </div>
 
@@ -4839,7 +4846,10 @@ function CronogramaClientContent({
                       }}
                     >
                       {visibleCompanyColumns.map((column) => (
-                        <div key={`${company.id}-${column.id}`}>
+                        <div
+                          key={`${company.id}-${column.id}`}
+                          className="min-w-0 overflow-hidden"
+                        >
                           {renderCompanyCell(column.id, company)}
                         </div>
                       ))}
