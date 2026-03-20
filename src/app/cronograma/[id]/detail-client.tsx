@@ -87,6 +87,7 @@ type AppointmentAction = {
   resultado: "em_andamento" | "vendido" | "perdido";
   tipoOportunidade: string | null;
   nfOuOs: string | null;
+  filial: string | null;
   valor: number | null;
   motivoPerda: string | null;
   observacao: string | null;
@@ -99,6 +100,7 @@ type AppointmentActionRow = {
   resultado: "em_andamento" | "vendido" | "perdido";
   tipo_oportunidade?: string | null;
   nf_ou_os: string | null;
+  filial?: string | null;
   valor: number | null;
   motivo_perda: string | null;
   observacao: string | null;
@@ -122,6 +124,16 @@ const MEDIA_KIND_TONES: Record<
   registro: "violet",
   other: "slate",
 };
+
+const ACTION_BRANCH_OPTIONS = [
+  "VE BAYEUX",
+  "VE FEIRA DE SANTANA",
+  "VE FORTALEZA",
+  "VE MOSSORO",
+  "VE PETROLINA",
+  "VE RECIFE",
+  "VE SALVADOR",
+] as const;
 
 const normalizeMediaKind = (
   value: string | null | undefined,
@@ -182,6 +194,7 @@ export default function AppointmentDetailClient({
     "",
   );
   const [actionNfOs, setActionNfOs] = useState("");
+  const [actionBranch, setActionBranch] = useState("");
   const [actionValue, setActionValue] = useState("");
   const [actionLossReason, setActionLossReason] = useState("");
   const [actionOpportunityType, setActionOpportunityType] = useState("");
@@ -414,27 +427,48 @@ export default function AppointmentDetailClient({
     [t],
   );
 
-  const isMissingColumnError = (error: {
-    code?: string | null;
-    message?: string | null;
-    details?: string | null;
-  } | null) => {
+  const actionBranchOptions = useMemo(
+    () =>
+      ACTION_BRANCH_OPTIONS.map((value) => ({
+        value,
+        label: t(
+          `appointment.action.branches.${value.toLowerCase().replace(/\s+/g, "_")}`,
+          undefined,
+          value,
+        ),
+      })),
+    [t],
+  );
+
+  const isMissingColumnError = (
+    error: {
+      code?: string | null;
+      message?: string | null;
+      details?: string | null;
+    } | null,
+  ) => {
     if (!error) return false;
-    const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+    const message =
+      `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
     return (
       error.code === "PGRST204" ||
       message.includes("could not find the 'tipo_oportunidade' column") ||
-      message.includes("tipo_oportunidade")
+      message.includes("tipo_oportunidade") ||
+      message.includes("could not find the 'filial' column") ||
+      message.includes("filial")
     );
   };
 
-  const isSingleActionConstraintError = (error: {
-    code?: string | null;
-    message?: string | null;
-    details?: string | null;
-  } | null) => {
+  const isSingleActionConstraintError = (
+    error: {
+      code?: string | null;
+      message?: string | null;
+      details?: string | null;
+    } | null,
+  ) => {
     if (!error) return false;
-    const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+    const message =
+      `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
     return (
       error.code === "23505" &&
       message.includes("apontamento_acoes_unique_apontamento")
@@ -467,7 +501,7 @@ export default function AppointmentDetailClient({
         const primaryResponse = await supabase
           .from("apontamento_acoes")
           .select(
-            "id, resultado, tipo_oportunidade, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at",
+            "id, resultado, tipo_oportunidade, nf_ou_os, filial, valor, motivo_perda, observacao, created_by, created_at",
           )
           .eq("apontamento_id", id)
           .order("created_at", { ascending: false });
@@ -507,7 +541,7 @@ export default function AppointmentDetailClient({
           return;
         }
 
-        const rows = ((data ?? []) as AppointmentActionRow[]);
+        const rows = (data ?? []) as AppointmentActionRow[];
 
         setAppointmentActions(
           rows.map((item) => ({
@@ -515,6 +549,7 @@ export default function AppointmentDetailClient({
             resultado: item.resultado,
             tipoOportunidade: item.tipo_oportunidade ?? null,
             nfOuOs: item.nf_ou_os ?? null,
+            filial: item.filial ?? null,
             valor: item.valor ?? null,
             motivoPerda: item.motivo_perda ?? null,
             observacao: item.observacao ?? null,
@@ -653,7 +688,10 @@ export default function AppointmentDetailClient({
 
   useEffect(() => {
     if (!actionModalOpen) return;
-    const id = window.setTimeout(() => actionCloseButtonRef.current?.focus(), 0);
+    const id = window.setTimeout(
+      () => actionCloseButtonRef.current?.focus(),
+      0,
+    );
     return () => window.clearTimeout(id);
   }, [actionModalOpen]);
 
@@ -661,6 +699,7 @@ export default function AppointmentDetailClient({
     setEditingAction(null);
     setActionResult("");
     setActionNfOs("");
+    setActionBranch("");
     setActionValue("");
     setActionLossReason("");
     setActionOpportunityType("");
@@ -673,6 +712,7 @@ export default function AppointmentDetailClient({
     setEditingAction(action);
     setActionResult("");
     setActionNfOs(action.nfOuOs ?? "");
+    setActionBranch(action.filial ?? "");
     setActionValue(action.valor != null ? String(action.valor) : "");
     setActionLossReason(action.motivoPerda ?? "");
     setActionOpportunityType(action.tipoOportunidade ?? "");
@@ -700,6 +740,10 @@ export default function AppointmentDetailClient({
         setActionError(t("appointment.action.nfOsRequired"));
         return;
       }
+      if (!actionBranch) {
+        setActionError(t("appointment.action.branchRequired"));
+        return;
+      }
       const value = Number(actionValue.replace(",", "."));
       if (!Number.isFinite(value) || value <= 0) {
         setActionError(t("appointment.action.valueRequired"));
@@ -714,9 +758,7 @@ export default function AppointmentDetailClient({
     setActionError(null);
 
     const normalizedValue =
-      actionResult === "vendido"
-        ? Number(actionValue.replace(",", "."))
-        : null;
+      actionResult === "vendido" ? Number(actionValue.replace(",", ".")) : null;
 
     try {
       if (isEditingAction && editingAction) {
@@ -726,6 +768,7 @@ export default function AppointmentDetailClient({
             resultado: actionResult,
             tipo_oportunidade: actionOpportunityType,
             nf_ou_os: actionResult === "vendido" ? actionNfOs.trim() : null,
+            filial: actionResult === "vendido" ? actionBranch : null,
             valor: actionResult === "vendido" ? normalizedValue : null,
             motivo_perda: actionResult === "perdido" ? actionLossReason : null,
             observacao: actionNote.trim() || null,
@@ -737,7 +780,11 @@ export default function AppointmentDetailClient({
             "Falha ao atualizar ação do apontamento",
             actionUpdateError,
           );
-          setActionError(t("appointment.action.loadError"));
+          setActionError(
+            isMissingColumnError(actionUpdateError)
+              ? t("appointment.action.columnsMissing")
+              : t("appointment.action.loadError"),
+          );
           setActionLoading(false);
           return;
         }
@@ -756,10 +803,13 @@ export default function AppointmentDetailClient({
           });
 
         if (insertError) {
-          logSupabaseError("Falha ao registrar ação do apontamento", insertError);
+          logSupabaseError(
+            "Falha ao registrar ação do apontamento",
+            insertError,
+          );
           setActionError(
             isMissingColumnError(insertError)
-              ? t("appointment.action.opportunityTypeColumnMissing")
+              ? t("appointment.action.columnsMissing")
               : isSingleActionConstraintError(insertError)
                 ? t("appointment.action.singleActionConstraint")
                 : t("appointment.action.loadError"),
@@ -798,6 +848,7 @@ export default function AppointmentDetailClient({
   }, [
     actionNote,
     actionLossReason,
+    actionBranch,
     actionNfOs,
     actionOpportunityType,
     actionResult,
@@ -910,8 +961,7 @@ export default function AppointmentDetailClient({
                 <span className="font-semibold text-slate-600">
                   {t("appointment.createdBy")}:{" "}
                 </span>
-                {appointment.createdBy?.trim() ||
-                  t("appointment.notInformed")}
+                {appointment.createdBy?.trim() || t("appointment.notInformed")}
               </div>
               <div>
                 <span className="font-semibold text-slate-600">
@@ -965,9 +1015,8 @@ export default function AppointmentDetailClient({
                       className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
                     >
                       <span className="font-semibold text-slate-700">
-                        {activityLabels[
-                          key as keyof typeof activityLabels
-                        ] ?? t(`appointment.activity.${key}`, undefined, key)}
+                        {activityLabels[key as keyof typeof activityLabels] ??
+                          t(`appointment.activity.${key}`, undefined, key)}
                       </span>
                       <span className="text-slate-400">
                         {t("appointment.activityCount", {
@@ -1122,6 +1171,18 @@ export default function AppointmentDetailClient({
                           </div>
                           <div>
                             <span className="font-semibold text-slate-600">
+                              {t("appointment.action.branchLabel")}:{" "}
+                            </span>
+                            {appointmentAction.filial
+                              ? t(
+                                  `appointment.action.branches.${appointmentAction.filial.toLowerCase().replace(/\s+/g, "_")}`,
+                                  undefined,
+                                  appointmentAction.filial,
+                                )
+                              : t("appointment.notInformed")}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-600">
                               {t("appointment.action.valueLabel")}:{" "}
                             </span>
                             {appointmentAction.valor != null
@@ -1162,14 +1223,16 @@ export default function AppointmentDetailClient({
                           t("appointment.notInformed")}
                       </div>
                     </div>
-                      {appointmentAction.resultado === "em_andamento" &&
-                      loggedUserEmail !== "" &&
-                      appointmentAction.createdBy?.trim().toLowerCase() ===
-                        loggedUserEmail ? (
-                        <div className="mt-auto pt-4">
-                          <button
-                            type="button"
-                          onClick={() => openUpdateActionModal(appointmentAction)}
+                    {appointmentAction.resultado === "em_andamento" &&
+                    loggedUserEmail !== "" &&
+                    appointmentAction.createdBy?.trim().toLowerCase() ===
+                      loggedUserEmail ? (
+                      <div className="mt-auto pt-4">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openUpdateActionModal(appointmentAction)
+                          }
                           className="rounded-xl border border-slate-200 bg-[#FFDE00] px-4 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/20 transition hover:brightness-95"
                         >
                           {t("appointment.action.progressButton")}
@@ -1506,19 +1569,50 @@ export default function AppointmentDetailClient({
                       </label>
 
                       {actionResult === "vendido" ? (
-                        <>
-                          <label className="space-y-1 text-sm font-semibold text-slate-700">
-                            <span>
-                              {t("appointment.action.nfOsLabel")}{" "}
-                              <span className="text-rose-600">*</span>
-                            </span>
-                            <input
-                              value={actionNfOs}
-                              onChange={(event) => setActionNfOs(event.target.value)}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                              placeholder={t("appointment.action.nfOsPlaceholder")}
-                            />
-                          </label>
+                        <div className="space-y-3">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            <label className="space-y-1 text-sm font-semibold text-slate-700">
+                              <span>
+                                {t("appointment.action.nfOsLabel")}{" "}
+                                <span className="text-rose-600">*</span>
+                              </span>
+                              <input
+                                value={actionNfOs}
+                                onChange={(event) =>
+                                  setActionNfOs(event.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                                placeholder={t(
+                                  "appointment.action.nfOsPlaceholder",
+                                )}
+                              />
+                            </label>
+                            <label className="space-y-1 text-sm font-semibold text-slate-700">
+                              <span>
+                                {t("appointment.action.branchLabel")}{" "}
+                                <span className="text-rose-600">*</span>
+                              </span>
+                              <select
+                                value={actionBranch}
+                                onChange={(event) =>
+                                  setActionBranch(event.target.value)
+                                }
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                              >
+                                <option value="">
+                                  {t("appointment.action.branchPlaceholder")}
+                                </option>
+                                {actionBranchOptions.map((option) => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                           <label className="space-y-1 text-sm font-semibold text-slate-700">
                             <span>
                               {t("appointment.action.valueLabel")}{" "}
@@ -1532,12 +1626,14 @@ export default function AppointmentDetailClient({
                                 setActionValue(event.target.value)
                               }
                               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                              placeholder={t("appointment.action.valuePlaceholder")}
+                              placeholder={t(
+                                "appointment.action.valuePlaceholder",
+                              )}
                               min="0"
                               step="0.01"
                             />
                           </label>
-                        </>
+                        </div>
                       ) : null}
 
                       {actionResult === "perdido" ? (
