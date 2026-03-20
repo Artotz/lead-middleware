@@ -28,6 +28,7 @@ import {
 } from "recharts";
 import { Badge } from "@/components/Badge";
 import { LeadTypesMultiSelect } from "@/components/LeadTypesMultiSelect";
+import { PaginationControls } from "@/components/PaginationControls";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { useAuth } from "@/contexts/AuthContext";
@@ -143,6 +144,36 @@ const formatChartLabel = (value: unknown, decimals?: number) => {
   if (!numeric) return "";
   if (decimals != null) return numeric.toFixed(decimals);
   return String(numeric);
+};
+
+const shouldShowActualTimeRange = (appointment: Appointment) =>
+  appointment.status === "done" || appointment.status === "atuado";
+
+const getAppointmentTimeDisplay = (
+  appointment: Appointment,
+  t: Translate,
+) => {
+  if (!shouldShowActualTimeRange(appointment)) {
+    const scheduledRange = `${formatTime(appointment.startAt)} - ${formatTime(appointment.endAt)}`;
+    return {
+      title: scheduledRange,
+      content: scheduledRange,
+      isActual: false,
+    };
+  }
+
+  const checkInLabel = appointment.checkInAt
+    ? formatTime(appointment.checkInAt)
+    : t("schedule.timeline.pending");
+  const checkOutLabel = appointment.checkOutAt
+    ? formatTime(appointment.checkOutAt)
+    : t("schedule.timeline.pending");
+
+  return {
+    title: `${t("schedule.timeline.checkIn")}: ${checkInLabel} • ${t("schedule.timeline.checkOut")}: ${checkOutLabel}`,
+    content: `${checkInLabel} - ${checkOutLabel}`,
+    isActual: true,
+  };
 };
 
 const RADIAN = Math.PI / 180;
@@ -4100,6 +4131,10 @@ function CronogramaClientContent({
                               const company = companyById.get(
                                 appointment.companyId,
                               );
+                              const timeDisplay = getAppointmentTimeDisplay(
+                                appointment,
+                                t,
+                              );
                               const title =
                                 company?.name ||
                                 t("company.appointmentFallback");
@@ -4128,9 +4163,7 @@ function CronogramaClientContent({
                                       ? suggestionHighlightClass
                                       : "border-slate-200 bg-white"
                                   }`}
-                                  title={`${title} • ${formatTime(
-                                    appointment.startAt,
-                                  )} - ${formatTime(appointment.endAt)}`}
+                                  title={`${title} • ${timeDisplay.title}`}
                                 >
                                   <div className="min-w-0">
                                     <div className="truncate text-sm font-semibold text-slate-900">
@@ -4152,8 +4185,7 @@ function CronogramaClientContent({
                                     </Badge>
                                   </div>
                                   <div className="text-xs text-slate-500">
-                                    {formatTime(appointment.startAt)} -{" "}
-                                    {formatTime(appointment.endAt)}
+                                    {timeDisplay.content}
                                   </div>
                                   <div className="text-xs font-semibold text-slate-600">
                                     {t("company.recordsCount", {
@@ -4441,63 +4473,41 @@ function CronogramaClientContent({
                 </ToolbarField>
               </ToolbarRow>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
-                {isAppointmentsLoading ? (
-                  <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
-                ) : (
-                  <span>
-                    {t("schedule.paginationSummary", appointmentPageSummary)}
-                  </span>
-                )}
-                <div className="flex items-center gap-2">
-                  {isAppointmentsLoading ? (
+              <PaginationControls
+                className="px-1"
+                summary={
+                  isAppointmentsLoading ? (
+                    <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    t("schedule.paginationSummary", appointmentPageSummary)
+                  )
+                }
+                pageInfo={
+                  isAppointmentsLoading ? (
                     <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
-                    <span>
-                      {t("schedule.paginationPage", {
-                        page: appointmentPage,
-                        total: totalAppointmentPages,
-                      })}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAppointmentPage((current) => Math.max(1, current - 1))
-                    }
-                    disabled={appointmentPage <= 1 || isAppointmentsLoading}
-                    aria-label={t("schedule.paginationPrev")}
-                    className={`rounded-lg border px-3 py-1.5 transition ${
-                      appointmentPage <= 1 || isAppointmentsLoading
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationPrev")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAppointmentPage((current) =>
-                        Math.min(totalAppointmentPages, current + 1),
-                      )
-                    }
-                    disabled={
-                      appointmentPage >= totalAppointmentPages ||
-                      isAppointmentsLoading
-                    }
-                    aria-label={t("schedule.paginationNext")}
-                    className={`rounded-lg border px-3 py-1.5 transition ${
-                      appointmentPage >= totalAppointmentPages ||
-                      isAppointmentsLoading
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationNext")}
-                  </button>
-                </div>
-              </div>
+                    t("schedule.paginationPage", {
+                      page: appointmentPage,
+                      total: totalAppointmentPages,
+                    })
+                  )
+                }
+                prevLabel={t("schedule.paginationPrev")}
+                nextLabel={t("schedule.paginationNext")}
+                onPrev={() =>
+                  setAppointmentPage((current) => Math.max(1, current - 1))
+                }
+                onNext={() =>
+                  setAppointmentPage((current) =>
+                    Math.min(totalAppointmentPages, current + 1),
+                  )
+                }
+                prevDisabled={appointmentPage <= 1 || isAppointmentsLoading}
+                nextDisabled={
+                  appointmentPage >= totalAppointmentPages ||
+                  isAppointmentsLoading
+                }
+              />
 
               {listAppointmentsError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -4579,6 +4589,31 @@ function CronogramaClientContent({
                     </div>
                   )}
               </div>
+              {!isAppointmentsLoading && filteredAppointments.length > 0 ? (
+                <PaginationControls
+                  className="border-t border-slate-200 bg-slate-50 px-5 py-3"
+                  summary={t(
+                    "schedule.paginationSummary",
+                    appointmentPageSummary,
+                  )}
+                  pageInfo={t("schedule.paginationPage", {
+                    page: appointmentPage,
+                    total: totalAppointmentPages,
+                  })}
+                  prevLabel={t("schedule.paginationPrev")}
+                  nextLabel={t("schedule.paginationNext")}
+                  onPrev={() =>
+                    setAppointmentPage((current) => Math.max(1, current - 1))
+                  }
+                  onNext={() =>
+                    setAppointmentPage((current) =>
+                      Math.min(totalAppointmentPages, current + 1),
+                    )
+                  }
+                  prevDisabled={appointmentPage <= 1}
+                  nextDisabled={appointmentPage >= totalAppointmentPages}
+                />
+              ) : null}
             </div>
           </div>
         ) : activeTab === "dashboard" ? (
@@ -4724,61 +4759,40 @@ function CronogramaClientContent({
                   </select>
                 </ToolbarField>
               </ToolbarRow>
-              <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs font-semibold text-slate-600">
-                {isCompaniesLoading ? (
-                  <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
-                ) : (
-                  <span>
-                    {t("schedule.paginationSummary", companyPageSummary)}
-                  </span>
-                )}
-                <div className="flex items-center gap-2">
-                  {isCompaniesLoading ? (
+              <PaginationControls
+                className="px-1"
+                summary={
+                  isCompaniesLoading ? (
+                    <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" />
+                  ) : (
+                    t("schedule.paginationSummary", companyPageSummary)
+                  )
+                }
+                pageInfo={
+                  isCompaniesLoading ? (
                     <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" />
                   ) : (
-                    <span>
-                      {t("schedule.paginationPage", {
-                        page: companyPage,
-                        total: totalCompanyPages,
-                      })}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCompanyPage((current) => Math.max(1, current - 1))
-                    }
-                    disabled={companyPage <= 1 || isCompaniesLoading}
-                    aria-label={t("schedule.paginationPrev")}
-                    className={`rounded-lg border px-3 py-1.5 transition ${
-                      companyPage <= 1 || isCompaniesLoading
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationPrev")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCompanyPage((current) =>
-                        Math.min(totalCompanyPages, current + 1),
-                      )
-                    }
-                    disabled={
-                      companyPage >= totalCompanyPages || isCompaniesLoading
-                    }
-                    aria-label={t("schedule.paginationNext")}
-                    className={`rounded-lg border px-3 py-1.5 transition ${
-                      companyPage >= totalCompanyPages || isCompaniesLoading
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationNext")}
-                  </button>
-                </div>
-              </div>
+                    t("schedule.paginationPage", {
+                      page: companyPage,
+                      total: totalCompanyPages,
+                    })
+                  )
+                }
+                prevLabel={t("schedule.paginationPrev")}
+                nextLabel={t("schedule.paginationNext")}
+                onPrev={() =>
+                  setCompanyPage((current) => Math.max(1, current - 1))
+                }
+                onNext={() =>
+                  setCompanyPage((current) =>
+                    Math.min(totalCompanyPages, current + 1),
+                  )
+                }
+                prevDisabled={companyPage <= 1 || isCompaniesLoading}
+                nextDisabled={
+                  companyPage >= totalCompanyPages || isCompaniesLoading
+                }
+              />
 
               {companiesListError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
@@ -4873,6 +4887,28 @@ function CronogramaClientContent({
                     </div>
                   )}
               </div>
+              {!isCompaniesLoading && filteredCompanies.length > 0 ? (
+                <PaginationControls
+                  className="border-t border-slate-200 bg-slate-50 px-5 py-3"
+                  summary={t("schedule.paginationSummary", companyPageSummary)}
+                  pageInfo={t("schedule.paginationPage", {
+                    page: companyPage,
+                    total: totalCompanyPages,
+                  })}
+                  prevLabel={t("schedule.paginationPrev")}
+                  nextLabel={t("schedule.paginationNext")}
+                  onPrev={() =>
+                    setCompanyPage((current) => Math.max(1, current - 1))
+                  }
+                  onNext={() =>
+                    setCompanyPage((current) =>
+                      Math.min(totalCompanyPages, current + 1),
+                    )
+                  }
+                  prevDisabled={companyPage <= 1}
+                  nextDisabled={companyPage >= totalCompanyPages}
+                />
+              ) : null}
             </div>
           </div>
         )}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/Badge";
+import { PaginationControls } from "@/components/PaginationControls";
 import { PageShell } from "@/components/PageShell";
 import { Tabs } from "@/components/Tabs";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1031,51 +1032,27 @@ export default function CompanyDetailClient({
             </div>
 
             {!appointmentsLoading && !appointmentsError ? (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-slate-600">
-                <span>
-                  {t("schedule.paginationSummary", appointmentPageSummary)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span>
-                    {t("schedule.paginationPage", {
-                      page: appointmentsPage,
-                      total: totalAppointmentPages,
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAppointmentsPage((current) => Math.max(1, current - 1))
-                    }
-                    disabled={appointmentsPage <= 1}
-                    aria-label={t("schedule.paginationPrev")}
-                    className={`rounded-lg border px-2 py-1 transition ${
-                      appointmentsPage <= 1
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationPrev")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAppointmentsPage((current) =>
-                        Math.min(totalAppointmentPages, current + 1),
-                      )
-                    }
-                    disabled={appointmentsPage >= totalAppointmentPages}
-                    aria-label={t("schedule.paginationNext")}
-                    className={`rounded-lg border px-2 py-1 transition ${
-                      appointmentsPage >= totalAppointmentPages
-                        ? "border-slate-200 text-slate-400"
-                        : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {t("schedule.paginationNext")}
-                  </button>
-                </div>
-              </div>
+              <PaginationControls
+                className="mt-2 text-[11px]"
+                buttonClassName="px-2 py-1 text-[11px]"
+                summary={t("schedule.paginationSummary", appointmentPageSummary)}
+                pageInfo={t("schedule.paginationPage", {
+                  page: appointmentsPage,
+                  total: totalAppointmentPages,
+                })}
+                prevLabel={t("schedule.paginationPrev")}
+                nextLabel={t("schedule.paginationNext")}
+                onPrev={() =>
+                  setAppointmentsPage((current) => Math.max(1, current - 1))
+                }
+                onNext={() =>
+                  setAppointmentsPage((current) =>
+                    Math.min(totalAppointmentPages, current + 1),
+                  )
+                }
+                prevDisabled={appointmentsPage <= 1}
+                nextDisabled={appointmentsPage >= totalAppointmentPages}
+              />
             ) : null}
 
             {appointmentsError ? (
@@ -1142,6 +1119,29 @@ export default function CompanyDetailClient({
                 </Link>
               ))}
             </div>
+            {!appointmentsLoading && !appointmentsError && appointments.length > 0 ? (
+              <PaginationControls
+                className="mt-3 border-t border-slate-200 pt-3 text-[11px]"
+                buttonClassName="px-2 py-1 text-[11px]"
+                summary={t("schedule.paginationSummary", appointmentPageSummary)}
+                pageInfo={t("schedule.paginationPage", {
+                  page: appointmentsPage,
+                  total: totalAppointmentPages,
+                })}
+                prevLabel={t("schedule.paginationPrev")}
+                nextLabel={t("schedule.paginationNext")}
+                onPrev={() =>
+                  setAppointmentsPage((current) => Math.max(1, current - 1))
+                }
+                onNext={() =>
+                  setAppointmentsPage((current) =>
+                    Math.min(totalAppointmentPages, current + 1),
+                  )
+                }
+                prevDisabled={appointmentsPage <= 1}
+                nextDisabled={appointmentsPage >= totalAppointmentPages}
+              />
+            ) : null}
           </div>
         </div>
 
