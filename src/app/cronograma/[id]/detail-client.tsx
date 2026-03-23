@@ -145,6 +145,10 @@ const normalizeMediaKind = (
   return "other";
 };
 
+const MIN_MEDIA_ZOOM = 1;
+const MAX_MEDIA_ZOOM = 4;
+const MEDIA_ZOOM_STEP = 0.25;
+
 const formatMediaTimestamp = (value: string | null, fallback: string) => {
   if (!value) return fallback;
   const date = new Date(value);
@@ -161,6 +165,20 @@ const getMediaFileName = (path: string, fallback: string) => {
     return lastSegment;
   }
 };
+
+const replaceMediaSignedUrl = (
+  items: AppointmentMediaItem[],
+  mediaId: string,
+  signedUrl: string | null,
+) =>
+  items.map((item) =>
+    item.id === mediaId
+      ? {
+          ...item,
+          signedUrl,
+        }
+      : item,
+  );
 
 type AppointmentDetailClientProps = {
   locale: Locale;
@@ -183,6 +201,14 @@ export default function AppointmentDetailClient({
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const mediaRequestIdRef = useRef(0);
+  const [selectedMedia, setSelectedMedia] = useState<AppointmentMediaItem | null>(
+    null,
+  );
+  const [selectedMediaLoading, setSelectedMediaLoading] = useState(false);
+  const [selectedMediaError, setSelectedMediaError] = useState<string | null>(
+    null,
+  );
+  const [selectedMediaZoom, setSelectedMediaZoom] = useState(1);
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
@@ -202,6 +228,10 @@ export default function AppointmentDetailClient({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mediaCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const selectedMediaRequestIdRef = useRef(0);
+  const thumbnailRetryingIdsRef = useRef<Set<string>>(new Set());
+  const previewRetryingIdsRef = useRef<Set<string>>(new Set());
   const [appointmentActions, setAppointmentActions] = useState<
     AppointmentAction[]
   >([]);
@@ -352,6 +382,22 @@ export default function AppointmentDetailClient({
     void loadFallbackCompany(appointment.companyId);
   }, [appointment?.companyId, contextCompany, loadFallbackCompany]);
 
+  const createMediaSignedUrl = useCallback(
+    async (item: Pick<AppointmentMediaItem, "bucket" | "path">) => {
+      const { data, error } = await supabase.storage
+        .from(item.bucket)
+        .createSignedUrl(item.path, 60);
+
+      if (error) {
+        console.warn("Falha ao gerar URL assinada:", error.message);
+        return null;
+      }
+
+      return data?.signedUrl ?? null;
+    },
+    [supabase],
+  );
+
   const loadMedia = useCallback(
     async (id: string) => {
       const requestId = ++mediaRequestIdRef.current;
@@ -380,14 +426,10 @@ export default function AppointmentDetailClient({
         const rows = (data ?? []) as AppointmentMediaRow[];
         const items = await Promise.all(
           rows.map(async (row) => {
-            const { data: signedData, error: signedError } =
-              await supabase.storage
-                .from(row.bucket)
-                .createSignedUrl(row.path, 60);
-
-            if (signedError) {
-              console.warn("Falha ao gerar URL assinada:", signedError.message);
-            }
+            const signedUrl = await createMediaSignedUrl({
+              bucket: row.bucket,
+              path: row.path,
+            });
 
             return {
               id: row.id,
@@ -398,7 +440,7 @@ export default function AppointmentDetailClient({
               mimeType: row.mime_type ?? null,
               bytes: row.bytes ?? null,
               createdAt: row.created_at ?? null,
-              signedUrl: signedData?.signedUrl ?? null,
+              signedUrl,
             } satisfies AppointmentMediaItem;
           }),
         );
@@ -415,7 +457,7 @@ export default function AppointmentDetailClient({
         setMediaError(t("appointment.mediaLoadError"));
       }
     },
-    [supabase, t],
+    [createMediaSignedUrl, supabase, t],
   );
 
   const actionOpportunityOptions = useMemo(
@@ -677,10 +719,88 @@ export default function AppointmentDetailClient({
     [],
   );
 
-  const handleRefreshMedia = useCallback(() => {
-    if (!appointmentId) return;
-    void loadMedia(appointmentId);
-  }, [appointmentId, loadMedia]);
+  const handleZoomChange = useCallback((delta: number) => {
+    setSelectedMediaZoom((current) =>
+      Math.min(MAX_MEDIA_ZOOM, Math.max(MIN_MEDIA_ZOOM, current + delta)),
+    );
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setSelectedMediaZoom(1);
+  }, []);
+
+  const openMediaPreview = useCallback((item: AppointmentMediaItem) => {
+    selectedMediaRequestIdRef.current += 1;
+    setSelectedMediaZoom(1);
+    setSelectedMediaError(null);
+    setSelectedMediaLoading(false);
+    setSelectedMedia(item);
+  }, []);
+
+  const refreshMediaItemSignedUrl = useCallback(
+    async (item: AppointmentMediaItem) => {
+      const signedUrl = await createMediaSignedUrl(item);
+      if (!signedUrl) return null;
+
+      setMedia((current) => replaceMediaSignedUrl(current, item.id, signedUrl));
+      setSelectedMedia((current) =>
+        current?.id === item.id
+          ? {
+              ...current,
+              signedUrl,
+            }
+          : current,
+      );
+
+      return signedUrl;
+    },
+    [createMediaSignedUrl],
+  );
+
+  const handleThumbnailError = useCallback(
+    async (item: AppointmentMediaItem) => {
+      if (thumbnailRetryingIdsRef.current.has(item.id)) return;
+      thumbnailRetryingIdsRef.current.add(item.id);
+      try {
+        await refreshMediaItemSignedUrl(item);
+      } finally {
+        thumbnailRetryingIdsRef.current.delete(item.id);
+      }
+    },
+    [refreshMediaItemSignedUrl],
+  );
+
+  const handlePreviewImageError = useCallback(
+    async (item: AppointmentMediaItem) => {
+      if (previewRetryingIdsRef.current.has(item.id)) {
+        setSelectedMediaError(t("appointment.previewLoadError"));
+        return;
+      }
+
+      previewRetryingIdsRef.current.add(item.id);
+      setSelectedMediaError(null);
+      setSelectedMediaLoading(true);
+
+      try {
+        const signedUrl = await refreshMediaItemSignedUrl(item);
+        if (!signedUrl) {
+          setSelectedMediaError(t("appointment.previewLoadError"));
+        }
+      } finally {
+        previewRetryingIdsRef.current.delete(item.id);
+        setSelectedMediaLoading(false);
+      }
+    },
+    [refreshMediaItemSignedUrl, t],
+  );
+
+  const closeMediaPreview = useCallback(() => {
+    selectedMediaRequestIdRef.current += 1;
+    setSelectedMedia(null);
+    setSelectedMediaError(null);
+    setSelectedMediaLoading(false);
+    setSelectedMediaZoom(1);
+  }, []);
 
   const canRegisterAction =
     appointment?.status === "done" || appointment?.status === "atuado";
@@ -694,6 +814,41 @@ export default function AppointmentDetailClient({
     );
     return () => window.clearTimeout(id);
   }, [actionModalOpen]);
+
+  useEffect(() => {
+    if (!selectedMedia) return;
+
+    const focusId = window.setTimeout(
+      () => mediaCloseButtonRef.current?.focus(),
+      0,
+    );
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMediaPreview();
+        return;
+      }
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        handleZoomChange(MEDIA_ZOOM_STEP);
+        return;
+      }
+      if (event.key === "-") {
+        event.preventDefault();
+        handleZoomChange(-MEDIA_ZOOM_STEP);
+        return;
+      }
+      if (event.key === "0") {
+        event.preventDefault();
+        handleResetZoom();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusId);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMediaPreview, handleResetZoom, handleZoomChange, selectedMedia]);
 
   const openCreateActionModal = useCallback(() => {
     setEditingAction(null);
@@ -1254,16 +1409,6 @@ export default function AppointmentDetailClient({
               <h2 className="text-sm font-semibold text-slate-900">
                 {t("appointment.mediaTitle")}
               </h2>
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                <span>{t("appointment.mediaExpire")}</span>
-                <button
-                  type="button"
-                  onClick={handleRefreshMedia}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
-                >
-                  {t("appointment.mediaRefresh")}
-                </button>
-              </div>
             </div>
 
             {mediaError ? (
@@ -1311,19 +1456,20 @@ export default function AppointmentDetailClient({
                           >
                             {item.signedUrl ? (
                               item.mimeType?.startsWith("image/") ? (
-                                <a
-                                  href={item.signedUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block"
+                                <button
+                                  type="button"
+                                  onClick={() => openMediaPreview(item)}
+                                  className="block w-full text-left"
+                                  aria-label={t("appointment.previewImage")}
                                 >
                                   <img
                                     src={item.signedUrl}
                                     alt={`${mediaKindLabels[item.kind]} - ${fileName}`}
                                     className="h-48 w-full object-cover transition hover:scale-[1.01]"
                                     loading="lazy"
+                                    onError={() => void handleThumbnailError(item)}
                                   />
-                                </a>
+                                </button>
                               ) : (
                                 <a
                                   href={item.signedUrl}
@@ -1705,6 +1851,116 @@ export default function AppointmentDetailClient({
                         ? t("appointment.action.progressConfirm")
                         : t("appointment.action.confirm")}
                   </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {selectedMedia && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm"
+              onMouseDown={(event) => {
+                event.stopPropagation();
+                if (event.target === event.currentTarget) {
+                  closeMediaPreview();
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("appointment.previewDialogLabel")}
+              onWheel={(event) => {
+                if (!event.ctrlKey && !event.metaKey) return;
+                event.preventDefault();
+                handleZoomChange(
+                  event.deltaY < 0 ? MEDIA_ZOOM_STEP : -MEDIA_ZOOM_STEP,
+                );
+              }}
+            >
+              <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
+                <div className="flex items-start justify-between gap-4 border-b border-slate-800 px-5 py-4">
+                  <div className="min-w-0 space-y-1">
+                    <h2 className="text-base font-semibold text-white">
+                      {t("appointment.previewTitle")}
+                    </h2>
+                    <p className="truncate text-xs text-slate-400">
+                      {getMediaFileName(
+                        selectedMedia.path,
+                        t("appointment.attachment"),
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(-MEDIA_ZOOM_STEP)}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                    >
+                      {t("appointment.zoomOut")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetZoom}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                    >
+                      {t("appointment.zoomReset")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleZoomChange(MEDIA_ZOOM_STEP)}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                    >
+                      {t("appointment.zoomIn")}
+                    </button>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300">
+                      {Math.round(selectedMediaZoom * 100)}%
+                    </div>
+                    <button
+                      ref={mediaCloseButtonRef}
+                      type="button"
+                      onClick={closeMediaPreview}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+                    >
+                      {t("createAppointment.close")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-slate-950 p-4">
+                  {selectedMediaLoading ? (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-semibold text-slate-300">
+                      {t("appointment.previewLoading")}
+                    </div>
+                  ) : selectedMediaError ? (
+                    <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-200">
+                      {selectedMediaError}
+                    </div>
+                  ) : selectedMedia.signedUrl ? (
+                    <img
+                      src={selectedMedia.signedUrl}
+                      alt={`${mediaKindLabels[selectedMedia.kind]} - ${getMediaFileName(
+                        selectedMedia.path,
+                        t("appointment.attachment"),
+                      )}`}
+                      className="max-h-full w-auto max-w-full rounded-xl object-contain transition-transform duration-150 ease-out"
+                      style={{ transform: `scale(${selectedMediaZoom})` }}
+                      onError={() => void handlePreviewImageError(selectedMedia)}
+                      onDoubleClick={() => {
+                        if (selectedMediaZoom > 1) {
+                          handleResetZoom();
+                          return;
+                        }
+                        handleZoomChange(MEDIA_ZOOM_STEP * 4);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 px-4 py-3 text-sm font-semibold text-rose-200">
+                      {t("appointment.previewLoadError")}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>,
