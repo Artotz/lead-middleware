@@ -1322,6 +1322,8 @@ function CronogramaClientContent({
     let checkOuts = 0;
     let realDurationMs = 0;
     let realDurationCount = 0;
+    let sharedAppointments = 0;
+    let sharedActedAppointments = 0;
 
     const byConsultant = new Map<string, number>();
     const byBucket = new Map<string, number>();
@@ -1333,6 +1335,13 @@ function CronogramaClientContent({
       statusTotals[appointment.status] += 1;
       if (appointment.checkInAt) checkIns += 1;
       if (appointment.checkOutAt) checkOuts += 1;
+      const isSharedAppointment = appointment.sharedWith.length > 0;
+      if (isSharedAppointment) {
+        sharedAppointments += 1;
+        if (appointment.status === "atuado") {
+          sharedActedAppointments += 1;
+        }
+      }
 
       const rawConsultant =
         normalizeConsultantText(appointment.consultantName) ||
@@ -1440,6 +1449,9 @@ function CronogramaClientContent({
 
     const totalAppointments = dashboardCountableAppointments.length;
     const totalCompanies = dashboardCompanies.length;
+    const totalCompaniesInPeriod = new Set(
+      dashboardCountableAppointments.map((appointment) => appointment.companyId),
+    ).size;
     const avgRealDurationMinutes =
       realDurationCount > 0
         ? Math.round(realDurationMs / 60000 / realDurationCount)
@@ -1470,6 +1482,7 @@ function CronogramaClientContent({
     return {
       totalAppointments,
       totalCompanies,
+      totalCompaniesInPeriod,
       statusTotals,
       appointmentsByDay,
       byConsultantBucket,
@@ -1479,6 +1492,9 @@ function CronogramaClientContent({
       opportunityTotals,
       avgRealDurationMinutes,
       avgVisitsPerDayAllConsultants,
+      sharedAppointments,
+      sharedActedAppointments,
+      totalCompletedAppointments,
       doneRate,
       absentRate,
       checkInRate,
@@ -1524,6 +1540,44 @@ function CronogramaClientContent({
       },
     ],
     [dashboardMetrics.statusTotals, t],
+  );
+
+  const actionStatusData = useMemo(
+    () => [
+      {
+        id: "done",
+        label: t("schedule.dashboard.actionCharts.completed"),
+        count: dashboardMetrics.statusTotals.done,
+        color: statusChartColors.done,
+      },
+      {
+        id: "atuado",
+        label: t("schedule.dashboard.actionCharts.acted"),
+        count: dashboardMetrics.statusTotals.atuado,
+        color: statusChartColors.atuado,
+      },
+    ],
+    [dashboardMetrics.statusTotals, t],
+  );
+
+  const sharedStatusData = useMemo(
+    () => [
+      {
+        id: "shared",
+        label: t("schedule.dashboard.actionCharts.shared"),
+        count:
+          dashboardMetrics.sharedAppointments -
+          dashboardMetrics.sharedActedAppointments,
+        color: "#F59E0B",
+      },
+      {
+        id: "shared_acted",
+        label: t("schedule.dashboard.actionCharts.sharedActed"),
+        count: dashboardMetrics.sharedActedAppointments,
+        color: statusChartColors.atuado,
+      },
+    ],
+    [dashboardMetrics.sharedActedAppointments, dashboardMetrics.sharedAppointments, t],
   );
 
   const consultantAvgVisits = useMemo(() => {
@@ -3109,6 +3163,24 @@ function CronogramaClientContent({
         value: `${dashboardMetrics.absentRate}%`,
       },
     ];
+    const actionCards = [
+      {
+        label: t("schedule.dashboard.actionCards.period"),
+        value: dashboardMetrics.totalAppointments,
+      },
+      {
+        label: t("schedule.dashboard.actionCards.completedVisits"),
+        value: dashboardMetrics.totalCompletedAppointments,
+      },
+      {
+        label: t("schedule.dashboard.actionCards.companies"),
+        value: dashboardMetrics.totalCompaniesInPeriod,
+      },
+      {
+        label: t("schedule.dashboard.actionCards.sharedVisits"),
+        value: dashboardMetrics.sharedAppointments,
+      },
+    ];
 
     return (
       <div className={`${panelClass} p-4`}>
@@ -3233,7 +3305,23 @@ function CronogramaClientContent({
               </div>
             ))}
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {actionCards.map((card) => (
+              <div
+                key={card.label}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {card.label}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">
+                  {card.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
           {isVisitDashboard ? (
@@ -3756,8 +3844,174 @@ function CronogramaClientContent({
           ) : null}
 
           {!isVisitDashboard ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500 xl:col-span-2">
-              {t("schedule.dashboard.noData")}
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.completedVsActed")}
+              </div>
+              {actionStatusData.some((item) => item.count > 0) ? (
+                <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
+                  <div className="h-full min-h-[260px] w-full md:w-2/3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip
+                          formatter={(value, _name, item) => [
+                            value,
+                            item?.payload?.label ??
+                              t("schedule.dashboard.tooltip.appointments"),
+                          ]}
+                          labelFormatter={(label) =>
+                            t("schedule.dashboard.tooltip.statusLabel", {
+                              name: String(label ?? ""),
+                            })
+                          }
+                          contentStyle={{
+                            backgroundColor: "#FFFFFF",
+                            color: "#0F172A",
+                            borderRadius: "8px",
+                            border: "1px solid #E2E8F0",
+                            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                          }}
+                          labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                          itemStyle={{ color: "#0F172A" }}
+                        />
+                        <Pie
+                          data={actionStatusData}
+                          dataKey="count"
+                          nameKey="label"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={62}
+                          outerRadius={96}
+                          paddingAngle={3}
+                          label={renderPieOuterLabel}
+                          labelLine={renderPieLabelLine}
+                        >
+                          {actionStatusData.map((item) => (
+                            <Cell key={item.id} fill={item.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-1/3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("schedule.dashboard.legendTitle")}
+                    </div>
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      {actionStatusData.map((item) => (
+                        <div
+                          key={`legend-${item.id}`}
+                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
+                        >
+                          <span
+                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <div className="flex-1">
+                            <div className="font-semibold text-slate-900">
+                              {item.label}
+                            </div>
+                            <div className="text-slate-600">
+                              {item.count}{" "}
+                              {t("schedule.dashboard.tooltip.totalAppointments")}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {!isVisitDashboard ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.sharedVsSharedActed")}
+              </div>
+              {sharedStatusData.some((item) => item.count > 0) ? (
+                <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
+                  <div className="h-full min-h-[260px] w-full md:w-2/3">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Tooltip
+                          formatter={(value, _name, item) => [
+                            value,
+                            item?.payload?.label ??
+                              t("schedule.dashboard.tooltip.appointments"),
+                          ]}
+                          labelFormatter={(label) =>
+                            t("schedule.dashboard.tooltip.statusLabel", {
+                              name: String(label ?? ""),
+                            })
+                          }
+                          contentStyle={{
+                            backgroundColor: "#FFFFFF",
+                            color: "#0F172A",
+                            borderRadius: "8px",
+                            border: "1px solid #E2E8F0",
+                            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                          }}
+                          labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                          itemStyle={{ color: "#0F172A" }}
+                        />
+                        <Pie
+                          data={sharedStatusData}
+                          dataKey="count"
+                          nameKey="label"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={62}
+                          outerRadius={96}
+                          paddingAngle={3}
+                          label={renderPieOuterLabel}
+                          labelLine={renderPieLabelLine}
+                        >
+                          {sharedStatusData.map((item) => (
+                            <Cell key={item.id} fill={item.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="w-full md:w-1/3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("schedule.dashboard.legendTitle")}
+                    </div>
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      {sharedStatusData.map((item) => (
+                        <div
+                          key={`legend-${item.id}`}
+                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
+                        >
+                          <span
+                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <div className="flex-1">
+                            <div className="font-semibold text-slate-900">
+                              {item.label}
+                            </div>
+                            <div className="text-slate-600">
+                              {item.count}{" "}
+                              {t("schedule.dashboard.tooltip.totalAppointments")}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
             </div>
           ) : null}
 

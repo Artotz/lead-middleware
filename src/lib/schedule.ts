@@ -4,13 +4,13 @@ export const COMPANY_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira, isCompany";
 
 export const APPOINTMENT_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, creation_notes, created_by, created_at, updated_at, oportunidades";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, address_snapshot, absence_reason, absence_note, notes, creation_notes, created_by, created_at, updated_at, oportunidades, shared_with";
 
 export const COMPANY_LIST_SELECT =
   "id, document, name, state, lat, lng, csa, carteira_def, client_class, carteira_def2, classe_cliente, validacao, referencia, email_csa, fora_carteira, isCompany";
 
 export const APPOINTMENT_LIST_SELECT =
-  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, created_by, oportunidades";
+  "id, company_id, consultant_id, consultant_name, starts_at, ends_at, status, check_in_at, check_out_at, check_in_lat, check_in_lng, check_out_lat, check_out_lng, created_by, oportunidades, shared_with";
 
 export type SupabaseAppointmentStatus =
   | "scheduled"
@@ -70,6 +70,7 @@ export type Appointment = {
   notes: string | null;
   creationNotes: string | null;
   oportunidades: string[] | null;
+  sharedWith: string[];
   createdBy: string | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -124,6 +125,7 @@ type SupabaseAppointmentRow = {
   notes?: string | null;
   creation_notes?: string | null;
   oportunidades?: string[] | null;
+  shared_with?: string[] | null;
   created_by?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -267,6 +269,7 @@ export const mapAppointment = (row: SupabaseAppointmentRow): Appointment => ({
   notes: row.notes ?? null,
   creationNotes: row.creation_notes ?? null,
   oportunidades: row.oportunidades ?? null,
+  sharedWith: row.shared_with ?? [],
   createdBy: row.created_by ?? null,
   createdAt: row.created_at ?? null,
   updatedAt: row.updated_at ?? null,

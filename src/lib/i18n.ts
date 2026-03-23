@@ -247,6 +247,12 @@ const MESSAGES = {
           doneRate: "Concluídos",
           absentRate: "Cancelados",
         },
+        actionCards: {
+          period: "Do período",
+          completedVisits: "Visitas concluídas",
+          companies: "Empresas",
+          sharedVisits: "Visitas compartilhadas",
+        },
         charts: {
           appointmentsByDay: "Apontamentos por dia",
           appointmentsByPeriod: "Apontamentos por período",
@@ -260,6 +266,14 @@ const MESSAGES = {
           activitiesByType: "Atividades por tipo",
           activitiesByConsultant: "Atividades por consultor",
           companiesByState: "Empresas por estado",
+        },
+        actionCharts: {
+          completedVsActed: "Concluídas x atuadas",
+          sharedVsSharedActed: "Compartilhadas x compartilhadas + atuadas",
+          completed: "Concluídas",
+          acted: "Atuadas",
+          shared: "Compartilhadas",
+          sharedActed: "Compartilhadas + atuadas",
         },
         legendTitle: "Legenda",
         series: {

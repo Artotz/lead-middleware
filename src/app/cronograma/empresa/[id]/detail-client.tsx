@@ -55,6 +55,7 @@ type AppointmentRow = {
   absence_note: string | null;
   notes: string | null;
   oportunidades: string[] | null;
+  shared_with?: string[] | null;
   created_by: string | null;
   created_at?: string | null;
   updated_at?: string | null;
