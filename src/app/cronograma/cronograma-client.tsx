@@ -948,6 +948,7 @@ function CronogramaClientContent({
     if (!urlState.consultantId) return;
     const exists = consultants.some((item) => item.id === urlState.consultantId);
     if (exists && selectedConsultantId !== urlState.consultantId) {
+      skipConsultantResetRef.current = true;
       setSelectedConsultantId(urlState.consultantId);
     }
   }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
