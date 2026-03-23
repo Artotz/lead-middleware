@@ -92,6 +92,8 @@ type TimelineLayoutItem = TimelineItem & {
 
 type DashboardScope = "general" | "individual";
 type DashboardView = "week" | "month" | "year";
+type DashboardStage = "visita" | "atuacao";
+type AppointmentListStatusFilter = SupabaseAppointmentStatus | "expired";
 
 type OrcamentoResumoRow = {
   cnpj: string | number | null;
@@ -336,6 +338,7 @@ const layoutTimelineItems = (items: TimelineItem[]): TimelineLayoutItem[] => {
 const TAB_VALUES = ["cronograma", "agendamentos", "empresas", "dashboard"] as const;
 const VIEW_MODE_VALUES = ["board", "grid", "map"] as const;
 const DASHBOARD_SCOPE_VALUES = ["general", "individual"] as const;
+const DASHBOARD_STAGE_VALUES = ["visita", "atuacao"] as const;
 const COMPANY_SORT_VALUES = [
   "name",
   "preventivas",
@@ -348,6 +351,7 @@ const APPOINTMENT_SORT_VALUES = [
   "date_asc",
   "alpha_asc",
   "alpha_desc",
+  "cotacoes",
 ] as const;
 const APPOINTMENT_STATUS_VALUES = [
   "scheduled",
@@ -355,6 +359,10 @@ const APPOINTMENT_STATUS_VALUES = [
   "done",
   "absent",
   "atuado",
+] as const;
+const APPOINTMENT_LIST_STATUS_VALUES = [
+  ...APPOINTMENT_STATUS_VALUES,
+  "expired",
 ] as const;
 const COMPANY_COLUMN_VALUES = [
   "empresa",
@@ -598,8 +606,10 @@ function CronogramaClientContent({
       OPPORTUNITY_OPTIONS.map((option) => option.id),
     );
     const appointmentStatus = parseCsv(searchParams.get("astatus")).filter(
-      (status): status is SupabaseAppointmentStatus =>
-        APPOINTMENT_STATUS_VALUES.includes(status as SupabaseAppointmentStatus),
+      (status): status is AppointmentListStatusFilter =>
+        APPOINTMENT_LIST_STATUS_VALUES.includes(
+          status as AppointmentListStatusFilter,
+        ),
     );
     const cronogramaStatus = parseCsv(searchParams.get("cstatus")).filter(
       (status): status is SupabaseAppointmentStatus =>
@@ -620,6 +630,11 @@ function CronogramaClientContent({
         searchParams.get("dview"),
         DASHBOARD_VIEW_VALUES,
         "week",
+      ),
+      dashboardStage: parseEnum(
+        searchParams.get("dstage"),
+        DASHBOARD_STAGE_VALUES,
+        "visita",
       ),
       companySort: parseEnum(searchParams.get("csort"), COMPANY_SORT_VALUES, "name"),
       companyPage: parsePositiveInt(searchParams.get("cpage"), 1),
@@ -685,6 +700,9 @@ function CronogramaClientContent({
   const [dashboardView, setDashboardView] = useState<DashboardView>(
     urlState.dashboardView,
   );
+  const [dashboardStage, setDashboardStage] = useState<DashboardStage>(
+    urlState.dashboardStage,
+  );
   const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
     [],
   );
@@ -721,7 +739,7 @@ function CronogramaClientContent({
     urlState.appointmentColumns,
   );
   const [appointmentStatus, setAppointmentStatus] = useState<
-    SupabaseAppointmentStatus[]
+    AppointmentListStatusFilter[]
   >(urlState.appointmentStatus);
   const [appointmentOpportunity, setAppointmentOpportunity] = useState<string[]>(
     urlState.appointmentOpportunity,
@@ -730,7 +748,7 @@ function CronogramaClientContent({
     SupabaseAppointmentStatus[]
   >(urlState.cronogramaStatus);
   const [appointmentSort, setAppointmentSort] = useState<
-    "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc"
+    "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc" | "cotacoes"
   >(urlState.appointmentSort);
   const [appointmentPage, setAppointmentPage] = useState(urlState.appointmentPage);
   const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
@@ -1029,6 +1047,8 @@ function CronogramaClientContent({
     else next.delete("dscope");
     if (dashboardView !== "week") next.set("dview", dashboardView);
     else next.delete("dview");
+    if (dashboardStage !== "visita") next.set("dstage", dashboardStage);
+    else next.delete("dstage");
     if (companySearch.trim()) next.set("csearch", companySearch.trim());
     else next.delete("csearch");
     if (companySort !== "name") next.set("csort", companySort);
@@ -1089,6 +1109,7 @@ function CronogramaClientContent({
     companyVisibleColumns,
     companySort,
     dashboardScope,
+    dashboardStage,
     dashboardView,
     initialTab,
     pathname,
@@ -1305,6 +1326,7 @@ function CronogramaClientContent({
     const byConsultant = new Map<string, number>();
     const byBucket = new Map<string, number>();
     const byConsultantBucket = new Map<string, Map<string, number>>();
+    const byCompletedConsultantBucket = new Map<string, Map<string, number>>();
     const opportunityTotals = new Map<string, number>();
 
     dashboardCountableAppointments.forEach((appointment) => {
@@ -1372,6 +1394,16 @@ function CronogramaClientContent({
         (bucketConsultants.get(consultantLabel) ?? 0) + 1,
       );
       byConsultantBucket.set(bucketKey, bucketConsultants);
+
+      if (appointment.status === "done" || appointment.status === "atuado") {
+        const completedBucketConsultants =
+          byCompletedConsultantBucket.get(bucketKey) ?? new Map();
+        completedBucketConsultants.set(
+          consultantLabel,
+          (completedBucketConsultants.get(consultantLabel) ?? 0) + 1,
+        );
+        byCompletedConsultantBucket.set(bucketKey, completedBucketConsultants);
+      }
     });
 
     const appointmentsByDay = dashboardBuckets.map((bucket) => {
@@ -1415,8 +1447,10 @@ function CronogramaClientContent({
     const periodsWithVisits = Array.from(byBucket.values()).filter(
       (value) => value > 0,
     ).length;
+    const totalCompletedAppointments =
+      statusTotals.done + statusTotals.atuado;
     const avgVisitsPerDayAllConsultants = periodsWithVisits
-      ? Math.round((totalAppointments / periodsWithVisits) * 10) / 10
+      ? Math.round((totalCompletedAppointments / periodsWithVisits) * 10) / 10
       : 0;
     const doneRate = totalAppointments
       ? Math.round(
@@ -1439,6 +1473,7 @@ function CronogramaClientContent({
       statusTotals,
       appointmentsByDay,
       byConsultantBucket,
+      byCompletedConsultantBucket,
       companiesByState,
       topConsultants,
       opportunityTotals,
@@ -1460,7 +1495,7 @@ function CronogramaClientContent({
     t,
   ]);
 
-  const dashboardStatusData = useMemo(
+  const visitStatusData = useMemo(
     () => [
       {
         id: "scheduled",
@@ -1477,7 +1512,8 @@ function CronogramaClientContent({
       {
         id: "done",
         label: t("schedule.status.done"),
-        count: dashboardMetrics.statusTotals.done,
+        count:
+          dashboardMetrics.statusTotals.done + dashboardMetrics.statusTotals.atuado,
         color: statusChartColors.done,
       },
       {
@@ -1486,24 +1522,30 @@ function CronogramaClientContent({
         count: dashboardMetrics.statusTotals.absent,
         color: statusChartColors.absent,
       },
-      {
-        id: "atuado",
-        label: t("schedule.status.atuado"),
-        count: dashboardMetrics.statusTotals.atuado,
-        color: statusChartColors.atuado,
-      },
     ],
     [dashboardMetrics.statusTotals, t],
   );
 
   const consultantAvgVisits = useMemo(() => {
-    const totals = new Map<string, { total: number; days: number }>();
+    const totals = new Map<
+      string,
+      { total: number; completed: number; days: number }
+    >();
     dashboardMetrics.byConsultantBucket.forEach((consultants) => {
       consultants.forEach((count, name) => {
         if (!count) return;
-        const entry = totals.get(name) ?? { total: 0, days: 0 };
+        const entry = totals.get(name) ?? { total: 0, completed: 0, days: 0 };
         entry.total += count;
         entry.days += 1;
+        totals.set(name, entry);
+      });
+    });
+
+    dashboardMetrics.byCompletedConsultantBucket.forEach((consultants) => {
+      consultants.forEach((count, name) => {
+        if (!count) return;
+        const entry = totals.get(name) ?? { total: 0, completed: 0, days: 0 };
+        entry.completed += count;
         totals.set(name, entry);
       });
     });
@@ -1511,14 +1553,24 @@ function CronogramaClientContent({
     return Array.from(totals.entries())
       .map(([name, value]) => ({
         name,
-        avg: value.days ? value.total / value.days : 0,
+        avgTotal: value.days ? value.total / value.days : 0,
+        avgCompleted: value.days ? value.completed / value.days : 0,
         total: value.total,
+        completed: value.completed,
         days: value.days,
       }))
       .filter((item) => item.days > 0)
-      .sort((a, b) => b.avg - a.avg || b.total - a.total)
+      .sort(
+        (a, b) =>
+          b.avgTotal - a.avgTotal ||
+          b.avgCompleted - a.avgCompleted ||
+          b.total - a.total,
+      )
       .slice(0, 6);
-  }, [dashboardMetrics.byConsultantBucket]);
+  }, [
+    dashboardMetrics.byCompletedConsultantBucket,
+    dashboardMetrics.byConsultantBucket,
+  ]);
 
   const opportunityIds = useMemo(() => {
     const base = OPPORTUNITY_OPTIONS.map((item) => item.id);
@@ -1649,15 +1701,21 @@ function CronogramaClientContent({
   const totalAppointments = visibleAppointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
   const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase();
+  const todayStart = useMemo(() => startOfDay(today), [today]);
 
   const filteredAppointments = useMemo(() => {
     if (!isGeneralScope && !selectedConsultant) return [];
     return listAppointments.filter((appointment) => {
-      if (
-        appointmentStatus.length > 0 &&
-        !appointmentStatus.includes(appointment.status)
-      ) {
-        return false;
+      const isExpired = isExpiredAppointment(appointment, todayStart);
+      if (appointmentStatus.length > 0) {
+        const matchesExpired = appointmentStatus.includes("expired") && isExpired;
+        const matchesStatus =
+          appointment.status === "scheduled"
+            ? appointmentStatus.includes("scheduled") && !isExpired
+            : appointmentStatus.includes(appointment.status);
+        if (!matchesExpired && !matchesStatus) {
+          return false;
+        }
       }
       if (appointmentOpportunity.length > 0) {
         const opportunities = appointment.oportunidades ?? [];
@@ -1676,7 +1734,9 @@ function CronogramaClientContent({
         appointment.consultantName,
         appointment.consultantId,
         appointment.status,
-        t(`schedule.status.${appointment.status}`),
+        isExpired
+          ? t("schedule.statusExpired")
+          : t(`schedule.status.${appointment.status}`),
       ]
         .filter(Boolean)
         .join(" ")
@@ -1692,10 +1752,12 @@ function CronogramaClientContent({
     normalizedAppointmentSearch,
     selectedConsultant,
     t,
+    todayStart,
   ]);
 
   const sortedAppointments = useMemo(() => {
     const sorted = [...filteredAppointments];
+    const getOpenQuotes = (companyId: string) => openQuotesTotals.get(companyId) ?? 0;
     sorted.sort((a, b) => {
       if (appointmentSort === "date_desc") {
         return b.startAt.localeCompare(a.startAt);
@@ -1705,7 +1767,14 @@ function CronogramaClientContent({
       }
       const companyA = listCompanyById.get(a.companyId)?.name ?? "";
       const companyB = listCompanyById.get(b.companyId)?.name ?? "";
-      const nameComparison = companyA.localeCompare(companyB, "pt-BR");
+      const nameComparison = companyA.localeCompare(companyB, locale);
+      if (appointmentSort === "cotacoes") {
+        const diff = getOpenQuotes(b.companyId) - getOpenQuotes(a.companyId);
+        if (diff !== 0) return diff;
+        return nameComparison !== 0
+          ? nameComparison
+          : a.startAt.localeCompare(b.startAt);
+      }
       if (appointmentSort === "alpha_desc") {
         return nameComparison !== 0
           ? -nameComparison
@@ -1716,7 +1785,7 @@ function CronogramaClientContent({
         : a.startAt.localeCompare(b.startAt);
     });
     return sorted;
-  }, [appointmentSort, filteredAppointments, listCompanyById]);
+  }, [appointmentSort, filteredAppointments, listCompanyById, locale, openQuotesTotals]);
 
   useEffect(() => {
     setAppointmentPage(1);
@@ -2285,7 +2354,6 @@ function CronogramaClientContent({
     });
   }, [companiesByPortfolio, normalizedCompanySearch]);
 
-  const todayStart = useMemo(() => startOfDay(today), [today]);
   const expiredCardClass = "border-slate-300 bg-slate-100 text-slate-700";
 
   const getDaysSinceLastVisit = useMemo(
@@ -2552,7 +2620,7 @@ function CronogramaClientContent({
     .map((column) => column.width)
     .join(" ");
 
-  const appointmentStatusOptions = useMemo(
+  const cronogramaStatusOptions = useMemo(
     () =>
       (["scheduled", "in_progress", "done", "absent", "atuado"] as const).map(
         (status) => ({
@@ -2561,6 +2629,17 @@ function CronogramaClientContent({
         }),
       ),
     [t],
+  );
+
+  const appointmentStatusOptions = useMemo(
+    () => [
+      ...cronogramaStatusOptions,
+      {
+        value: "expired",
+        label: t("schedule.statusExpired"),
+      },
+    ],
+    [cronogramaStatusOptions, t],
   );
 
   const appointmentOpportunityOptions = useMemo(
@@ -3002,6 +3081,7 @@ function CronogramaClientContent({
       dashboardMetrics.avgRealDurationMinutes,
       t,
     );
+    const isVisitDashboard = dashboardStage === "visita";
 
     const cards = [
       {
@@ -3060,6 +3140,18 @@ function CronogramaClientContent({
                 <option value="year">{t("schedule.dashboard.viewYear")}</option>
               </select>
             </ToolbarField>
+            <Tabs
+              tabs={[
+                { id: "visita", label: t("schedule.dashboard.stageVisit") },
+                { id: "atuacao", label: t("schedule.dashboard.stageAction") },
+              ]}
+              activeTabId={dashboardStage}
+              onTabChange={(id) => {
+                if (id === "visita" || id === "atuacao") {
+                  setDashboardStage(id);
+                }
+              }}
+            />
           </ToolbarRow>
 
           <PeriodNavigator
@@ -3087,26 +3179,28 @@ function CronogramaClientContent({
             onPrev={() => shiftDashboardPeriod(-1)}
             onNext={() => shiftDashboardPeriod(1)}
             trailing={
-              dashboardView === "week"
-                ? weeks.map((week, index) => {
-                    const isActive = index === selectedWeekIndex;
-                    return (
-                      <button
-                        key={`${toDateKey(week.startAt)}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          weekUrlDirtyRef.current = true;
-                          setSelectedWeekIndex(index);
-                        }}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                          isActive ? toggleActiveClass : toggleInactiveClass
-                        }`}
-                      >
-                        {week.label}
-                      </button>
-                    );
-                  })
-                : null
+              <>
+                {dashboardView === "week"
+                  ? weeks.map((week, index) => {
+                      const isActive = index === selectedWeekIndex;
+                      return (
+                        <button
+                          key={`${toDateKey(week.startAt)}-${index}`}
+                          type="button"
+                          onClick={() => {
+                            weekUrlDirtyRef.current = true;
+                            setSelectedWeekIndex(index);
+                          }}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                            isActive ? toggleActiveClass : toggleInactiveClass
+                          }`}
+                        >
+                          {week.label}
+                        </button>
+                      );
+                    })
+                  : null}
+              </>
             }
           />
 
@@ -3123,24 +3217,27 @@ function CronogramaClientContent({
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {card.label}
+        {isVisitDashboard ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {cards.map((card) => (
+              <div
+                key={card.label}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {card.label}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-slate-900">
+                  {card.value}
+                </div>
               </div>
-              <div className="mt-2 text-2xl font-semibold text-slate-900">
-                {card.value}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {isVisitDashboard ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.appointmentsByPeriod")}
             </div>
@@ -3186,9 +3283,10 @@ function CronogramaClientContent({
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
-          </div>
+            </div>
+          ) : null}
 
-          {dashboardScope === "general" ? (
+          {isVisitDashboard && dashboardScope === "general" ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
@@ -3198,6 +3296,8 @@ function CronogramaClientContent({
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={consultantAvgVisits}
+                      barGap={0}
+                      barCategoryGap="18%"
                       margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -3215,10 +3315,16 @@ function CronogramaClientContent({
                         ]}
                       />
                       <Tooltip
-                        formatter={(value) => [
-                          value == null ? "0.0" : Number(value).toFixed(1),
-                          t("schedule.dashboard.tooltip.avgVisits"),
-                        ]}
+                        formatter={(value, name) => {
+                          const label =
+                            name === "avgCompleted"
+                              ? t("schedule.dashboard.series.completed")
+                              : t("schedule.dashboard.series.total");
+                          return [
+                            value == null ? "0.0" : Number(value).toFixed(1),
+                            label,
+                          ];
+                        }}
                         labelFormatter={(label) =>
                           t("schedule.dashboard.tooltip.consultantLabel", {
                             name: label,
@@ -3234,9 +3340,26 @@ function CronogramaClientContent({
                         labelStyle={{ color: "#0F172A", fontWeight: 600 }}
                         itemStyle={{ color: "#0F172A" }}
                       />
-                      <Bar dataKey="avg" fill="#0EA5E9">
+                      <Bar
+                        dataKey="avgTotal"
+                        name="avgTotal"
+                        fill="#0EA5E9"
+                        radius={[4, 4, 0, 0]}
+                      >
                         <LabelList
-                          dataKey="avg"
+                          dataKey="avgTotal"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value, 1)}
+                        />
+                      </Bar>
+                      <Bar
+                        dataKey="avgCompleted"
+                        name="avgCompleted"
+                        fill="#10B981"
+                        radius={[4, 4, 0, 0]}
+                      >
+                        <LabelList
+                          dataKey="avgCompleted"
                           position="top"
                           formatter={(value) => formatChartLabel(value, 1)}
                         />
@@ -3252,7 +3375,7 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          {dashboardScope === "general" ? (
+          {isVisitDashboard && dashboardScope === "general" ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.topConsultants")}
@@ -3316,11 +3439,12 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {isVisitDashboard ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.statusDistribution")}
             </div>
-            {dashboardStatusData.some((item) => item.count > 0) ? (
+            {visitStatusData.some((item) => item.count > 0) ? (
               <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
                 <div className="h-full min-h-[260px] w-full md:w-2/3">
                     <ResponsiveContainer width="100%" height="100%">
@@ -3347,7 +3471,7 @@ function CronogramaClientContent({
                           itemStyle={{ color: "#0F172A" }}
                         />
                         <Pie
-                          data={dashboardStatusData}
+                          data={visitStatusData}
                           dataKey="count"
                           nameKey="label"
                           cx="50%"
@@ -3358,7 +3482,7 @@ function CronogramaClientContent({
                           label={renderPieOuterLabel}
                           labelLine={renderPieLabelLine}
                         >
-                          {dashboardStatusData.map((item) => (
+                          {visitStatusData.map((item) => (
                             <Cell key={item.id} fill={item.color} />
                           ))}
                         </Pie>
@@ -3370,7 +3494,7 @@ function CronogramaClientContent({
                       {t("schedule.dashboard.legendTitle")}
                     </div>
                     <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      {dashboardStatusData.map((item) => (
+                      {visitStatusData.map((item) => (
                         <div
                           key={`legend-${item.id}`}
                           className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
@@ -3398,165 +3522,170 @@ function CronogramaClientContent({
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
-          </div>
-
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.activitiesByType")}
             </div>
-            {activityError ? (
-              <div className="mt-3 text-sm text-rose-600">{activityError}</div>
-            ) : activityLoading ? (
-              <div className="mt-3 text-sm text-slate-500">
-                {t("schedule.dashboard.activitiesLoading")}
+          ) : null}
+
+          {isVisitDashboard ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.charts.activitiesByType")}
               </div>
-            ) : dashboardActivitiesData.length ? (
-              <div className="mt-3 min-h-[280px] flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={dashboardActivitiesData}
-                    margin={{ top: 24, right: 12, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="label"
-                      interval={0}
-                      tick={{ fontSize: 10 }}
-                      tickMargin={8}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      domain={[
-                        0,
-                        (dataMax: number) =>
-                          Math.max(1, Math.ceil(dataMax * 1.15)),
-                      ]}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value,
-                        t("schedule.dashboard.tooltip.totalActivities"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.activityTypeLabel", {
-                          name: String(label ?? ""),
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="count" fill="#6366F1">
-                      <LabelList
-                        dataKey="count"
-                        position="top"
-                        formatter={(value) => formatChartLabel(value)}
+              {activityError ? (
+                <div className="mt-3 text-sm text-rose-600">{activityError}</div>
+              ) : activityLoading ? (
+                <div className="mt-3 text-sm text-slate-500">
+                  {t("schedule.dashboard.activitiesLoading")}
+                </div>
+              ) : dashboardActivitiesData.length ? (
+                <div className="mt-3 min-h-[280px] flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dashboardActivitiesData}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="label"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
+                        tickMargin={8}
                       />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("schedule.dashboard.charts.opportunitiesByType")}
-            </div>
-            {dashboardOpportunitiesData.length ? (
-              <div
-                className="mt-3"
-                style={{
-                  height: `${Math.max(
-                    280,
-                    dashboardOpportunitiesData.length * 28 + 80,
-                  )}px`,
-                }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    layout="vertical"
-                    data={dashboardOpportunitiesData}
-                    margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis
-                      type="category"
-                      dataKey="label"
-                      width={140}
-                      allowDecimals={false}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <Tooltip
-                      formatter={(value) => [
-                        value,
-                        t("schedule.dashboard.tooltip.opportunities"),
-                      ]}
-                      labelFormatter={(label) =>
-                        t("schedule.dashboard.tooltip.opportunityTypeLabel", {
-                          name: String(label ?? ""),
-                        })
-                      }
-                      contentStyle={{
-                        backgroundColor: "#FFFFFF",
-                        color: "#0F172A",
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                      }}
-                      labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                      itemStyle={{ color: "#0F172A" }}
-                    />
-                    <Bar dataKey="count">
-                      {dashboardOpportunitiesData.map((item, index) => (
-                        <Cell
-                          key={item.id}
-                          fill={
-                            [
-                              "#F59E0B",
-                              "#F97316",
-                              "#14B8A6",
-                              "#38BDF8",
-                              "#6366F1",
-                              "#A855F7",
-                              "#EC4899",
-                              "#22C55E",
-                              "#0EA5E9",
-                              "#64748B",
-                              "#EAB308",
-                              "#F43F5E",
-                            ][index % 12]
-                          }
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.totalActivities"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.activityTypeLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#6366F1">
+                        <LabelList
+                          dataKey="count"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
                         />
-                      ))}
-                      <LabelList
-                        dataKey="count"
-                        position="right"
-                        formatter={(value) => formatChartLabel(value)}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
-                {t("schedule.dashboard.noChartData")}
-              </div>
-            )}
-          </div>
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
 
-          {dashboardScope === "general" ? (
+          {isVisitDashboard ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.charts.opportunitiesByType")}
+              </div>
+              {dashboardOpportunitiesData.length ? (
+                <div
+                  className="mt-3"
+                  style={{
+                    height: `${Math.max(
+                      280,
+                      dashboardOpportunitiesData.length * 28 + 80,
+                    )}px`,
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={dashboardOpportunitiesData}
+                      margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis
+                        type="category"
+                        dataKey="label"
+                        width={140}
+                        allowDecimals={false}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.opportunities"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.opportunityTypeLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count">
+                        {dashboardOpportunitiesData.map((item, index) => (
+                          <Cell
+                            key={item.id}
+                            fill={
+                              [
+                                "#F59E0B",
+                                "#F97316",
+                                "#14B8A6",
+                                "#38BDF8",
+                                "#6366F1",
+                                "#A855F7",
+                                "#EC4899",
+                                "#22C55E",
+                                "#0EA5E9",
+                                "#64748B",
+                                "#EAB308",
+                                "#F43F5E",
+                              ][index % 12]
+                            }
+                          />
+                        ))}
+                        <LabelList
+                          dataKey="count"
+                          position="right"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {isVisitDashboard && dashboardScope === "general" ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.activitiesByConsultant")}
@@ -3626,7 +3755,14 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {!isVisitDashboard ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500 xl:col-span-2">
+              {t("schedule.dashboard.noData")}
+            </div>
+          ) : null}
+
+          {isVisitDashboard ? (
+            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("schedule.dashboard.charts.companiesByState")}
             </div>
@@ -3682,7 +3818,8 @@ function CronogramaClientContent({
                 {t("schedule.dashboard.noChartData")}
               </div>
             )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -3744,7 +3881,7 @@ function CronogramaClientContent({
                     <div className="w-full min-w-[180px]">
                       <LeadTypesMultiSelect
                         value={cronogramaStatus}
-                        options={appointmentStatusOptions}
+                        options={cronogramaStatusOptions}
                         onChange={(next) =>
                           setCronogramaStatus(
                             next.filter(
@@ -4330,16 +4467,17 @@ function CronogramaClientContent({
                   contentClassName="w-full"
                 >
                   <div className="w-full min-w-[180px]">
-                    <LeadTypesMultiSelect
-                      value={appointmentStatus}
-                      options={appointmentStatusOptions}
-                      onChange={(next) =>
-                        setAppointmentStatus(
-                          next.filter(
-                            (status): status is SupabaseAppointmentStatus =>
-                              status === "scheduled" ||
-                              status === "in_progress" ||
-                              status === "done" ||
+                      <LeadTypesMultiSelect
+                        value={appointmentStatus}
+                        options={appointmentStatusOptions}
+                        onChange={(next) =>
+                          setAppointmentStatus(
+                            next.filter(
+                              (status): status is AppointmentListStatusFilter =>
+                                status === "expired" ||
+                                status === "scheduled" ||
+                                status === "in_progress" ||
+                                status === "done" ||
                               status === "absent" ||
                               status === "atuado",
                           ),
@@ -4448,7 +4586,8 @@ function CronogramaClientContent({
                         value === "date_desc" ||
                         value === "date_asc" ||
                         value === "alpha_asc" ||
-                        value === "alpha_desc"
+                        value === "alpha_desc" ||
+                        value === "cotacoes"
                       ) {
                         setAppointmentSort(value);
                         return;
@@ -4469,6 +4608,9 @@ function CronogramaClientContent({
                     </option>
                     <option value="alpha_desc">
                       {t("schedule.appointmentSortAlphaDesc")}
+                    </option>
+                    <option value="cotacoes">
+                      {t("schedule.orderByQuotes")}
                     </option>
                   </select>
                 </ToolbarField>

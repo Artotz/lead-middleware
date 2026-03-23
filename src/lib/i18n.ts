@@ -214,6 +214,8 @@ const MESSAGES = {
         viewWeek: "Semana",
         viewMonth: "Mês",
         viewYear: "Ano",
+        stageVisit: "Visita",
+        stageAction: "Atua\u00e7\u00e3o",
         scopeHintGeneral: "Visão consolidada do período selecionado.",
         scopeHintIndividual: "Visão do consultor selecionado.",
         period: "Período {start} - {end}",
@@ -241,7 +243,7 @@ const MESSAGES = {
           appointments: "Apontamentos",
           companies: "Empresas",
           avgRealDuration: "Duração média real",
-          avgVisitsPerDay: "Média de visitas/dia",
+          avgVisitsPerDay: "Média de visitas concluídas/dia",
           doneRate: "Concluídos",
           absentRate: "Cancelados",
         },
@@ -260,6 +262,10 @@ const MESSAGES = {
           companiesByState: "Empresas por estado",
         },
         legendTitle: "Legenda",
+        series: {
+          total: "Total",
+          completed: "Concluídas",
+        },
         tooltip: {
           appointments: "Apontamentos",
           totalAppointments: "Total de apontamentos",
