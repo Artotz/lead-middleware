@@ -464,7 +464,7 @@ function ToolbarField({
 }: ToolbarFieldProps) {
   return (
     <label
-      className={`flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm sm:w-auto ${className ?? ""}`}
+      className={`relative z-0 flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm focus-within:z-30 sm:w-auto ${className ?? ""}`}
     >
       {label ? (
         <span
