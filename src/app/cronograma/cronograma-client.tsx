@@ -116,6 +116,10 @@ type ActivityRow = {
   registro_tipo: string | null;
 };
 
+type ActionOwnerRow = {
+  created_by: string | null;
+};
+
 const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
   scheduled: "border-amber-300 bg-amber-50 text-amber-900",
   in_progress: "border-sky-300 bg-sky-50 text-sky-900",
@@ -728,6 +732,12 @@ function CronogramaClientContent({
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
   const activityRequestIdRef = useRef(0);
+  const [actionOwnerCounts, setActionOwnerCounts] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [actionOwnerLoading, setActionOwnerLoading] = useState(false);
+  const [actionOwnerError, setActionOwnerError] = useState<string | null>(null);
+  const actionOwnerRequestIdRef = useRef(0);
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >(urlState.companySort);
@@ -1324,6 +1334,7 @@ function CronogramaClientContent({
     let realDurationCount = 0;
     let sharedAppointments = 0;
     let sharedActedAppointments = 0;
+    const sharedWithTotals = new Map<string, number>();
 
     const byConsultant = new Map<string, number>();
     const byBucket = new Map<string, number>();
@@ -1342,6 +1353,14 @@ function CronogramaClientContent({
           sharedActedAppointments += 1;
         }
       }
+      appointment.sharedWith.forEach((sharedName) => {
+        const normalizedName = sharedName.trim();
+        if (!normalizedName) return;
+        sharedWithTotals.set(
+          normalizedName,
+          (sharedWithTotals.get(normalizedName) ?? 0) + 1,
+        );
+      });
 
       const rawConsultant =
         normalizeConsultantText(appointment.consultantName) ||
@@ -1494,6 +1513,7 @@ function CronogramaClientContent({
       avgVisitsPerDayAllConsultants,
       sharedAppointments,
       sharedActedAppointments,
+      sharedWithTotals,
       totalCompletedAppointments,
       doneRate,
       absentRate,
@@ -1578,6 +1598,24 @@ function CronogramaClientContent({
       },
     ],
     [dashboardMetrics.sharedActedAppointments, dashboardMetrics.sharedAppointments, t],
+  );
+
+  const sharedWithData = useMemo(
+    () =>
+      Array.from(dashboardMetrics.sharedWithTotals.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
+        .slice(0, 10),
+    [dashboardMetrics.sharedWithTotals],
+  );
+
+  const actionOwnerData = useMemo(
+    () =>
+      Array.from(actionOwnerCounts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
+        .slice(0, 10),
+    [actionOwnerCounts],
   );
 
   const consultantAvgVisits = useMemo(() => {
@@ -2315,6 +2353,9 @@ function CronogramaClientContent({
       setActivityCounts(new Map());
       setActivityError(null);
       setActivityLoading(false);
+      setActionOwnerCounts(new Map());
+      setActionOwnerError(null);
+      setActionOwnerLoading(false);
       return;
     }
 
@@ -2380,6 +2421,76 @@ function CronogramaClientContent({
   }, [
     activeTab,
     appointmentConsultantById,
+    dashboardCountableAppointments,
+    dashboardLoading,
+    supabase,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== "dashboard") return;
+    if (dashboardLoading) return;
+
+    const appointmentIds = dashboardCountableAppointments
+      .map((item) => item.id)
+      .filter(Boolean);
+
+    if (!appointmentIds.length) {
+      setActionOwnerCounts(new Map());
+      setActionOwnerError(null);
+      setActionOwnerLoading(false);
+      return;
+    }
+
+    const requestId = ++actionOwnerRequestIdRef.current;
+    const loadActionOwners = async () => {
+      setActionOwnerLoading(true);
+      setActionOwnerError(null);
+      const counts = new Map<string, number>();
+      const chunkSize = 200;
+
+      for (let index = 0; index < appointmentIds.length; index += chunkSize) {
+        const chunk = appointmentIds.slice(index, index + chunkSize);
+        try {
+          const { data, error } = await supabase
+            .from("apontamento_acoes")
+            .select("created_by")
+            .in("apontamento_id", chunk);
+
+          if (requestId !== actionOwnerRequestIdRef.current) return;
+
+          if (error) {
+            console.error(error);
+            setActionOwnerCounts(new Map());
+            setActionOwnerError(t("schedule.dashboard.actionsLoadError"));
+            setActionOwnerLoading(false);
+            return;
+          }
+
+          const rows = (data ?? []) as ActionOwnerRow[];
+          rows.forEach((row) => {
+            const owner = row.created_by?.trim();
+            if (!owner) return;
+            counts.set(owner, (counts.get(owner) ?? 0) + 1);
+          });
+        } catch (error) {
+          console.error(error);
+          if (requestId !== actionOwnerRequestIdRef.current) return;
+          setActionOwnerCounts(new Map());
+          setActionOwnerError(t("schedule.dashboard.actionsLoadError"));
+          setActionOwnerLoading(false);
+          return;
+        }
+      }
+
+      if (requestId !== actionOwnerRequestIdRef.current) return;
+      setActionOwnerCounts(counts);
+      setActionOwnerLoading(false);
+    };
+
+    void loadActionOwners();
+  }, [
+    activeTab,
     dashboardCountableAppointments,
     dashboardLoading,
     supabase,
@@ -3175,10 +3286,6 @@ function CronogramaClientContent({
       {
         label: t("schedule.dashboard.actionCards.companies"),
         value: dashboardMetrics.totalCompaniesInPeriod,
-      },
-      {
-        label: t("schedule.dashboard.actionCards.sharedVisits"),
-        value: dashboardMetrics.sharedAppointments,
       },
     ];
 
@@ -4006,6 +4113,142 @@ function CronogramaClientContent({
                       ))}
                     </div>
                   </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {!isVisitDashboard ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.sharedByName")}
+              </div>
+              {sharedWithData.length ? (
+                <div
+                  className="mt-3"
+                  style={{
+                    height: `${Math.max(280, sharedWithData.length * 28 + 80)}px`,
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={sharedWithData}
+                      margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={140}
+                        allowDecimals={false}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.totalShares"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.sharedLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#F59E0B">
+                        <LabelList
+                          dataKey="count"
+                          position="right"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {!isVisitDashboard ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.actionsByOwner")}
+              </div>
+              {actionOwnerError ? (
+                <div className="mt-3 text-sm text-rose-600">{actionOwnerError}</div>
+              ) : actionOwnerLoading ? (
+                <div className="mt-3 text-sm text-slate-500">
+                  {t("schedule.dashboard.actionsLoading")}
+                </div>
+              ) : actionOwnerData.length ? (
+                <div
+                  className="mt-3"
+                  style={{
+                    height: `${Math.max(280, actionOwnerData.length * 28 + 80)}px`,
+                  }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={actionOwnerData}
+                      margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={140}
+                        allowDecimals={false}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          value,
+                          t("schedule.dashboard.tooltip.totalActions"),
+                        ]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.actionOwnerLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#6366F1">
+                        <LabelList
+                          dataKey="count"
+                          position="right"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               ) : (
                 <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
