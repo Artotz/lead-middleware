@@ -116,8 +116,20 @@ type ActivityRow = {
   registro_tipo: string | null;
 };
 
-type ActionOwnerRow = {
+type ActionDashboardRow = {
+  apontamento_id: string | null;
+  resultado: "em_andamento" | "vendido" | "perdido" | null;
+  valor: number | string | null;
+  tipo_oportunidade: string | null;
+  motivo_perda: string | null;
+  created_at: string | null;
   created_by: string | null;
+  company_id?: string | null;
+};
+
+type ActionAppointmentRefRow = {
+  id: string;
+  company_id: string | null;
 };
 
 const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
@@ -678,6 +690,33 @@ function CronogramaClientContent({
     (value: string | null | undefined) => value?.trim().toLowerCase() ?? "",
     [],
   );
+  const formatActorDisplayName = useCallback((value: string | null | undefined) => {
+    const raw = value?.trim() ?? "";
+    if (!raw.includes("@")) return raw;
+
+    const [localPart] = raw.split("@");
+    const parts = localPart
+      .split(".")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const isNameLike =
+      parts.length >= 2 &&
+      parts.every((part) => /^[a-zà-ÿ-]+$/i.test(part));
+
+    if (!isNameLike) return raw;
+
+    return parts
+      .map((part) =>
+        part
+          .split("-")
+          .map((token) =>
+            token ? token.charAt(0).toUpperCase() + token.slice(1).toLowerCase() : "",
+          )
+          .join("-"),
+      )
+      .join(" ");
+  }, []);
 
   const currencyFormatter = useMemo(
     () =>
@@ -707,6 +746,7 @@ function CronogramaClientContent({
   const [dashboardStage, setDashboardStage] = useState<DashboardStage>(
     urlState.dashboardStage,
   );
+  const isVisitDashboard = dashboardStage === "visita";
   const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
     [],
   );
@@ -732,12 +772,16 @@ function CronogramaClientContent({
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
   const activityRequestIdRef = useRef(0);
-  const [actionOwnerCounts, setActionOwnerCounts] = useState<Map<string, number>>(
-    new Map(),
+  const [dashboardActions, setDashboardActions] = useState<ActionDashboardRow[]>(
+    [],
   );
-  const [actionOwnerLoading, setActionOwnerLoading] = useState(false);
-  const [actionOwnerError, setActionOwnerError] = useState<string | null>(null);
-  const actionOwnerRequestIdRef = useRef(0);
+  const [actionDataLoading, setActionDataLoading] = useState(false);
+  const [actionDataError, setActionDataError] = useState<string | null>(null);
+  const actionDataRequestIdRef = useRef(0);
+  const [actionReloadKey, setActionReloadKey] = useState(0);
+  const [selectedActionActorId, setSelectedActionActorId] = useState<
+    string | null
+  >(null);
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
   >(urlState.companySort);
@@ -829,6 +873,23 @@ function CronogramaClientContent({
   const canCreateAppointment = role === "admin";
   const toolbarInputClass =
     "w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+  const actionActorOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    dashboardActions.forEach((action) => {
+      const actor = action.created_by?.trim().toLowerCase();
+      if (!actor) return;
+      counts.set(actor, (counts.get(actor) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([id, count]) => ({ id, name: formatActorDisplayName(id), count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
+      .map(({ id, name }) => ({ id, name }));
+  }, [dashboardActions, formatActorDisplayName]);
+  const dashboardConsultants = isVisitDashboard ? consultants : actionActorOptions;
+  const dashboardSelectedConsultantId = isVisitDashboard
+    ? selectedConsultantId
+    : selectedActionActorId;
 
   const scopeControl = (
     <ToolbarField
@@ -860,10 +921,10 @@ function CronogramaClientContent({
     const isDisabled =
       Boolean(options?.forceDisabled) ||
       dashboardScope !== "individual" ||
-      !consultants.length;
+      !dashboardConsultants.length;
     const value =
       dashboardScope === "individual"
-        ? (selectedConsultantId ?? "")
+        ? (dashboardSelectedConsultantId ?? "")
         : "__all_consultants__";
 
     return (
@@ -877,8 +938,12 @@ function CronogramaClientContent({
           value={value}
           onChange={(event) => {
             const next = event.target.value || null;
-            consultantUrlDirtyRef.current = true;
-            setSelectedConsultantId(next);
+            if (isVisitDashboard) {
+              consultantUrlDirtyRef.current = true;
+              setSelectedConsultantId(next);
+              return;
+            }
+            setSelectedActionActorId(next);
           }}
           disabled={isDisabled}
           aria-label={t("schedule.consultant")}
@@ -886,10 +951,15 @@ function CronogramaClientContent({
         >
           {dashboardScope !== "individual" ? (
             <option value="__all_consultants__">
-              {options?.disabledLabel ?? t("schedule.dashboard.allConsultants")}
+              {options?.disabledLabel ??
+                t(
+                  isVisitDashboard
+                    ? "schedule.dashboard.allConsultants"
+                    : "schedule.dashboard.allActors",
+                )}
             </option>
-          ) : consultants.length ? (
-            consultants.map((item) => (
+          ) : dashboardConsultants.length ? (
+            dashboardConsultants.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
               </option>
@@ -978,6 +1048,20 @@ function CronogramaClientContent({
       setSelectedConsultantId(urlState.consultantId);
     }
   }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
+
+  useEffect(() => {
+    if (!actionActorOptions.length) {
+      setSelectedActionActorId(null);
+      return;
+    }
+
+    setSelectedActionActorId((current) => {
+      if (current && actionActorOptions.some((item) => item.id === current)) {
+        return current;
+      }
+      return actionActorOptions[0]?.id ?? null;
+    });
+  }, [actionActorOptions]);
 
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
   const dashboardRange = useMemo(() => {
@@ -1544,60 +1628,190 @@ function CronogramaClientContent({
     [dashboardMetrics.statusTotals, t],
   );
 
-  const actionStatusData = useMemo(
+  const filteredDashboardActions = useMemo(() => {
+    if (dashboardScope !== "individual") return dashboardActions;
+    const selectedActor = selectedActionActorId?.trim().toLowerCase();
+    if (!selectedActor) return [];
+    return dashboardActions.filter(
+      (action) => action.created_by?.trim().toLowerCase() === selectedActor,
+    );
+  }, [dashboardActions, dashboardScope, selectedActionActorId]);
+
+  const actionMetrics = useMemo(() => {
+    const statusTotals = {
+      em_andamento: 0,
+      vendido: 0,
+      perdido: 0,
+    };
+    const statusByActor = new Map<
+      string,
+      { em_andamento: number; vendido: number; perdido: number; total: number }
+    >();
+    const revenueByActor = new Map<string, number>();
+    const opportunityTotals = new Map<string, number>();
+    const lossReasonTotals = new Map<string, number>();
+    const appointmentIds = new Set<string>();
+    const companyIds = new Set<string>();
+    let totalRevenue = 0;
+
+    filteredDashboardActions.forEach((action) => {
+      const actor = action.created_by?.trim().toLowerCase();
+      const result = action.resultado;
+      if (result && result in statusTotals) {
+        statusTotals[result] += 1;
+      }
+
+      if (actor) {
+        const current = statusByActor.get(actor) ?? {
+          em_andamento: 0,
+          vendido: 0,
+          perdido: 0,
+          total: 0,
+        };
+        if (result && result in current) {
+          current[result] += 1;
+        }
+        current.total += 1;
+        statusByActor.set(actor, current);
+      }
+
+      const opportunityType = action.tipo_oportunidade?.trim();
+      if (opportunityType) {
+        const normalized = opportunityType.toLowerCase();
+        const canonical =
+          OPPORTUNITY_OPTIONS.find(
+            (option) => option.id.toLowerCase() === normalized,
+          )?.id ?? normalized;
+        opportunityTotals.set(
+          canonical,
+          (opportunityTotals.get(canonical) ?? 0) + 1,
+        );
+      }
+
+      const lossReason = action.motivo_perda?.trim();
+      if (lossReason) {
+        lossReasonTotals.set(
+          lossReason,
+          (lossReasonTotals.get(lossReason) ?? 0) + 1,
+        );
+      }
+
+      const appointmentId = action.apontamento_id?.trim();
+      if (appointmentId) {
+        appointmentIds.add(appointmentId);
+      }
+
+      const companyId = action.company_id?.trim();
+      if (companyId) {
+        companyIds.add(companyId);
+      }
+
+      const amount = toNumber(action.valor) ?? 0;
+      if (result === "vendido" && amount > 0) {
+        totalRevenue += amount;
+        if (actor) {
+          revenueByActor.set(actor, (revenueByActor.get(actor) ?? 0) + amount);
+        }
+      }
+    });
+
+    const actors = Array.from(statusByActor.entries())
+      .map(([id, totals]) => ({
+        id,
+        name: formatActorDisplayName(id),
+        ...totals,
+      }))
+      .sort(
+        (a, b) =>
+          b.total - a.total ||
+          b.vendido - a.vendido ||
+          a.name.localeCompare(b.name, "pt-BR"),
+      );
+
+    const revenueActors = Array.from(revenueByActor.entries())
+      .map(([id, value]) => ({
+        id,
+        name: formatActorDisplayName(id),
+        value,
+      }))
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "pt-BR"));
+
+    const averageTicket =
+      statusTotals.vendido > 0 ? totalRevenue / statusTotals.vendido : 0;
+
+    return {
+      totalActions: filteredDashboardActions.length,
+      totalAppointments: appointmentIds.size,
+      totalCompanies: companyIds.size,
+      totalActors: actors.length,
+      totalRevenue,
+      averageTicket,
+      statusTotals,
+      statusByActor: actors,
+      revenueByActor: revenueActors,
+      opportunityTotals,
+      lossReasonTotals,
+    };
+  }, [filteredDashboardActions, formatActorDisplayName]);
+
+  const actionResultData = useMemo(
     () => [
       {
-        id: "done",
-        label: t("schedule.dashboard.actionCharts.completed"),
-        count: dashboardMetrics.statusTotals.done,
-        color: statusChartColors.done,
+        id: "em_andamento",
+        label: t("appointment.action.resultInProgress"),
+        count: actionMetrics.statusTotals.em_andamento,
+        color: "#0EA5E9",
       },
       {
-        id: "atuado",
-        label: t("schedule.dashboard.actionCharts.acted"),
-        count: dashboardMetrics.statusTotals.atuado,
-        color: statusChartColors.atuado,
+        id: "vendido",
+        label: t("appointment.action.resultSold"),
+        count: actionMetrics.statusTotals.vendido,
+        color: "#10B981",
+      },
+      {
+        id: "perdido",
+        label: t("appointment.action.resultLost"),
+        count: actionMetrics.statusTotals.perdido,
+        color: "#F43F5E",
       },
     ],
-    [dashboardMetrics.statusTotals, t],
+    [actionMetrics.statusTotals, t],
   );
 
-  const sharedStatusData = useMemo(
-    () => [
-      {
-        id: "shared",
-        label: t("schedule.dashboard.actionCharts.shared"),
-        count:
-          dashboardMetrics.sharedAppointments -
-          dashboardMetrics.sharedActedAppointments,
-        color: "#F59E0B",
-      },
-      {
-        id: "shared_acted",
-        label: t("schedule.dashboard.actionCharts.sharedActed"),
-        count: dashboardMetrics.sharedActedAppointments,
-        color: statusChartColors.atuado,
-      },
-    ],
-    [dashboardMetrics.sharedActedAppointments, dashboardMetrics.sharedAppointments, t],
+  const actionStatusByConsultantData = useMemo(
+    () => actionMetrics.statusByActor.slice(0, 6),
+    [actionMetrics.statusByActor],
   );
 
-  const sharedWithData = useMemo(
+  const actionRevenueByConsultantData = useMemo(
+    () => actionMetrics.revenueByActor.slice(0, 6),
+    [actionMetrics.revenueByActor],
+  );
+
+  const actionOpportunityData = useMemo(
     () =>
-      Array.from(dashboardMetrics.sharedWithTotals.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
-        .slice(0, 10),
-    [dashboardMetrics.sharedWithTotals],
+      Array.from(actionMetrics.opportunityTotals.entries())
+        .map(([id, count]) => ({
+          id,
+          label: t(`schedule.opportunity.${id}`, undefined, id),
+          count,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, locale))
+        .slice(0, 6),
+    [actionMetrics.opportunityTotals, locale, t],
   );
 
-  const actionOwnerData = useMemo(
+  const actionLossReasonData = useMemo(
     () =>
-      Array.from(actionOwnerCounts.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
-        .slice(0, 10),
-    [actionOwnerCounts],
+      Array.from(actionMetrics.lossReasonTotals.entries())
+        .map(([id, count]) => ({
+          id,
+          label: t(`appointment.action.lossReasons.${id}`, undefined, id),
+          count,
+        }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, locale))
+        .slice(0, 6),
+    [actionMetrics.lossReasonTotals, locale, t],
   );
 
   const consultantAvgVisits = useMemo(() => {
@@ -1671,6 +1885,7 @@ function CronogramaClientContent({
     () => ({
       reconexao: t("appointment.activity.reconexao"),
       medicao_mr: t("appointment.activity.medicao_mr"),
+      analise_fluido_arref: t("appointment.activity.analise_fluido_arref"),
       proposta_preventiva: t("appointment.activity.proposta_preventiva"),
       proposta_powergard: t("appointment.activity.proposta_powergard"),
       outro: t("appointment.activity.outro"),
@@ -1682,6 +1897,7 @@ function CronogramaClientContent({
     const ordered = [
       "reconexao",
       "medicao_mr",
+      "analise_fluido_arref",
       "proposta_preventiva",
       "proposta_powergard",
       "outro",
@@ -2335,9 +2551,6 @@ function CronogramaClientContent({
       setActivityCounts(new Map());
       setActivityError(null);
       setActivityLoading(false);
-      setActionOwnerCounts(new Map());
-      setActionOwnerError(null);
-      setActionOwnerLoading(false);
       return;
     }
 
@@ -2411,70 +2624,94 @@ function CronogramaClientContent({
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
-    if (dashboardLoading) return;
+    const requestId = ++actionDataRequestIdRef.current;
+    const loadActions = async () => {
+      setActionDataLoading(true);
+      setActionDataError(null);
 
-    const appointmentIds = dashboardCountableAppointments
-      .map((item) => item.id)
-      .filter(Boolean);
+      try {
+        const { data, error } = await supabase
+          .from("apontamento_acoes")
+          .select(
+            "apontamento_id, resultado, valor, tipo_oportunidade, motivo_perda, created_at, created_by",
+          )
+          .gte("created_at", range.startIso)
+          .lte("created_at", range.endIso)
+          .order("created_at", { ascending: true });
 
-    if (!appointmentIds.length) {
-      setActionOwnerCounts(new Map());
-      setActionOwnerError(null);
-      setActionOwnerLoading(false);
-      return;
-    }
+        if (requestId !== actionDataRequestIdRef.current) return;
 
-    const requestId = ++actionOwnerRequestIdRef.current;
-    const loadActionOwners = async () => {
-      setActionOwnerLoading(true);
-      setActionOwnerError(null);
-      const counts = new Map<string, number>();
-      const chunkSize = 200;
+        if (error) {
+          console.error(error);
+          setDashboardActions([]);
+          setActionDataError(t("schedule.dashboard.actionsLoadError"));
+          setActionDataLoading(false);
+          return;
+        }
 
-      for (let index = 0; index < appointmentIds.length; index += chunkSize) {
-        const chunk = appointmentIds.slice(index, index + chunkSize);
-        try {
-          const { data, error } = await supabase
-            .from("apontamento_acoes")
-            .select("created_by")
-            .in("apontamento_id", chunk);
+        const rows = (data ?? []) as ActionDashboardRow[];
+        const appointmentIds = Array.from(
+          new Set(rows.map((row) => row.apontamento_id).filter(Boolean)),
+        );
 
-          if (requestId !== actionOwnerRequestIdRef.current) return;
+        if (!appointmentIds.length) {
+          setDashboardActions(rows);
+          setActionDataLoading(false);
+          return;
+        }
 
-          if (error) {
-            console.error(error);
-            setActionOwnerCounts(new Map());
-            setActionOwnerError(t("schedule.dashboard.actionsLoadError"));
-            setActionOwnerLoading(false);
+        const appointmentCompanyMap = new Map<string, string | null>();
+        const chunkSize = 200;
+
+        for (let index = 0; index < appointmentIds.length; index += chunkSize) {
+          const chunk = appointmentIds.slice(index, index + chunkSize);
+          const { data: appointmentData, error: appointmentError } = await supabase
+            .from("apontamentos")
+            .select("id, company_id")
+            .in("id", chunk);
+
+          if (requestId !== actionDataRequestIdRef.current) return;
+
+          if (appointmentError) {
+            console.error(appointmentError);
+            setDashboardActions([]);
+            setActionDataError(t("schedule.dashboard.actionsLoadError"));
+            setActionDataLoading(false);
             return;
           }
 
-          const rows = (data ?? []) as ActionOwnerRow[];
-          rows.forEach((row) => {
-            const owner = row.created_by?.trim();
-            if (!owner) return;
-            counts.set(owner, (counts.get(owner) ?? 0) + 1);
+          const appointmentRows = (appointmentData ?? []) as ActionAppointmentRefRow[];
+          appointmentRows.forEach((row) => {
+            appointmentCompanyMap.set(row.id, row.company_id);
           });
-        } catch (error) {
-          console.error(error);
-          if (requestId !== actionOwnerRequestIdRef.current) return;
-          setActionOwnerCounts(new Map());
-          setActionOwnerError(t("schedule.dashboard.actionsLoadError"));
-          setActionOwnerLoading(false);
-          return;
         }
-      }
 
-      if (requestId !== actionOwnerRequestIdRef.current) return;
-      setActionOwnerCounts(counts);
-      setActionOwnerLoading(false);
+        if (requestId !== actionDataRequestIdRef.current) return;
+
+        setDashboardActions(
+          rows.map((row) => ({
+            ...row,
+            company_id: row.apontamento_id
+              ? (appointmentCompanyMap.get(row.apontamento_id) ?? null)
+              : null,
+          })),
+        );
+        setActionDataLoading(false);
+      } catch (error) {
+        console.error(error);
+        if (requestId !== actionDataRequestIdRef.current) return;
+        setDashboardActions([]);
+        setActionDataError(t("schedule.dashboard.actionsLoadError"));
+        setActionDataLoading(false);
+      }
     };
 
-    void loadActionOwners();
+    void loadActions();
   }, [
     activeTab,
-    dashboardCountableAppointments,
-    dashboardLoading,
+    actionReloadKey,
+    range.endIso,
+    range.startIso,
     supabase,
     t,
   ]);
@@ -3148,15 +3385,28 @@ function CronogramaClientContent({
   );
 
   const renderDashboard = () => {
-    if (dashboardScope === "individual" && !selectedConsultantId) {
+    const selectedDashboardConsultantId = isVisitDashboard
+      ? selectedConsultantId
+      : selectedActionActorId;
+
+    const needsDashboardSelection =
+      dashboardScope === "individual" &&
+      !selectedDashboardConsultantId &&
+      (isVisitDashboard || actionActorOptions.length > 0);
+
+    if (needsDashboardSelection) {
       return (
         <div className={`${panelClass} p-4 text-sm text-slate-600`}>
-          {t("schedule.dashboard.selectConsultant")}
+          {t(
+            isVisitDashboard
+              ? "schedule.dashboard.selectConsultant"
+              : "schedule.dashboard.selectActor",
+          )}
         </div>
       );
     }
 
-    if (dashboardLoading) {
+    if ((isVisitDashboard && dashboardLoading) || (!isVisitDashboard && actionDataLoading)) {
       return (
         <div className={`${panelClass} p-4`}>
           <div className="flex flex-col gap-3">
@@ -3199,18 +3449,24 @@ function CronogramaClientContent({
       );
     }
 
-    if (dashboardError) {
+    if ((isVisitDashboard && dashboardError) || (!isVisitDashboard && actionDataError)) {
       return (
         <div className={`${panelClass} p-4`}>
           <div className="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 shadow-sm">
-            <span>{dashboardError}</span>
+            <span>{isVisitDashboard ? dashboardError : actionDataError}</span>
             <button
               type="button"
-              onClick={() =>
-                dashboardScope === "general"
-                  ? void loadGeneralDashboard()
-                  : void refresh()
-              }
+              onClick={() => {
+                if (isVisitDashboard) {
+                  if (dashboardScope === "general") {
+                    void loadGeneralDashboard();
+                  } else {
+                    void refresh();
+                  }
+                } else {
+                  setActionReloadKey((current) => current + 1);
+                }
+              }}
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:border-rose-400 hover:text-rose-900"
             >
               {t("schedule.dashboard.retry")}
@@ -3220,15 +3476,15 @@ function CronogramaClientContent({
       );
     }
 
-    const hasNoData =
-      dashboardMetrics.totalAppointments === 0 &&
-      dashboardMetrics.totalCompanies === 0;
+    const hasNoData = isVisitDashboard
+      ? dashboardMetrics.totalAppointments === 0 &&
+        dashboardMetrics.totalCompanies === 0
+      : actionMetrics.totalActions === 0;
 
     const averageDurationLabel = formatAverageDuration(
       dashboardMetrics.avgRealDurationMinutes,
       t,
     );
-    const isVisitDashboard = dashboardStage === "visita";
 
     const cards = [
       {
@@ -3258,16 +3514,31 @@ function CronogramaClientContent({
     ];
     const actionCards = [
       {
-        label: t("schedule.dashboard.actionCards.period"),
-        value: dashboardMetrics.totalAppointments,
+        label: t("schedule.dashboard.actionCards.actions"),
+        value: actionMetrics.totalActions,
       },
       {
-        label: t("schedule.dashboard.actionCards.completedVisits"),
-        value: dashboardMetrics.totalCompletedAppointments,
+        label: t("schedule.dashboard.actionCards.actors"),
+        value: actionMetrics.totalActors,
+      },
+      {
+        label: t("schedule.dashboard.actionCards.appointments"),
+        value: actionMetrics.totalAppointments,
       },
       {
         label: t("schedule.dashboard.actionCards.companies"),
-        value: dashboardMetrics.totalCompaniesInPeriod,
+        value: actionMetrics.totalCompanies,
+      },
+      {
+        label: t("schedule.dashboard.actionCards.revenue"),
+        value: formatCurrency(actionMetrics.totalRevenue),
+      },
+      {
+        label: t("schedule.dashboard.actionCards.averageTicket"),
+        value:
+          actionMetrics.statusTotals.vendido > 0
+            ? formatCurrency(actionMetrics.averageTicket)
+            : t("schedule.noData"),
       },
     ];
 
@@ -3367,8 +3638,16 @@ function CronogramaClientContent({
 
           <div className="text-xs text-slate-500">
             {dashboardScope === "general"
-              ? t("schedule.dashboard.scopeHintGeneral")
-              : t("schedule.dashboard.scopeHintIndividual")}
+              ? t(
+                  isVisitDashboard
+                    ? "schedule.dashboard.scopeHintGeneral"
+                    : "schedule.dashboard.actionScopeHintGeneral",
+                )
+              : t(
+                  isVisitDashboard
+                    ? "schedule.dashboard.scopeHintIndividual"
+                    : "schedule.dashboard.actionScopeHintIndividual",
+                )}
           </div>
         </div>
 
@@ -3395,7 +3674,7 @@ function CronogramaClientContent({
             ))}
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {actionCards.map((card) => (
               <div
                 key={card.label}
@@ -3933,20 +4212,20 @@ function CronogramaClientContent({
           ) : null}
 
           {!isVisitDashboard ? (
-            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="min-w-0 flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("schedule.dashboard.actionCharts.completedVsActed")}
+                {t("schedule.dashboard.actionCharts.resultDistribution")}
               </div>
-              {actionStatusData.some((item) => item.count > 0) ? (
+              {actionResultData.some((item) => item.count > 0) ? (
                 <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
-                  <div className="h-full min-h-[260px] w-full md:w-2/3">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-[320px] w-full min-w-0 md:w-2/3">
+                    <ResponsiveContainer width="100%" height={320} minWidth={0}>
                       <PieChart>
                         <Tooltip
                           formatter={(value, _name, item) => [
                             value,
                             item?.payload?.label ??
-                              t("schedule.dashboard.tooltip.appointments"),
+                              t("schedule.dashboard.tooltip.totalActions"),
                           ]}
                           labelFormatter={(label) =>
                             t("schedule.dashboard.tooltip.statusLabel", {
@@ -3964,7 +4243,7 @@ function CronogramaClientContent({
                           itemStyle={{ color: "#0F172A" }}
                         />
                         <Pie
-                          data={actionStatusData}
+                          data={actionResultData}
                           dataKey="count"
                           nameKey="label"
                           cx="50%"
@@ -3975,7 +4254,7 @@ function CronogramaClientContent({
                           label={renderPieOuterLabel}
                           labelLine={renderPieLabelLine}
                         >
-                          {actionStatusData.map((item) => (
+                          {actionResultData.map((item) => (
                             <Cell key={item.id} fill={item.color} />
                           ))}
                         </Pie>
@@ -3987,7 +4266,7 @@ function CronogramaClientContent({
                       {t("schedule.dashboard.legendTitle")}
                     </div>
                     <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      {actionStatusData.map((item) => (
+                      {actionResultData.map((item) => (
                         <div
                           key={`legend-${item.id}`}
                           className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
@@ -4001,8 +4280,7 @@ function CronogramaClientContent({
                               {item.label}
                             </div>
                             <div className="text-slate-600">
-                              {item.count}{" "}
-                              {t("schedule.dashboard.tooltip.totalAppointments")}
+                              {item.count} {t("schedule.dashboard.tooltip.totalActions")}
                             </div>
                           </div>
                         </div>
@@ -4019,125 +4297,44 @@ function CronogramaClientContent({
           ) : null}
 
           {!isVisitDashboard ? (
-            <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("schedule.dashboard.actionCharts.sharedVsSharedActed")}
+                {t("schedule.dashboard.actionCharts.statusByActor")}
               </div>
-              {sharedStatusData.some((item) => item.count > 0) ? (
-                <div className="mt-3 flex min-h-[280px] flex-1 flex-col justify-center gap-4 md:flex-row md:items-center">
-                  <div className="h-full min-h-[260px] w-full md:w-2/3">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Tooltip
-                          formatter={(value, _name, item) => [
-                            value,
-                            item?.payload?.label ??
-                              t("schedule.dashboard.tooltip.appointments"),
-                          ]}
-                          labelFormatter={(label) =>
-                            t("schedule.dashboard.tooltip.statusLabel", {
-                              name: String(label ?? ""),
-                            })
-                          }
-                          contentStyle={{
-                            backgroundColor: "#FFFFFF",
-                            color: "#0F172A",
-                            borderRadius: "8px",
-                            border: "1px solid #E2E8F0",
-                            boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                          }}
-                          labelStyle={{ color: "#0F172A", fontWeight: 600 }}
-                          itemStyle={{ color: "#0F172A" }}
-                        />
-                        <Pie
-                          data={sharedStatusData}
-                          dataKey="count"
-                          nameKey="label"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={62}
-                          outerRadius={96}
-                          paddingAngle={3}
-                          label={renderPieOuterLabel}
-                          labelLine={renderPieLabelLine}
-                        >
-                          {sharedStatusData.map((item) => (
-                            <Cell key={item.id} fill={item.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="w-full md:w-1/3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("schedule.dashboard.legendTitle")}
-                    </div>
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      {sharedStatusData.map((item) => (
-                        <div
-                          key={`legend-${item.id}`}
-                          className="flex items-start gap-2 border-b border-slate-200 py-2 last:border-b-0"
-                        >
-                          <span
-                            className="mt-1 inline-flex h-2.5 w-2.5 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <div className="flex-1">
-                            <div className="font-semibold text-slate-900">
-                              {item.label}
-                            </div>
-                            <div className="text-slate-600">
-                              {item.count}{" "}
-                              {t("schedule.dashboard.tooltip.totalAppointments")}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
-                  {t("schedule.dashboard.noChartData")}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {!isVisitDashboard ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("schedule.dashboard.actionCharts.sharedByName")}
-              </div>
-              {sharedWithData.length ? (
-                <div
-                  className="mt-3"
-                  style={{
-                    height: `${Math.max(280, sharedWithData.length * 28 + 80)}px`,
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
+              {actionStatusByConsultantData.length ? (
+                <div className="mt-3 h-[320px] min-w-0">
+                  <ResponsiveContainer width="100%" height={320} minWidth={0}>
                     <BarChart
-                      layout="vertical"
-                      data={sharedWithData}
-                      margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
+                      data={actionStatusByConsultantData}
+                      barGap={0}
+                      barCategoryGap="18%"
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis
-                        type="category"
+                      <XAxis
                         dataKey="name"
-                        width={140}
-                        allowDecimals={false}
+                        interval={0}
                         tick={{ fontSize: 10 }}
                       />
-                      <Tooltip
-                        formatter={(value) => [
-                          value,
-                          t("schedule.dashboard.tooltip.totalShares"),
+                      <YAxis
+                        allowDecimals
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
                         ]}
+                      />
+                      <Tooltip
+                        formatter={(value, name) => {
+                          const labels: Record<string, string> = {
+                            em_andamento: t("appointment.action.resultInProgress"),
+                            vendido: t("appointment.action.resultSold"),
+                            perdido: t("appointment.action.resultLost"),
+                          };
+                          return [value, labels[String(name)] ?? String(name)];
+                        }}
                         labelFormatter={(label) =>
-                          t("schedule.dashboard.tooltip.sharedLabel", {
+                          t("schedule.dashboard.tooltip.actionActorLabel", {
                             name: String(label ?? ""),
                           })
                         }
@@ -4151,10 +4348,39 @@ function CronogramaClientContent({
                         labelStyle={{ color: "#0F172A", fontWeight: 600 }}
                         itemStyle={{ color: "#0F172A" }}
                       />
-                      <Bar dataKey="count" fill="#F59E0B">
+                      <Bar
+                        dataKey="em_andamento"
+                        name="em_andamento"
+                        fill="#0EA5E9"
+                        radius={[4, 4, 0, 0]}
+                      >
                         <LabelList
-                          dataKey="count"
-                          position="right"
+                          dataKey="em_andamento"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                      <Bar
+                        dataKey="vendido"
+                        name="vendido"
+                        fill="#10B981"
+                        radius={[4, 4, 0, 0]}
+                      >
+                        <LabelList
+                          dataKey="vendido"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                      <Bar
+                        dataKey="perdido"
+                        name="perdido"
+                        fill="#F43F5E"
+                        radius={[4, 4, 0, 0]}
+                      >
+                        <LabelList
+                          dataKey="perdido"
+                          position="top"
                           formatter={(value) => formatChartLabel(value)}
                         />
                       </Bar>
@@ -4170,45 +4396,43 @@ function CronogramaClientContent({
           ) : null}
 
           {!isVisitDashboard ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("schedule.dashboard.actionCharts.actionsByOwner")}
+                {t("schedule.dashboard.actionCharts.revenueByActor")}
               </div>
-              {actionOwnerError ? (
-                <div className="mt-3 text-sm text-rose-600">{actionOwnerError}</div>
-              ) : actionOwnerLoading ? (
-                <div className="mt-3 text-sm text-slate-500">
-                  {t("schedule.dashboard.actionsLoading")}
-                </div>
-              ) : actionOwnerData.length ? (
-                <div
-                  className="mt-3"
-                  style={{
-                    height: `${Math.max(280, actionOwnerData.length * 28 + 80)}px`,
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
+              {actionRevenueByConsultantData.length ? (
+                <div className="mt-3 h-[320px] min-w-0">
+                  <ResponsiveContainer width="100%" height={320} minWidth={0}>
                     <BarChart
-                      layout="vertical"
-                      data={actionOwnerData}
-                      margin={{ top: 12, right: 24, left: 12, bottom: 12 }}
+                      data={actionRevenueByConsultantData}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" />
-                      <YAxis
-                        type="category"
+                      <XAxis
                         dataKey="name"
-                        width={140}
-                        allowDecimals={false}
+                        interval={0}
                         tick={{ fontSize: 10 }}
                       />
-                      <Tooltip
-                        formatter={(value) => [
-                          value,
-                          t("schedule.dashboard.tooltip.totalActions"),
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
                         ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => {
+                          const numericValue = Array.isArray(value)
+                            ? value[0]
+                            : value;
+                          return [
+                            formatCurrency(toNumber(numericValue) ?? 0),
+                            t("schedule.dashboard.tooltip.revenue"),
+                          ];
+                        }}
                         labelFormatter={(label) =>
-                          t("schedule.dashboard.tooltip.actionOwnerLabel", {
+                          t("schedule.dashboard.tooltip.actionActorLabel", {
                             name: String(label ?? ""),
                           })
                         }
@@ -4222,10 +4446,137 @@ function CronogramaClientContent({
                         labelStyle={{ color: "#0F172A", fontWeight: 600 }}
                         itemStyle={{ color: "#0F172A" }}
                       />
-                      <Bar dataKey="count" fill="#6366F1">
+                      <Bar dataKey="value" fill="#10B981" radius={[4, 4, 0, 0]}>
+                        <LabelList
+                          dataKey="value"
+                          position="top"
+                          formatter={(value) => {
+                            const numericValue = Array.isArray(value)
+                              ? value[0]
+                              : value;
+                            return formatCurrency(toNumber(numericValue) ?? 0);
+                          }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {!isVisitDashboard ? (
+            <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.opportunitiesByType")}
+              </div>
+              {actionOpportunityData.length ? (
+                <div className="mt-3 h-[320px] min-w-0">
+                  <ResponsiveContainer width="100%" height={320} minWidth={0}>
+                    <BarChart
+                      data={actionOpportunityData}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="label"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [value, t("schedule.dashboard.tooltip.opportunities")]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.opportunityTypeLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#0EA5E9" radius={[4, 4, 0, 0]}>
                         <LabelList
                           dataKey="count"
-                          position="right"
+                          position="top"
+                          formatter={(value) => formatChartLabel(value)}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="mt-3 flex min-h-[280px] flex-1 items-center justify-center text-center text-sm text-slate-500">
+                  {t("schedule.dashboard.noChartData")}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {!isVisitDashboard ? (
+            <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("schedule.dashboard.actionCharts.lossReasons")}
+              </div>
+              {actionLossReasonData.length ? (
+                <div className="mt-3 h-[320px] min-w-0">
+                  <ResponsiveContainer width="100%" height={320} minWidth={0}>
+                    <BarChart
+                      data={actionLossReasonData}
+                      margin={{ top: 24, right: 12, left: 0, bottom: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="label"
+                        interval={0}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        domain={[
+                          0,
+                          (dataMax: number) =>
+                            Math.max(1, Math.ceil(dataMax * 1.15)),
+                        ]}
+                      />
+                      <Tooltip
+                        formatter={(value) => [value, t("schedule.dashboard.tooltip.lossReasons")]}
+                        labelFormatter={(label) =>
+                          t("schedule.dashboard.tooltip.lossReasonLabel", {
+                            name: String(label ?? ""),
+                          })
+                        }
+                        contentStyle={{
+                          backgroundColor: "#FFFFFF",
+                          color: "#0F172A",
+                          borderRadius: "8px",
+                          border: "1px solid #E2E8F0",
+                          boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                        }}
+                        labelStyle={{ color: "#0F172A", fontWeight: 600 }}
+                        itemStyle={{ color: "#0F172A" }}
+                      />
+                      <Bar dataKey="count" fill="#F97316" radius={[4, 4, 0, 0]}>
+                        <LabelList
+                          dataKey="count"
+                          position="top"
                           formatter={(value) => formatChartLabel(value)}
                         />
                       </Bar>

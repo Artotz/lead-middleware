@@ -680,6 +680,7 @@ export default function AppointmentDetailClient({
     () => ({
       reconexao: t("appointment.activity.reconexao"),
       medicao_mr: t("appointment.activity.medicao_mr"),
+      analise_fluido_arref: t("appointment.activity.analise_fluido_arref"),
       proposta_preventiva: t("appointment.activity.proposta_preventiva"),
       proposta_powergard: t("appointment.activity.proposta_powergard"),
       outro: t("appointment.activity.outro"),
@@ -691,6 +692,7 @@ export default function AppointmentDetailClient({
     const ordered = [
       "reconexao",
       "medicao_mr",
+      "analise_fluido_arref",
       "proposta_preventiva",
       "proposta_powergard",
       "outro",
