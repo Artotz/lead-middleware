@@ -8,6 +8,25 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Veneza Service Field",
   description: "Painel de consulta do Veneza Service Field.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/favicon.png",
+  },
+  openGraph: {
+    title: "Veneza Service Field",
+    description: "Painel de consulta do Veneza Service Field.",
+    images: [{ url: "/logo.svg", type: "image/svg+xml" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Veneza Service Field",
+    description: "Painel de consulta do Veneza Service Field.",
+    images: ["/logo.svg"],
+  },
 };
 
 export default function RootLayout({
