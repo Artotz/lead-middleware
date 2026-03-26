@@ -806,7 +806,6 @@ function CronogramaClientContent({
   const [lastVisitLoading, setLastVisitLoading] = useState(false);
   const [lastVisitError, setLastVisitError] = useState<string | null>(null);
   const lastVisitRequestIdRef = useRef(0);
-  const skipConsultantResetRef = useRef(true);
   const queryConsultantAppliedRef = useRef(false);
   const allowInitialUrlSyncRef = useRef(false);
   const consultantUrlDirtyRef = useRef(searchParams.has("consultor"));
@@ -976,7 +975,6 @@ function CronogramaClientContent({
     if (!urlState.consultantId) return;
     const exists = consultants.some((item) => item.id === urlState.consultantId);
     if (exists && selectedConsultantId !== urlState.consultantId) {
-      skipConsultantResetRef.current = true;
       setSelectedConsultantId(urlState.consultantId);
     }
   }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
@@ -1010,22 +1008,6 @@ function CronogramaClientContent({
     if (!selectedWeek) return;
     setRange({ startAt: selectedWeek.startAt, endAt: selectedWeek.endAt });
   }, [activeTab, dashboardRange, selectedWeek, setRange]);
-
-  useEffect(() => {
-    if (skipConsultantResetRef.current) {
-      skipConsultantResetRef.current = false;
-      return;
-    }
-    setCompanySort("name");
-    setCompanySearch("");
-    setCompanyPage(1);
-    setShowOutsidePortfolio(false);
-    setAppointmentSearch("");
-    setAppointmentStatus([]);
-    setAppointmentOpportunity([]);
-    setAppointmentPage(1);
-    setCronogramaStatus([]);
-  }, [selectedConsultantId]);
 
   useEffect(() => {
     if (!allowInitialUrlSyncRef.current) {
