@@ -797,6 +797,22 @@ export default function AppointmentDetailClient({
     [refreshMediaItemSignedUrl, t],
   );
 
+  const handleOpenAttachment = useCallback(
+    async (item: AppointmentMediaItem) => {
+      if (typeof window === "undefined") return;
+
+      const signedUrl = await refreshMediaItemSignedUrl(item);
+
+      if (signedUrl) {
+        window.open(signedUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      setMediaError(t("appointment.attachmentOpenError"));
+    },
+    [refreshMediaItemSignedUrl, t],
+  );
+
   const closeMediaPreview = useCallback(() => {
     selectedMediaRequestIdRef.current += 1;
     setSelectedMedia(null);
@@ -1225,6 +1241,21 @@ export default function AppointmentDetailClient({
             </div>
           ) : null}
 
+          {appointment.sharedWith?.length ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+              <h2 className="text-sm font-semibold text-slate-900">
+                {t("appointment.sharedWith")}
+              </h2>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {appointment.sharedWith.map((item) => (
+                  <Badge key={item} tone="slate">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -1474,27 +1505,21 @@ export default function AppointmentDetailClient({
                                   />
                                 </button>
                               ) : (
-                                <a
-                                  href={item.signedUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => void handleOpenAttachment(item)}
                                   className="flex h-48 flex-col items-center justify-center gap-2 px-4 text-center text-xs text-slate-600 transition hover:bg-slate-100"
                                 >
-                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                  <div className="text-xs font-semibold text-slate-500">
                                     {t("appointment.attachment")}
                                   </div>
-                                  <div className="text-sm font-semibold text-slate-800 line-clamp-2">
+                                  <div className="max-w-full break-all text-sm font-semibold leading-5 text-slate-800 line-clamp-3">
                                     {fileName}
                                   </div>
                                   <div className="text-[11px] font-semibold text-slate-500">
                                     {t("appointment.openAttachment")}
                                   </div>
-                                  {item.mimeType ? (
-                                    <div className="text-[10px] text-slate-500">
-                                      {item.mimeType}
-                                    </div>
-                                  ) : null}
-                                </a>
+                                </button>
                               )
                             ) : (
                               <div className="flex h-48 items-center justify-center px-4 text-xs text-slate-400">
@@ -1512,9 +1537,6 @@ export default function AppointmentDetailClient({
                                     t("appointment.timestampUnknown"),
                                   )}
                                 </span>
-                                {item.mimeType ? (
-                                  <span>{item.mimeType}</span>
-                                ) : null}
                               </div>
                             </div>
                           </div>
