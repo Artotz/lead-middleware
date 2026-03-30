@@ -167,6 +167,49 @@ const getMediaFileName = (path: string, fallback: string) => {
   }
 };
 
+const parseActionMoneyValue = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.replace(/[^\d,.-]/g, "");
+  if (!normalized) return null;
+
+  const negative = normalized.startsWith("-");
+  const unsigned = negative ? normalized.slice(1) : normalized;
+  if (!unsigned) return null;
+
+  const lastComma = unsigned.lastIndexOf(",");
+  const lastDot = unsigned.lastIndexOf(".");
+  const lastSeparatorIndex = Math.max(lastComma, lastDot);
+
+  let numeric = unsigned;
+
+  if (lastSeparatorIndex >= 0) {
+    const separator = unsigned[lastSeparatorIndex];
+    const integerPart = unsigned.slice(0, lastSeparatorIndex);
+    const decimalPart = unsigned.slice(lastSeparatorIndex + 1);
+    const digitsAfterSeparator = decimalPart.replace(/[^\d]/g, "").length;
+
+    const treatAsThousandsSeparator =
+      digitsAfterSeparator === 3 &&
+      integerPart.replace(/[^\d]/g, "").length > 0 &&
+      unsigned.indexOf(separator) === lastSeparatorIndex;
+
+    if (treatAsThousandsSeparator) {
+      numeric = unsigned.replace(/[.,]/g, "");
+    } else {
+      const normalizedInteger = integerPart.replace(/[.,]/g, "");
+      const normalizedDecimal = decimalPart.replace(/[.,]/g, "");
+      numeric = `${normalizedInteger}.${normalizedDecimal}`;
+    }
+  }
+
+  if (!numeric || numeric === ".") return null;
+
+  const parsed = Number.parseFloat(negative ? `-${numeric}` : numeric);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const replaceMediaSignedUrl = (
   items: AppointmentMediaItem[],
   mediaId: string,
@@ -918,7 +961,7 @@ export default function AppointmentDetailClient({
         setActionError(t("appointment.action.branchRequired"));
         return;
       }
-      const value = Number(actionValue.replace(",", "."));
+      const value = parseActionMoneyValue(actionValue);
       if (!Number.isFinite(value) || value <= 0) {
         setActionError(t("appointment.action.valueRequired"));
         return;
@@ -932,7 +975,7 @@ export default function AppointmentDetailClient({
     setActionError(null);
 
     const normalizedValue =
-      actionResult === "vendido" ? Number(actionValue.replace(",", ".")) : null;
+      actionResult === "vendido" ? parseActionMoneyValue(actionValue) : null;
 
     try {
       if (isEditingAction && editingAction) {
@@ -1790,7 +1833,7 @@ export default function AppointmentDetailClient({
                               <span className="text-rose-600">*</span>
                             </span>
                             <input
-                              type="number"
+                              type="text"
                               inputMode="decimal"
                               value={actionValue}
                               onChange={(event) =>
@@ -1800,8 +1843,6 @@ export default function AppointmentDetailClient({
                               placeholder={t(
                                 "appointment.action.valuePlaceholder",
                               )}
-                              min="0"
-                              step="0.01"
                             />
                           </label>
                         </div>
