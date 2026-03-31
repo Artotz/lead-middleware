@@ -962,7 +962,7 @@ export default function AppointmentDetailClient({
         return;
       }
       const value = parseActionMoneyValue(actionValue);
-      if (!Number.isFinite(value) || value <= 0) {
+      if (value == null || value <= 0) {
         setActionError(t("appointment.action.valueRequired"));
         return;
       }
