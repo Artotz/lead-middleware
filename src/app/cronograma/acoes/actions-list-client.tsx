@@ -8,6 +8,7 @@ import { PaginationControls } from "@/components/PaginationControls";
 import { PageShell } from "@/components/PageShell";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import { OPPORTUNITY_OPTIONS, formatDateLabel, formatTime } from "@/lib/schedule";
+import { loadSessionStorage, saveSessionStorage } from "@/lib/sessionStorage";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 type Props = { locale: Locale };
@@ -27,6 +28,18 @@ type Item = {
   result: Result; opportunityType: string | null; nfOuOs: string | null; value: number | null;
   lossReason: string | null; note: string | null;
 };
+
+type ActionsListSessionState = {
+  actorFilter: string[];
+  search: string;
+  resultFilter: Result[];
+  oppFilter: string[];
+  columns: Col[];
+  sort: Sort;
+  page: number;
+};
+
+const ACTIONS_LIST_SESSION_STORAGE_KEY = "cronograma:acoes:ui-state";
 
 function ToolbarRow({ summary, children, className }: { summary: ReactNode; children: ReactNode; className?: string }) {
   return <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className ?? ""}`}><div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{summary}</div><div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{children}</div></div>;
@@ -53,14 +66,52 @@ export default function ActionsListClient({ locale }: Props) {
   const panel = "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbar = "rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm";
   const input = "w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
-  const [scope, setScope] = useState<"general" | "individual">("general");
-  const [actor, setActor] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [resultFilter, setResultFilter] = useState<Result[]>([]);
-  const [oppFilter, setOppFilter] = useState<string[]>([]);
-  const [columns, setColumns] = useState<Col[]>([...COLS]);
-  const [sort, setSort] = useState<Sort>("date_desc");
-  const [page, setPage] = useState(1);
+  const persistedState = useMemo(
+    () =>
+      loadSessionStorage<ActionsListSessionState>(
+        ACTIONS_LIST_SESSION_STORAGE_KEY,
+        {
+          actorFilter: [],
+          search: "",
+          resultFilter: [],
+          oppFilter: [],
+          columns: [...COLS],
+          sort: "date_desc",
+          page: 1,
+        },
+        (value) => {
+          if (!value || typeof value !== "object") {
+            return {
+              actorFilter: [],
+              search: "",
+              resultFilter: [],
+              oppFilter: [],
+              columns: [...COLS],
+              sort: "date_desc",
+              page: 1,
+            };
+          }
+          const data = value as Partial<ActionsListSessionState>;
+          return {
+            actorFilter: Array.isArray(data.actorFilter) ? data.actorFilter.filter((item): item is string => typeof item === "string") : [],
+            search: typeof data.search === "string" ? data.search : "",
+            resultFilter: Array.isArray(data.resultFilter) ? data.resultFilter.filter((item): item is Result => RESULTS.includes(item as Result)) : [],
+            oppFilter: Array.isArray(data.oppFilter) ? data.oppFilter.filter((item): item is string => typeof item === "string") : [],
+            columns: Array.isArray(data.columns) ? ((data.columns.filter((item): item is Col => COLS.includes(item as Col)) as Col[]).length ? Array.from(new Set(data.columns.filter((item): item is Col => COLS.includes(item as Col)))) : [...COLS]) : [...COLS],
+            sort: data.sort && ["date_desc", "date_asc", "company_asc", "actor_asc", "value_desc"].includes(data.sort) ? data.sort : "date_desc",
+            page: typeof data.page === "number" && Number.isInteger(data.page) && data.page > 0 ? data.page : 1,
+          };
+        },
+      ),
+    [],
+  );
+  const [actorFilter, setActorFilter] = useState<string[]>(persistedState.actorFilter);
+  const [search, setSearch] = useState(persistedState.search);
+  const [resultFilter, setResultFilter] = useState<Result[]>(persistedState.resultFilter);
+  const [oppFilter, setOppFilter] = useState<string[]>(persistedState.oppFilter);
+  const [columns, setColumns] = useState<Col[]>(persistedState.columns as Col[]);
+  const [sort, setSort] = useState<Sort>(persistedState.sort);
+  const [page, setPage] = useState(persistedState.page);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,11 +164,14 @@ export default function ActionsListClient({ locale }: Props) {
     m.set(item.actorId, (m.get(item.actorId) ?? 0) + 1);
     return m;
   }, new Map<string, number>()).entries()).map(([value, count]) => ({ value, label: actorName(value), count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")).map(({ value, label }) => ({ value, label })), [items]);
+  const actorOptionValues = useMemo(() => actorOptions.map((option) => option.value), [actorOptions]);
   useEffect(() => {
-    if (scope !== "individual") return;
-    if (!actorOptions.length) { if (actor !== null) setActor(null); return; }
-    if (!actor || !actorOptions.some((o) => o.value === actor)) setActor(actorOptions[0]!.value);
-  }, [actor, actorOptions, scope]);
+    setActorFilter((current) => {
+      if (!actorOptionValues.length) return [];
+      const sanitized = current.filter((value) => actorOptionValues.includes(value));
+      return sanitized.length ? sanitized : actorOptionValues;
+    });
+  }, [actorOptionValues]);
 
   const colDefs = useMemo(() => ([
     { id: "empresa", label: t("schedule.actionsList.columns.company"), width: "1.7fr" },
@@ -132,15 +186,28 @@ export default function ActionsListClient({ locale }: Props) {
   const visibleCols = colDefs.filter((c) => columns.includes(c.id));
   const grid = visibleCols.map((c) => c.width).join(" ");
 
+  const selectedActorIds = useMemo(() => actorFilter.filter((value) => actorOptionValues.includes(value)), [actorFilter, actorOptionValues]);
+  const allActorsSelected = actorOptionValues.length > 0 && selectedActorIds.length === actorOptionValues.length;
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((item) => scope === "general" ? true : actor ? norm(item.actorId) === norm(actor) : false)
+    return items.filter((item) => allActorsSelected ? true : selectedActorIds.length ? selectedActorIds.some((value) => norm(item.actorId) === norm(value)) : false)
       .filter((item) => resultFilter.length ? resultFilter.includes(item.result) : true)
       .filter((item) => oppFilter.length ? item.opportunityType != null && oppFilter.includes(item.opportunityType) : true)
       .filter((item) => !q || [item.companyName, item.companyDocument, item.consultantName, item.actorLabel, item.actorId, item.nfOuOs, item.note, item.opportunityType ? t(`schedule.opportunity.${item.opportunityType}`, undefined, item.opportunityType) : null, item.lossReason ? t(`appointment.action.lossReasons.${item.lossReason}`, undefined, item.lossReason) : null].some((v) => v?.toLowerCase().includes(q)))
       .sort((a, b) => sort === "date_asc" ? (a.createdAt ?? "").localeCompare(b.createdAt ?? "") : sort === "company_asc" ? (a.companyName ?? "").localeCompare(b.companyName ?? "", "pt-BR") : sort === "actor_asc" ? (a.actorLabel ?? "").localeCompare(b.actorLabel ?? "", "pt-BR") : sort === "value_desc" ? (b.value ?? -1) - (a.value ?? -1) : (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-  }, [actor, items, oppFilter, resultFilter, scope, search, sort, t]);
-  useEffect(() => setPage(1), [actor, oppFilter, resultFilter, scope, search, sort]);
+  }, [allActorsSelected, items, oppFilter, resultFilter, search, selectedActorIds, sort, t]);
+  useEffect(() => setPage(1), [actorFilter, oppFilter, resultFilter, search, sort]);
+  useEffect(() => {
+    saveSessionStorage(ACTIONS_LIST_SESSION_STORAGE_KEY, {
+      actorFilter,
+      search,
+      resultFilter,
+      oppFilter,
+      columns,
+      sort,
+      page,
+    } satisfies ActionsListSessionState);
+  }, [actorFilter, columns, oppFilter, page, resultFilter, search, sort]);
 
   const perPage = 20;
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -169,18 +236,28 @@ export default function ActionsListClient({ locale }: Props) {
         <div className={`${panel} p-3 sm:p-4`}>
           <div className="flex flex-col gap-3">
             <ToolbarRow className={toolbar} summary={loading ? <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" /> : <span>{t("schedule.actionsList.count", { count: filtered.length })}</span>}>
-              <ToolbarField label={t("schedule.dashboard.scopeLabel")} srOnlyLabel className="sm:min-w-[160px]" contentClassName="w-full">
-                <select value={scope} onChange={(e) => setScope(e.target.value as "general" | "individual")} aria-label={t("schedule.dashboard.scopeLabel")} className={input}><option value="general">{t("schedule.dashboard.scopeGeneral")}</option><option value="individual">{t("schedule.dashboard.scopeIndividual")}</option></select>
-              </ToolbarField>
               <ToolbarField label={t("schedule.actionsList.actorLabel")} srOnlyLabel className="sm:min-w-[240px]" contentClassName="w-full">
-                <select value={scope === "individual" ? (actor ?? "") : "__all_actors__"} onChange={(e) => setActor(e.target.value || null)} disabled={scope !== "individual" || !actorOptions.length} aria-label={t("schedule.actionsList.actorLabel")} className={input}>{scope !== "individual" ? <option value="__all_actors__">{t("schedule.dashboard.allActors")}</option> : actorOptions.length ? actorOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>) : <option value="">{t("schedule.emptyConsultant")}</option>}</select>
+                <div className="w-full min-w-[220px]">
+                  <LeadTypesMultiSelect
+                    value={selectedActorIds}
+                    options={actorOptions}
+                    onChange={setActorFilter}
+                    placeholder={t("schedule.actionsList.actorLabel")}
+                    allSelectedLabel={t("schedule.actionsList.actorAll")}
+                    searchPlaceholder={t("schedule.actionsList.searchPlaceholder")}
+                    noResultsText={t("schedule.emptyConsultant")}
+                    selectedCountTemplate={t("schedule.multiSelectSelectedCount")}
+                    selectAllLabel={t("schedule.multiSelectSelectAll")}
+                    clearAllLabel={t("schedule.multiSelectClearAll")}
+                  />
+                </div>
               </ToolbarField>
-              <ToolbarField label={t("schedule.actionsList.resultFilterLabel")} className="sm:min-w-[240px]" contentClassName="w-full"><div className="w-full min-w-[180px]"><LeadTypesMultiSelect value={resultFilter} options={[{ value: "em_andamento", label: t("appointment.action.resultInProgress") }, { value: "vendido", label: t("appointment.action.resultSold") }, { value: "perdido", label: t("appointment.action.resultLost") }]} onChange={(next) => setResultFilter(next.filter((v): v is Result => RESULTS.includes(v as Result)))} placeholder={t("schedule.actionsList.resultFilterAll")} searchPlaceholder={t("schedule.actionsList.resultFilterSearchPlaceholder")} noResultsText={t("schedule.statusFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} /></div></ToolbarField>
-              <ToolbarField label={t("schedule.opportunityFilterLabel")} className="sm:min-w-[270px]" contentClassName="w-full"><div className="w-full min-w-[210px]"><LeadTypesMultiSelect value={oppFilter} options={OPPORTUNITY_OPTIONS.map((o) => ({ value: o.id, label: t(`schedule.opportunity.${o.id}`, undefined, o.label) }))} onChange={setOppFilter} placeholder={t("schedule.opportunityAll")} searchPlaceholder={t("schedule.opportunityFilterSearchPlaceholder")} noResultsText={t("schedule.opportunityFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} /></div></ToolbarField>
+              <ToolbarField label={t("schedule.actionsList.resultFilterLabel")} className="sm:min-w-[240px]" contentClassName="w-full"><div className="w-full min-w-[180px]"><LeadTypesMultiSelect value={resultFilter} options={[{ value: "em_andamento", label: t("appointment.action.resultInProgress") }, { value: "vendido", label: t("appointment.action.resultSold") }, { value: "perdido", label: t("appointment.action.resultLost") }]} onChange={(next) => setResultFilter(next.filter((v): v is Result => RESULTS.includes(v as Result)))} placeholder={t("schedule.actionsList.resultFilterAll")} searchPlaceholder={t("schedule.actionsList.resultFilterSearchPlaceholder")} noResultsText={t("schedule.statusFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
+              <ToolbarField label={t("schedule.opportunityFilterLabel")} className="sm:min-w-[270px]" contentClassName="w-full"><div className="w-full min-w-[210px]"><LeadTypesMultiSelect value={oppFilter} options={OPPORTUNITY_OPTIONS.map((o) => ({ value: o.id, label: t(`schedule.opportunity.${o.id}`, undefined, o.label) }))} onChange={setOppFilter} placeholder={t("schedule.opportunityAll")} searchPlaceholder={t("schedule.opportunityFilterSearchPlaceholder")} noResultsText={t("schedule.opportunityFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
             </ToolbarRow>
             <ToolbarRow className={toolbar} summary={<span className="sr-only">.</span>}>
-              <ToolbarField label={t("schedule.search")} srOnlyLabel className="sm:min-w-[280px]" contentClassName="w-full"><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("schedule.actionsList.searchPlaceholder")} disabled={scope === "individual" && !actor} aria-label={t("schedule.search")} className={input} /></ToolbarField>
-              <ToolbarField label={t("schedule.visibleColumnsLabel")} className="sm:min-w-[250px]" contentClassName="w-full"><div className="w-full min-w-[190px]"><LeadTypesMultiSelect value={columns} options={colDefs.map((c) => ({ value: c.id, label: c.label }))} onChange={(next) => setColumns(((next.filter((v): v is Col => COLS.includes(v as Col)) as Col[]).length ? Array.from(new Set(next.filter((v): v is Col => COLS.includes(v as Col)))) : [...COLS]))} placeholder={t("schedule.visibleColumnsPlaceholder")} searchPlaceholder={t("schedule.visibleColumnsSearchPlaceholder")} noResultsText={t("schedule.visibleColumnsNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} /></div></ToolbarField>
+              <ToolbarField label={t("schedule.search")} srOnlyLabel className="sm:min-w-[280px]" contentClassName="w-full"><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("schedule.actionsList.searchPlaceholder")} disabled={!selectedActorIds.length} aria-label={t("schedule.search")} className={input} /></ToolbarField>
+              <ToolbarField label={t("schedule.visibleColumnsLabel")} className="sm:min-w-[250px]" contentClassName="w-full"><div className="w-full min-w-[190px]"><LeadTypesMultiSelect value={columns} options={colDefs.map((c) => ({ value: c.id, label: c.label }))} onChange={(next) => setColumns(((next.filter((v): v is Col => COLS.includes(v as Col)) as Col[]).length ? Array.from(new Set(next.filter((v): v is Col => COLS.includes(v as Col)))) : [...COLS]))} placeholder={t("schedule.visibleColumnsPlaceholder")} searchPlaceholder={t("schedule.visibleColumnsSearchPlaceholder")} noResultsText={t("schedule.visibleColumnsNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
               <ToolbarField label={t("schedule.orderBy")} className="sm:min-w-[240px]" contentClassName="w-full"><select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("schedule.orderBy")} className={input}><option value="date_desc">{t("schedule.actionsList.sortDateDesc")}</option><option value="date_asc">{t("schedule.actionsList.sortDateAsc")}</option><option value="company_asc">{t("schedule.actionsList.sortCompanyAsc")}</option><option value="actor_asc">{t("schedule.actionsList.sortActorAsc")}</option><option value="value_desc">{t("schedule.actionsList.sortValueDesc")}</option></select></ToolbarField>
             </ToolbarRow>
             <PaginationControls className="px-1" summary={loading ? <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" /> : t("schedule.paginationSummary", summary)} pageInfo={loading ? <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" /> : t("schedule.paginationPage", { page, total: totalPages })} prevLabel={t("schedule.paginationPrev")} nextLabel={t("schedule.paginationNext")} onPrev={() => setPage((p) => Math.max(1, p - 1))} onNext={() => setPage((p) => Math.min(totalPages, p + 1))} prevDisabled={page <= 1 || loading} nextDisabled={page >= totalPages || loading} />
@@ -189,7 +266,7 @@ export default function ActionsListClient({ locale }: Props) {
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
             <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <span key={c.id} className="min-w-0 truncate">{c.label}</span>)}</div>
             <div className="divide-y divide-slate-200">
-              {scope === "individual" && !actor ? <div className="px-5 py-4 text-sm text-slate-500">{t("schedule.actionsList.selectActorToView")}</div> : loading ? skeleton.map((i) => <div key={`actions-skeleton-${i}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${i}-${c.id}`} className="min-w-0"><div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" /></div>)}</div>) : pageItems.map((item) => <Link key={item.id} href={`/cronograma/${item.appointmentId}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${item.id}-${c.id}`} className="min-w-0 overflow-hidden">{cell(c.id, item)}</div>)}</Link>)}
+              {!selectedActorIds.length ? <div className="px-5 py-4 text-sm text-slate-500">{t("schedule.actionsList.selectAtLeastOneActorToView")}</div> : loading ? skeleton.map((i) => <div key={`actions-skeleton-${i}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${i}-${c.id}`} className="min-w-0"><div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" /></div>)}</div>) : pageItems.map((item) => <Link key={item.id} href={`/cronograma/${item.appointmentId}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${item.id}-${c.id}`} className="min-w-0 overflow-hidden">{cell(c.id, item)}</div>)}</Link>)}
               {!loading && filtered.length === 0 ? <div className="px-5 py-4 text-sm text-slate-500">{t("schedule.actionsList.empty")}</div> : null}
             </div>
             {!loading && filtered.length > 0 ? <PaginationControls className="border-t border-slate-200 bg-slate-50 px-5 py-3" summary={t("schedule.paginationSummary", summary)} pageInfo={t("schedule.paginationPage", { page, total: totalPages })} prevLabel={t("schedule.paginationPrev")} nextLabel={t("schedule.paginationNext")} onPrev={() => setPage((p) => Math.max(1, p - 1))} onNext={() => setPage((p) => Math.min(totalPages, p + 1))} prevDisabled={page <= 1} nextDisabled={page >= totalPages} /> : null}

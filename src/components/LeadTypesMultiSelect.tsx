@@ -15,18 +15,26 @@ type LeadTypesMultiSelectProps = {
   options: Array<string | { value: string; label: string }>;
   onChange: (next: string[]) => void;
   placeholder?: string;
+  allSelectedLabel?: string;
   searchPlaceholder?: string;
   noResultsText?: string;
   selectedCountTemplate?: string;
+  selectAllLabel?: string;
+  clearAllLabel?: string;
 };
 
 const buildSummary = (
   value: string[],
   labelByValue: Map<string, string>,
   placeholder?: string,
+  allSelectedLabel?: string,
   selectedCountTemplate?: string,
+  totalOptions = 0,
 ) => {
   if (!value.length) return placeholder ?? "Selecionar tipos";
+  if (totalOptions > 0 && value.length >= totalOptions) {
+    return allSelectedLabel ?? placeholder ?? "Selecionar tipos";
+  }
   const labels = value.map((item) => labelByValue.get(item) ?? item);
   if (labels.length === 1) return labels[0];
   if (labels.length === 2) return `${labels[0]}, ${labels[1]}`;
@@ -41,9 +49,12 @@ export function LeadTypesMultiSelect({
   options,
   onChange,
   placeholder,
+  allSelectedLabel,
   searchPlaceholder,
   noResultsText,
   selectedCountTemplate,
+  selectAllLabel,
+  clearAllLabel,
 }: LeadTypesMultiSelectProps) {
   const selectedValues = useMemo(
     () => (Array.isArray(value) ? value : []),
@@ -109,9 +120,18 @@ export function LeadTypesMultiSelect({
         selectedValues,
         labelByValue,
         placeholder,
+        allSelectedLabel,
         selectedCountTemplate,
+        normalizedOptions.length,
       ),
-    [selectedValues, labelByValue, placeholder, selectedCountTemplate],
+    [
+      selectedValues,
+      labelByValue,
+      placeholder,
+      allSelectedLabel,
+      selectedCountTemplate,
+      normalizedOptions.length,
+    ],
   );
 
   const toggleOption = useCallback(
@@ -126,6 +146,19 @@ export function LeadTypesMultiSelect({
     },
     [onChange, selectedValues],
   );
+
+  const allOptionValues = useMemo(
+    () => normalizedOptions.map((option) => option.value),
+    [normalizedOptions],
+  );
+
+  const allSelected =
+    allOptionValues.length > 0 &&
+    allOptionValues.every((option) => selectedValues.includes(option));
+
+  const handleToggleAll = useCallback(() => {
+    onChange(allSelected ? [] : allOptionValues);
+  }, [allOptionValues, allSelected, onChange]);
 
   const focusOption = (index: number) => {
     const buttons =
@@ -229,6 +262,19 @@ export function LeadTypesMultiSelect({
               className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             />
           </div>
+          {normalizedOptions.length ? (
+            <div className="border-b border-slate-200 px-2 py-2">
+              <button
+                type="button"
+                onClick={handleToggleAll}
+                className="w-full rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-100"
+              >
+                {allSelected
+                  ? clearAllLabel ?? "Desmarcar todos"
+                  : selectAllLabel ?? "Selecionar todos"}
+              </button>
+            </div>
+          ) : null}
           <div
             ref={listRef}
             className="max-h-[240px] overflow-y-auto p-1"

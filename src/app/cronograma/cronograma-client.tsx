@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
   type ReactNode,
@@ -65,6 +64,7 @@ import {
   toDateKey,
 } from "@/lib/schedule";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
+import { loadSessionStorage, saveSessionStorage } from "@/lib/sessionStorage";
 import {
   createTranslator,
   getMessages,
@@ -131,6 +131,31 @@ type ActionAppointmentRefRow = {
   id: string;
   company_id: string | null;
 };
+
+type CronogramaSessionState = {
+  viewMode: "board" | "grid" | "map";
+  dashboardView: DashboardView;
+  dashboardStage: DashboardStage;
+  selectedConsultantId: string | null;
+  selectedListConsultantIds: string[];
+  selectedDashboardActorIds: string[];
+  companySort: "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit";
+  companyPage: number;
+  companySearch: string;
+  companyVisibleColumns: string[];
+  appointmentSearch: string;
+  appointmentVisibleColumns: string[];
+  appointmentStatus: AppointmentListStatusFilter[];
+  appointmentOpportunity: string[];
+  cronogramaStatus: SupabaseAppointmentStatus[];
+  appointmentSort: "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc" | "cotacoes";
+  appointmentPage: number;
+  showOutsidePortfolio: boolean;
+  selectedMonth: string;
+  selectedWeekIndex: number;
+};
+
+const CRONOGRAMA_SESSION_STORAGE_KEY = "cronograma:ui-state";
 
 const statusCardStyles: Record<SupabaseAppointmentStatus, string> = {
   scheduled: "border-amber-300 bg-amber-50 text-amber-900",
@@ -583,9 +608,6 @@ function CronogramaClientContent({
   initialTab = "cronograma",
   locale,
 }: CronogramaClientProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const {
     range,
     appointments,
@@ -602,85 +624,167 @@ function CronogramaClientContent({
   const { role } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
-  const urlState = useMemo(() => {
-    const selectedMonthFallback = new Date(today.getFullYear(), today.getMonth(), 1);
-    const selectedMonth = parseMonth(searchParams.get("month"), selectedMonthFallback);
-    const weekParamIndex = parseWeekIndex(searchParams.get("week"));
-    const defaultWeekIndex = (() => {
-      if (weekParamIndex != null) return weekParamIndex;
-      const monthWeeks = getWeeksForMonth(selectedMonth);
-      if (!monthWeeks.length) return 0;
-      const todayKey = toDateKey(today);
-      const currentWeekIndex = monthWeeks.findIndex(
-        (week) =>
-          todayKey >= toDateKey(week.startAt) &&
-          todayKey <= toDateKey(week.endAt),
-      );
-      return currentWeekIndex >= 0 ? currentWeekIndex : 0;
-    })();
-    const appointmentOpportunityIds = new Set(
-      OPPORTUNITY_OPTIONS.map((option) => option.id),
+  const defaultSelectedMonth = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+    [today],
+  );
+  const defaultSelectedWeekIndex = useMemo(() => {
+    const monthWeeks = getWeeksForMonth(defaultSelectedMonth);
+    if (!monthWeeks.length) return 0;
+    const todayKey = toDateKey(today);
+    const currentWeekIndex = monthWeeks.findIndex(
+      (week) =>
+        todayKey >= toDateKey(week.startAt) &&
+        todayKey <= toDateKey(week.endAt),
     );
-    const appointmentStatus = parseCsv(searchParams.get("astatus")).filter(
-      (status): status is AppointmentListStatusFilter =>
-        APPOINTMENT_LIST_STATUS_VALUES.includes(
-          status as AppointmentListStatusFilter,
-        ),
-    );
-    const cronogramaStatus = parseCsv(searchParams.get("cstatus")).filter(
-      (status): status is SupabaseAppointmentStatus =>
-        APPOINTMENT_STATUS_VALUES.includes(status as SupabaseAppointmentStatus),
-    );
-    const appointmentOpportunity = parseCsv(searchParams.get("aopp")).filter(
-      (opportunity) => appointmentOpportunityIds.has(opportunity),
-    );
-    return {
-      activeTab: parseEnum(searchParams.get("tab"), TAB_VALUES, initialTab),
-      viewMode: parseEnum(searchParams.get("view"), VIEW_MODE_VALUES, "grid"),
-      dashboardScope: parseEnum(
-        searchParams.get("dscope"),
-        DASHBOARD_SCOPE_VALUES,
-        "general",
+    return currentWeekIndex >= 0 ? currentWeekIndex : 0;
+  }, [defaultSelectedMonth, today]);
+  const defaultCronogramaState = useMemo<CronogramaSessionState>(
+    () => ({
+      viewMode: "grid",
+      dashboardView: "week",
+      dashboardStage: "visita",
+      selectedConsultantId: null,
+      selectedListConsultantIds: [],
+      selectedDashboardActorIds: [],
+      companySort: "name",
+      companyPage: 1,
+      companySearch: "",
+      companyVisibleColumns: [...COMPANY_COLUMN_VALUES],
+      appointmentSearch: "",
+      appointmentVisibleColumns: [...APPOINTMENT_COLUMN_VALUES],
+      appointmentStatus: [],
+      appointmentOpportunity: [],
+      cronogramaStatus: [],
+      appointmentSort: "date_desc",
+      appointmentPage: 1,
+      showOutsidePortfolio: false,
+      selectedMonth: toMonthKey(defaultSelectedMonth),
+      selectedWeekIndex: defaultSelectedWeekIndex,
+    }),
+    [defaultSelectedMonth, defaultSelectedWeekIndex],
+  );
+  const persistedCronogramaState = useMemo(
+    () =>
+      loadSessionStorage(
+        CRONOGRAMA_SESSION_STORAGE_KEY,
+        defaultCronogramaState,
+        (value) => {
+          if (!value || typeof value !== "object") return defaultCronogramaState;
+          const data = value as Partial<CronogramaSessionState>;
+          return {
+            viewMode: parseEnum(
+              typeof data.viewMode === "string" ? data.viewMode : null,
+              VIEW_MODE_VALUES,
+              defaultCronogramaState.viewMode,
+            ),
+            dashboardView: parseEnum(
+              typeof data.dashboardView === "string" ? data.dashboardView : null,
+              DASHBOARD_VIEW_VALUES,
+              defaultCronogramaState.dashboardView,
+            ),
+            dashboardStage: parseEnum(
+              typeof data.dashboardStage === "string" ? data.dashboardStage : null,
+              DASHBOARD_STAGE_VALUES,
+              defaultCronogramaState.dashboardStage,
+            ),
+            selectedConsultantId:
+              typeof data.selectedConsultantId === "string"
+                ? data.selectedConsultantId
+                : null,
+            selectedListConsultantIds: Array.isArray(data.selectedListConsultantIds)
+              ? data.selectedListConsultantIds.filter(
+                  (item): item is string => typeof item === "string",
+                )
+              : [],
+            selectedDashboardActorIds: Array.isArray(data.selectedDashboardActorIds)
+              ? data.selectedDashboardActorIds.filter(
+                  (item): item is string => typeof item === "string",
+                )
+              : [],
+            companySort: parseEnum(
+              typeof data.companySort === "string" ? data.companySort : null,
+              COMPANY_SORT_VALUES,
+              defaultCronogramaState.companySort,
+            ),
+            companyPage: parsePositiveInt(
+              typeof data.companyPage === "number"
+                ? String(data.companyPage)
+                : null,
+              1,
+            ),
+            companySearch:
+              typeof data.companySearch === "string" ? data.companySearch : "",
+            companyVisibleColumns: sanitizeSelection(
+              Array.isArray(data.companyVisibleColumns)
+                ? data.companyVisibleColumns
+                : [],
+              COMPANY_COLUMN_VALUES,
+              COMPANY_COLUMN_VALUES,
+            ),
+            appointmentSearch:
+              typeof data.appointmentSearch === "string"
+                ? data.appointmentSearch
+                : "",
+            appointmentVisibleColumns: sanitizeSelection(
+              Array.isArray(data.appointmentVisibleColumns)
+                ? data.appointmentVisibleColumns
+                : [],
+              APPOINTMENT_COLUMN_VALUES,
+              APPOINTMENT_COLUMN_VALUES,
+            ),
+            appointmentStatus: Array.isArray(data.appointmentStatus)
+              ? data.appointmentStatus.filter(
+                  (status): status is AppointmentListStatusFilter =>
+                    APPOINTMENT_LIST_STATUS_VALUES.includes(
+                      status as AppointmentListStatusFilter,
+                    ),
+                )
+              : [],
+            appointmentOpportunity: Array.isArray(data.appointmentOpportunity)
+              ? data.appointmentOpportunity.filter((opportunity) =>
+                  OPPORTUNITY_OPTIONS.some((option) => option.id === opportunity),
+                )
+              : [],
+            cronogramaStatus: Array.isArray(data.cronogramaStatus)
+              ? data.cronogramaStatus.filter(
+                  (status): status is SupabaseAppointmentStatus =>
+                    APPOINTMENT_STATUS_VALUES.includes(
+                      status as SupabaseAppointmentStatus,
+                    ),
+                )
+              : [],
+            appointmentSort: parseEnum(
+              typeof data.appointmentSort === "string"
+                ? data.appointmentSort
+                : null,
+              APPOINTMENT_SORT_VALUES,
+              defaultCronogramaState.appointmentSort,
+            ),
+            appointmentPage: parsePositiveInt(
+              typeof data.appointmentPage === "number"
+                ? String(data.appointmentPage)
+                : null,
+              1,
+            ),
+            showOutsidePortfolio: data.showOutsidePortfolio === true,
+            selectedMonth: toMonthKey(
+              parseMonth(
+                typeof data.selectedMonth === "string" ? data.selectedMonth : null,
+                defaultSelectedMonth,
+              ),
+            ),
+            selectedWeekIndex:
+              typeof data.selectedWeekIndex === "number" &&
+              Number.isInteger(data.selectedWeekIndex) &&
+              data.selectedWeekIndex >= 0
+                ? data.selectedWeekIndex
+                : defaultSelectedWeekIndex,
+          };
+        },
       ),
-      dashboardView: parseEnum(
-        searchParams.get("dview"),
-        DASHBOARD_VIEW_VALUES,
-        "week",
-      ),
-      dashboardStage: parseEnum(
-        searchParams.get("dstage"),
-        DASHBOARD_STAGE_VALUES,
-        "visita",
-      ),
-      companySort: parseEnum(searchParams.get("csort"), COMPANY_SORT_VALUES, "name"),
-      companyPage: parsePositiveInt(searchParams.get("cpage"), 1),
-      companySearch: searchParams.get("csearch")?.trim() ?? "",
-      showOutsidePortfolio: searchParams.get("outside") === "1",
-      appointmentSearch: searchParams.get("asearch")?.trim() ?? "",
-      appointmentSort: parseEnum(
-        searchParams.get("asort"),
-        APPOINTMENT_SORT_VALUES,
-        "date_desc",
-      ),
-      appointmentColumns: sanitizeSelection(
-        parseCsv(searchParams.get("acols")),
-        APPOINTMENT_COLUMN_VALUES,
-        APPOINTMENT_COLUMN_VALUES,
-      ),
-      appointmentPage: parsePositiveInt(searchParams.get("apage"), 1),
-      appointmentStatus,
-      cronogramaStatus,
-      appointmentOpportunity,
-      companyColumns: sanitizeSelection(
-        parseCsv(searchParams.get("ccols")),
-        COMPANY_COLUMN_VALUES,
-        COMPANY_COLUMN_VALUES,
-      ),
-      selectedMonth,
-      selectedWeekIndex: defaultWeekIndex,
-      consultantId: searchParams.get("consultor")?.trim() || null,
-    };
-  }, [searchParams, initialTab, today]);
+    [defaultCronogramaState, defaultSelectedMonth, defaultSelectedWeekIndex],
+  );
   const normalizeConsultantText = useCallback(
     (value: string | null | undefined) =>
       value ? value.replace(/\s+/g, " ").trim() : "",
@@ -733,18 +837,14 @@ function CronogramaClientContent({
   );
 
   const [viewMode, setViewMode] = useState<"board" | "grid" | "map">(
-    urlState.viewMode,
+    persistedCronogramaState.viewMode,
   );
-  const [activeTab] = useState<
-    "cronograma" | "agendamentos" | "empresas" | "dashboard"
-  >(urlState.activeTab);
-  const [dashboardScope, setDashboardScope] =
-    useState<DashboardScope>(urlState.dashboardScope);
+  const activeTab = initialTab;
   const [dashboardView, setDashboardView] = useState<DashboardView>(
-    urlState.dashboardView,
+    persistedCronogramaState.dashboardView,
   );
   const [dashboardStage, setDashboardStage] = useState<DashboardStage>(
-    urlState.dashboardStage,
+    persistedCronogramaState.dashboardStage,
   );
   const isVisitDashboard = dashboardStage === "visita";
   const [generalAppointments, setGeneralAppointments] = useState<Appointment[]>(
@@ -779,32 +879,37 @@ function CronogramaClientContent({
   const [actionDataError, setActionDataError] = useState<string | null>(null);
   const actionDataRequestIdRef = useRef(0);
   const [actionReloadKey, setActionReloadKey] = useState(0);
-  const [selectedActionActorId, setSelectedActionActorId] = useState<
-    string | null
-  >(null);
+  const [selectedListConsultantIds, setSelectedListConsultantIds] = useState<string[]>(
+    persistedCronogramaState.selectedListConsultantIds,
+  );
+  const [selectedDashboardActorIds, setSelectedDashboardActorIds] = useState<string[]>(
+    persistedCronogramaState.selectedDashboardActorIds,
+  );
   const [companySort, setCompanySort] = useState<
     "name" | "preventivas" | "reconexoes" | "cotacoes" | "last_visit"
-  >(urlState.companySort);
-  const [companyPage, setCompanyPage] = useState(urlState.companyPage);
+  >(persistedCronogramaState.companySort);
+  const [companyPage, setCompanyPage] = useState(persistedCronogramaState.companyPage);
   const [appointmentSearch, setAppointmentSearch] = useState(
-    urlState.appointmentSearch,
+    persistedCronogramaState.appointmentSearch,
   );
   const [appointmentVisibleColumns, setAppointmentVisibleColumns] = useState(
-    urlState.appointmentColumns,
+    [...persistedCronogramaState.appointmentVisibleColumns],
   );
   const [appointmentStatus, setAppointmentStatus] = useState<
     AppointmentListStatusFilter[]
-  >(urlState.appointmentStatus);
+  >(persistedCronogramaState.appointmentStatus);
   const [appointmentOpportunity, setAppointmentOpportunity] = useState<string[]>(
-    urlState.appointmentOpportunity,
+    persistedCronogramaState.appointmentOpportunity,
   );
   const [cronogramaStatus, setCronogramaStatus] = useState<
     SupabaseAppointmentStatus[]
-  >(urlState.cronogramaStatus);
+  >(persistedCronogramaState.cronogramaStatus);
   const [appointmentSort, setAppointmentSort] = useState<
     "date_desc" | "date_asc" | "alpha_asc" | "alpha_desc" | "cotacoes"
-  >(urlState.appointmentSort);
-  const [appointmentPage, setAppointmentPage] = useState(urlState.appointmentPage);
+  >(persistedCronogramaState.appointmentSort);
+  const [appointmentPage, setAppointmentPage] = useState(
+    persistedCronogramaState.appointmentPage,
+  );
   const [listAppointments, setListAppointments] = useState<Appointment[]>([]);
   const [listAppointmentsLoading, setListAppointmentsLoading] = useState(false);
   const [listAppointmentsError, setListAppointmentsError] = useState<
@@ -812,23 +917,27 @@ function CronogramaClientContent({
   >(null);
   const listAppointmentsRequestIdRef = useRef(0);
   const [showOutsidePortfolio, setShowOutsidePortfolio] = useState(
-    urlState.showOutsidePortfolio,
+    persistedCronogramaState.showOutsidePortfolio,
   );
   const [loadedConsultantId, setLoadedConsultantId] = useState<string | null>(
     null,
   );
   const companiesPerPage = 20;
   const appointmentsPerPage = 20;
-  const [selectedMonth, setSelectedMonth] = useState(() => urlState.selectedMonth);
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    parseMonth(persistedCronogramaState.selectedMonth, defaultSelectedMonth),
+  );
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(
-    urlState.selectedWeekIndex,
+    persistedCronogramaState.selectedWeekIndex,
   );
   const [showCompanies, setShowCompanies] = useState(true);
   const [showCheckIns, setShowCheckIns] = useState(true);
   const [showCheckOuts, setShowCheckOuts] = useState(true);
-  const [companySearch, setCompanySearch] = useState(urlState.companySearch);
+  const [companySearch, setCompanySearch] = useState(
+    persistedCronogramaState.companySearch,
+  );
   const [companyVisibleColumns, setCompanyVisibleColumns] = useState(
-    urlState.companyColumns,
+    [...persistedCronogramaState.companyVisibleColumns],
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -850,11 +959,6 @@ function CronogramaClientContent({
   const [lastVisitLoading, setLastVisitLoading] = useState(false);
   const [lastVisitError, setLastVisitError] = useState<string | null>(null);
   const lastVisitRequestIdRef = useRef(0);
-  const queryConsultantAppliedRef = useRef(false);
-  const allowInitialUrlSyncRef = useRef(false);
-  const consultantUrlDirtyRef = useRef(searchParams.has("consultor"));
-  const monthUrlDirtyRef = useRef(searchParams.has("month"));
-  const weekUrlDirtyRef = useRef(searchParams.has("week"));
   const panelClass =
     "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbarCardClass =
@@ -886,91 +990,89 @@ function CronogramaClientContent({
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
       .map(({ id, name }) => ({ id, name }));
   }, [dashboardActions, formatActorDisplayName]);
-  const dashboardConsultants = isVisitDashboard ? consultants : actionActorOptions;
-  const dashboardSelectedConsultantId = isVisitDashboard
-    ? selectedConsultantId
-    : selectedActionActorId;
+  const consultantOptions = useMemo(
+    () => consultants.map((item) => ({ value: item.id, label: item.name })),
+    [consultants],
+  );
+  const consultantOptionValues = useMemo(
+    () => consultantOptions.map((item) => item.value),
+    [consultantOptions],
+  );
+  const selectedConsultantOptions = useMemo(
+    () =>
+      consultants.filter((item) => selectedListConsultantIds.includes(item.id)),
+    [consultants, selectedListConsultantIds],
+  );
+  const selectedConsultantLookup = useMemo(() => {
+    const ids = new Set<string>();
+    const names = new Set<string>();
+    selectedConsultantOptions.forEach((item) => {
+      ids.add(item.id.trim().toLowerCase());
+      names.add(item.name.trim().toLowerCase());
+    });
+    return { ids, names };
+  }, [selectedConsultantOptions]);
+  const allConsultantsSelected =
+    consultantOptionValues.length > 0 &&
+    selectedListConsultantIds.length === consultantOptionValues.length;
+  const dashboardActorOptionValues = useMemo(
+    () => actionActorOptions.map((item) => item.id),
+    [actionActorOptions],
+  );
+  const allDashboardActorsSelected =
+    dashboardActorOptionValues.length > 0 &&
+    selectedDashboardActorIds.length === dashboardActorOptionValues.length;
 
-  const scopeControl = (
+  const consultantMultiSelectControl = (
     <ToolbarField
-      label={t("schedule.dashboard.scopeLabel")}
+      label={t("schedule.consultant")}
       srOnlyLabel
-      className="sm:min-w-[160px]"
+      className="sm:min-w-[240px]"
       contentClassName="w-full"
     >
-      <select
-        value={dashboardScope}
-        onChange={(event) =>
-          setDashboardScope(event.target.value as DashboardScope)
-        }
-        aria-label={t("schedule.dashboard.scopeLabel")}
-        className={toolbarInputClass}
-      >
-        <option value="general">{t("schedule.dashboard.scopeGeneral")}</option>
-        <option value="individual">
-          {t("schedule.dashboard.scopeIndividual")}
-        </option>
-      </select>
+      <div className="w-full min-w-[220px]">
+        <LeadTypesMultiSelect
+          value={selectedListConsultantIds}
+          options={consultantOptions}
+          onChange={setSelectedListConsultantIds}
+          placeholder={t("schedule.consultant")}
+          allSelectedLabel={t("schedule.dashboard.allConsultants")}
+          searchPlaceholder={t("schedule.appointmentsSearchPlaceholder")}
+          noResultsText={t("schedule.emptyConsultant")}
+          selectedCountTemplate={t("schedule.multiSelectSelectedCount")}
+          selectAllLabel={t("schedule.multiSelectSelectAll")}
+          clearAllLabel={t("schedule.multiSelectClearAll")}
+        />
+      </div>
     </ToolbarField>
   );
 
-  const consultantControl = (options?: {
-    forceDisabled?: boolean;
-    disabledLabel?: string;
-  }) => {
-    const isDisabled =
-      Boolean(options?.forceDisabled) ||
-      dashboardScope !== "individual" ||
-      !dashboardConsultants.length;
-    const value =
-      dashboardScope === "individual"
-        ? (dashboardSelectedConsultantId ?? "")
-        : "__all_consultants__";
-
-    return (
-      <ToolbarField
-        label={t("schedule.consultant")}
-        srOnlyLabel
-        className="sm:min-w-[220px]"
-        contentClassName="w-full"
-      >
-        <select
-          value={value}
-          onChange={(event) => {
-            const next = event.target.value || null;
-            if (isVisitDashboard) {
-              consultantUrlDirtyRef.current = true;
-              setSelectedConsultantId(next);
-              return;
-            }
-            setSelectedActionActorId(next);
-          }}
-          disabled={isDisabled}
-          aria-label={t("schedule.consultant")}
-          className={toolbarInputClass}
-        >
-          {dashboardScope !== "individual" ? (
-            <option value="__all_consultants__">
-              {options?.disabledLabel ??
-                t(
-                  isVisitDashboard
-                    ? "schedule.dashboard.allConsultants"
-                    : "schedule.dashboard.allActors",
-                )}
-            </option>
-          ) : dashboardConsultants.length ? (
-            dashboardConsultants.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))
-          ) : (
-            <option value="">{t("schedule.emptyConsultant")}</option>
-          )}
-        </select>
-      </ToolbarField>
-    );
-  };
+  const dashboardActorMultiSelectControl = (
+    <ToolbarField
+      label={t("schedule.actionsList.actorLabel")}
+      srOnlyLabel
+      className="sm:min-w-[240px]"
+      contentClassName="w-full"
+    >
+      <div className="w-full min-w-[220px]">
+        <LeadTypesMultiSelect
+          value={selectedDashboardActorIds}
+          options={actionActorOptions.map((item) => ({
+            value: item.id,
+            label: item.name,
+          }))}
+          onChange={setSelectedDashboardActorIds}
+          placeholder={t("schedule.actionsList.actorLabel")}
+          allSelectedLabel={t("schedule.dashboard.allActors")}
+          searchPlaceholder={t("schedule.actionsList.searchPlaceholder")}
+          noResultsText={t("schedule.emptyConsultant")}
+          selectedCountTemplate={t("schedule.multiSelectSelectedCount")}
+          selectAllLabel={t("schedule.multiSelectSelectAll")}
+          clearAllLabel={t("schedule.multiSelectClearAll")}
+        />
+      </div>
+    </ToolbarField>
+  );
 
   const scheduleConsultantControl = (
     <ToolbarField
@@ -983,7 +1085,6 @@ function CronogramaClientContent({
         value={selectedConsultantId ?? ""}
         onChange={(event) => {
           const next = event.target.value || null;
-          consultantUrlDirtyRef.current = true;
           setSelectedConsultantId(next);
         }}
         disabled={!consultants.length}
@@ -1039,29 +1140,90 @@ function CronogramaClientContent({
   }, [weeks, today]);
 
   useEffect(() => {
-    if (queryConsultantAppliedRef.current) return;
+    if (!persistedCronogramaState.selectedConsultantId) return;
     if (!consultants.length) return;
-    queryConsultantAppliedRef.current = true;
-    if (!urlState.consultantId) return;
-    const exists = consultants.some((item) => item.id === urlState.consultantId);
-    if (exists && selectedConsultantId !== urlState.consultantId) {
-      setSelectedConsultantId(urlState.consultantId);
+    if (
+      consultants.some(
+        (item) => item.id === persistedCronogramaState.selectedConsultantId,
+      ) &&
+      selectedConsultantId !== persistedCronogramaState.selectedConsultantId
+    ) {
+      setSelectedConsultantId(persistedCronogramaState.selectedConsultantId);
     }
-  }, [consultants, selectedConsultantId, setSelectedConsultantId, urlState.consultantId]);
+  }, [
+    consultants,
+    persistedCronogramaState.selectedConsultantId,
+    selectedConsultantId,
+    setSelectedConsultantId,
+  ]);
 
   useEffect(() => {
-    if (!actionActorOptions.length) {
-      setSelectedActionActorId(null);
-      return;
-    }
-
-    setSelectedActionActorId((current) => {
-      if (current && actionActorOptions.some((item) => item.id === current)) {
-        return current;
-      }
-      return actionActorOptions[0]?.id ?? null;
+    setSelectedListConsultantIds((current) => {
+      if (!consultantOptionValues.length) return [];
+      const sanitized = current.filter((value) =>
+        consultantOptionValues.includes(value),
+      );
+      if (sanitized.length) return sanitized;
+      return consultantOptionValues;
     });
-  }, [actionActorOptions]);
+  }, [consultantOptionValues]);
+
+  useEffect(() => {
+    setSelectedDashboardActorIds((current) => {
+      if (!dashboardActorOptionValues.length) return [];
+      const sanitized = current.filter((value) =>
+        dashboardActorOptionValues.includes(value),
+      );
+      if (sanitized.length) return sanitized;
+      return dashboardActorOptionValues;
+    });
+  }, [dashboardActorOptionValues]);
+
+  useEffect(() => {
+    saveSessionStorage(CRONOGRAMA_SESSION_STORAGE_KEY, {
+      viewMode,
+      dashboardView,
+      dashboardStage,
+      selectedConsultantId,
+      selectedListConsultantIds,
+      selectedDashboardActorIds,
+      companySort,
+      companyPage,
+      companySearch,
+      companyVisibleColumns,
+      appointmentSearch,
+      appointmentVisibleColumns,
+      appointmentStatus,
+      appointmentOpportunity,
+      cronogramaStatus,
+      appointmentSort,
+      appointmentPage,
+      showOutsidePortfolio,
+      selectedMonth: toMonthKey(selectedMonth),
+      selectedWeekIndex,
+    } satisfies CronogramaSessionState);
+  }, [
+    appointmentOpportunity,
+    appointmentPage,
+    appointmentSearch,
+    appointmentSort,
+    appointmentStatus,
+    appointmentVisibleColumns,
+    companyPage,
+    companySearch,
+    companySort,
+    companyVisibleColumns,
+    cronogramaStatus,
+    dashboardStage,
+    dashboardView,
+    selectedDashboardActorIds,
+    selectedListConsultantIds,
+    selectedConsultantId,
+    selectedMonth,
+    selectedWeekIndex,
+    showOutsidePortfolio,
+    viewMode,
+  ]);
 
   const selectedWeek = weeks[selectedWeekIndex] ?? weeks[0];
   const dashboardRange = useMemo(() => {
@@ -1092,111 +1254,6 @@ function CronogramaClientContent({
     if (!selectedWeek) return;
     setRange({ startAt: selectedWeek.startAt, endAt: selectedWeek.endAt });
   }, [activeTab, dashboardRange, selectedWeek, setRange]);
-
-  useEffect(() => {
-    if (!allowInitialUrlSyncRef.current) {
-      allowInitialUrlSyncRef.current = true;
-      return;
-    }
-
-    const next = new URLSearchParams(searchParams.toString());
-    if (activeTab !== initialTab) next.set("tab", activeTab);
-    else next.delete("tab");
-    if (consultantUrlDirtyRef.current && selectedConsultantId) {
-      next.set("consultor", selectedConsultantId);
-    } else {
-      next.delete("consultor");
-    }
-    if (monthUrlDirtyRef.current) {
-      next.set("month", toMonthKey(selectedMonth));
-    } else {
-      next.delete("month");
-    }
-    if (weekUrlDirtyRef.current) {
-      next.set("week", String(selectedWeekIndex + 1));
-    } else {
-      next.delete("week");
-    }
-    if (viewMode !== "grid") next.set("view", viewMode);
-    else next.delete("view");
-    if (dashboardScope !== "general") next.set("dscope", dashboardScope);
-    else next.delete("dscope");
-    if (dashboardView !== "week") next.set("dview", dashboardView);
-    else next.delete("dview");
-    if (dashboardStage !== "visita") next.set("dstage", dashboardStage);
-    else next.delete("dstage");
-    if (companySearch.trim()) next.set("csearch", companySearch.trim());
-    else next.delete("csearch");
-    if (companySort !== "name") next.set("csort", companySort);
-    else next.delete("csort");
-    if (companyPage > 1) next.set("cpage", String(companyPage));
-    else next.delete("cpage");
-    if (showOutsidePortfolio) next.set("outside", "1");
-    else next.delete("outside");
-    if (appointmentSearch.trim()) next.set("asearch", appointmentSearch.trim());
-    else next.delete("asearch");
-    if (appointmentStatus.length) next.set("astatus", appointmentStatus.join(","));
-    else next.delete("astatus");
-    if (appointmentOpportunity.length) {
-      next.set("aopp", appointmentOpportunity.join(","));
-    } else {
-      next.delete("aopp");
-    }
-    if (appointmentSort !== "date_desc") next.set("asort", appointmentSort);
-    else next.delete("asort");
-    if (
-      appointmentVisibleColumns.join(",") !==
-      APPOINTMENT_COLUMN_VALUES.join(",")
-    ) {
-      next.set("acols", appointmentVisibleColumns.join(","));
-    } else {
-      next.delete("acols");
-    }
-    if (appointmentPage > 1) next.set("apage", String(appointmentPage));
-    else next.delete("apage");
-    if (companyVisibleColumns.join(",") !== COMPANY_COLUMN_VALUES.join(",")) {
-      next.set("ccols", companyVisibleColumns.join(","));
-    } else {
-      next.delete("ccols");
-    }
-    if (activeTab === "cronograma" && cronogramaStatus.length) {
-      next.set("cstatus", cronogramaStatus.join(","));
-    } else {
-      next.delete("cstatus");
-    }
-    next.delete("acancel");
-
-    const currentQuery = searchParams.toString();
-    const nextQuery = next.toString();
-    if (currentQuery === nextQuery) return;
-    const href = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-    router.replace(href, { scroll: false });
-  }, [
-    activeTab,
-    appointmentOpportunity,
-    appointmentPage,
-    appointmentSearch,
-    appointmentSort,
-    appointmentVisibleColumns,
-    appointmentStatus,
-    cronogramaStatus,
-    companyPage,
-    companySearch,
-    companyVisibleColumns,
-    companySort,
-    dashboardScope,
-    dashboardStage,
-    dashboardView,
-    initialTab,
-    pathname,
-    router,
-    searchParams,
-    selectedConsultantId,
-    selectedMonth,
-    selectedWeekIndex,
-    showOutsidePortfolio,
-    viewMode,
-  ]);
 
   const weekDays = useMemo(() => {
     if (!selectedWeek) return [];
@@ -1331,9 +1388,24 @@ function CronogramaClientContent({
   ]);
 
   const dashboardAppointments =
-    dashboardScope === "general" ? generalAppointments : appointments;
-  const dashboardCompanies =
-    dashboardScope === "general" ? generalCompanies : companies;
+    generalAppointments.filter((appointment) => {
+      if (allConsultantsSelected) return true;
+      const consultantId = appointment.consultantId?.trim().toLowerCase() ?? "";
+      const consultantName =
+        appointment.consultantName?.trim().toLowerCase() ?? "";
+      return (
+        selectedConsultantLookup.ids.has(consultantId) ||
+        selectedConsultantLookup.ids.has(consultantName) ||
+        selectedConsultantLookup.names.has(consultantId) ||
+        selectedConsultantLookup.names.has(consultantName)
+      );
+    });
+  const dashboardCompanies = useMemo(() => {
+    const companyIds = new Set(
+      dashboardAppointments.map((appointment) => appointment.companyId),
+    );
+    return generalCompanies.filter((company) => companyIds.has(company.id));
+  }, [dashboardAppointments, generalCompanies]);
   const dashboardCompanyById = useMemo(
     () => new Map(dashboardCompanies.map((company) => [company.id, company])),
     [dashboardCompanies],
@@ -1346,10 +1418,9 @@ function CronogramaClientContent({
       ),
     [dashboardAppointments, dashboardCompanyById],
   );
-  const dashboardLoading =
-    dashboardScope === "general" ? generalLoading : loading;
-  const dashboardError = dashboardScope === "general" ? generalError : error;
-  const isGeneralScope = dashboardScope === "general";
+  const dashboardLoading = generalLoading;
+  const dashboardError = generalError;
+  const isGeneralScope = allConsultantsSelected;
 
   const consultantNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -1629,13 +1700,15 @@ function CronogramaClientContent({
   );
 
   const filteredDashboardActions = useMemo(() => {
-    if (dashboardScope !== "individual") return dashboardActions;
-    const selectedActor = selectedActionActorId?.trim().toLowerCase();
-    if (!selectedActor) return [];
-    return dashboardActions.filter(
-      (action) => action.created_by?.trim().toLowerCase() === selectedActor,
+    if (allDashboardActorsSelected) return dashboardActions;
+    const selectedActors = new Set(
+      selectedDashboardActorIds.map((item) => item.trim().toLowerCase()),
     );
-  }, [dashboardActions, dashboardScope, selectedActionActorId]);
+    if (!selectedActors.size) return [];
+    return dashboardActions.filter((action) =>
+      selectedActors.has(action.created_by?.trim().toLowerCase() ?? ""),
+    );
+  }, [allDashboardActorsSelected, dashboardActions, selectedDashboardActorIds]);
 
   const actionMetrics = useMemo(() => {
     const statusTotals = {
@@ -1979,14 +2052,8 @@ function CronogramaClientContent({
     return new Map(companies.map((company) => [company.id, company]));
   }, [companies]);
   const listCompanyById = useMemo(() => {
-    const source = isGeneralScope ? generalListCompanies : companies;
-    return new Map(source.map((company) => [company.id, company]));
-  }, [companies, generalListCompanies, isGeneralScope]);
-
-  const selectedConsultant = useMemo(
-    () => consultants.find((item) => item.id === selectedConsultantId) ?? null,
-    [consultants, selectedConsultantId],
-  );
+    return new Map(generalListCompanies.map((company) => [company.id, company]));
+  }, [generalListCompanies]);
 
   const totalAppointments = visibleAppointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
@@ -1994,8 +2061,21 @@ function CronogramaClientContent({
   const todayStart = useMemo(() => startOfDay(today), [today]);
 
   const filteredAppointments = useMemo(() => {
-    if (!isGeneralScope && !selectedConsultant) return [];
+    if (!selectedListConsultantIds.length) return [];
     return listAppointments.filter((appointment) => {
+      if (!allConsultantsSelected) {
+        const consultantId = appointment.consultantId?.trim().toLowerCase() ?? "";
+        const consultantName =
+          appointment.consultantName?.trim().toLowerCase() ?? "";
+        const matchesConsultant =
+          selectedConsultantLookup.ids.has(consultantId) ||
+          selectedConsultantLookup.ids.has(consultantName) ||
+          selectedConsultantLookup.names.has(consultantId) ||
+          selectedConsultantLookup.names.has(consultantName);
+        if (!matchesConsultant) {
+          return false;
+        }
+      }
       const isExpired = isExpiredAppointment(appointment, todayStart);
       if (appointmentStatus.length > 0) {
         const matchesExpired = appointmentStatus.includes("expired") && isExpired;
@@ -2034,13 +2114,14 @@ function CronogramaClientContent({
       return tokens.includes(normalizedAppointmentSearch);
     });
   }, [
+    allConsultantsSelected,
     appointmentStatus,
     appointmentOpportunity,
     listAppointments,
-    isGeneralScope,
     listCompanyById,
     normalizedAppointmentSearch,
-    selectedConsultant,
+    selectedConsultantLookup,
+    selectedListConsultantIds.length,
     t,
     todayStart,
   ]);
@@ -2122,17 +2203,15 @@ function CronogramaClientContent({
     };
   }, [appointmentPage, appointmentsPerPage, filteredAppointments.length]);
 
-  const companiesByConsultant = useMemo(() => {
-    if (!selectedConsultant?.name) return [];
-    return companies.filter((company) =>
-      matchesConsultantCompany(company, selectedConsultant.name),
-    );
-  }, [companies, selectedConsultant]);
-
   const companiesForListScope = useMemo(() => {
-    if (isGeneralScope) return generalListCompanies;
-    return companiesByConsultant;
-  }, [companiesByConsultant, generalListCompanies, isGeneralScope]);
+    if (allConsultantsSelected) return generalListCompanies;
+    if (!selectedConsultantOptions.length) return [];
+    return generalListCompanies.filter((company) =>
+      selectedConsultantOptions.some((consultant) =>
+        matchesConsultantCompany(company, consultant.name),
+      ),
+    );
+  }, [allConsultantsSelected, generalListCompanies, selectedConsultantOptions]);
 
   const companiesByPortfolio = useMemo(() => {
     if (!companiesForListScope.length) return [];
@@ -2190,7 +2269,7 @@ function CronogramaClientContent({
   }, [companiesByPortfolio]);
 
   useEffect(() => {
-    if (!isGeneralScope && !selectedConsultantId) {
+    if (!selectedListConsultantIds.length) {
       setProtheusCounts(new Map());
       setProtheusError(null);
       setProtheusLoading(false);
@@ -2255,10 +2334,10 @@ function CronogramaClientContent({
     };
 
     void loadCounts();
-  }, [isGeneralScope, protheusLookup, selectedConsultantId, supabase, t]);
+  }, [protheusLookup, selectedListConsultantIds.length, supabase, t]);
 
   useEffect(() => {
-    if (!isGeneralScope && !selectedConsultantId) {
+    if (!selectedListConsultantIds.length) {
       setOpenQuotesTotals(new Map());
       setOpenQuotesError(null);
       setOpenQuotesLoading(false);
@@ -2336,10 +2415,10 @@ function CronogramaClientContent({
     };
 
     void loadOpenQuotes();
-  }, [isGeneralScope, openQuotesLookup, selectedConsultantId, supabase, t]);
+  }, [openQuotesLookup, selectedListConsultantIds.length, supabase, t]);
 
   useEffect(() => {
-    if (!isGeneralScope && !selectedConsultantId) {
+    if (!selectedListConsultantIds.length) {
       setLastVisitByCompany(new Map());
       setLastVisitError(null);
       setLastVisitLoading(false);
@@ -2359,7 +2438,6 @@ function CronogramaClientContent({
       setLastVisitError(null);
       let latestVisits = new Map<string, Date>();
       const chunkSize = 200;
-      const consultantKey = isGeneralScope ? "" : selectedConsultantId?.trim() ?? "";
 
       for (
         let index = 0;
@@ -2373,14 +2451,6 @@ function CronogramaClientContent({
             .select("company_id, starts_at, ends_at, status, check_out_at")
             .in("company_id", chunk)
             .or("status.eq.done,check_out_at.not.is.null");
-
-          if (consultantKey) {
-            if (consultantKey.includes("@")) {
-              query = query.eq("consultant_name", consultantKey);
-            } else {
-              query = query.eq("consultant_id", consultantKey);
-            }
-          }
 
           const { data, error } = await query;
 
@@ -2422,7 +2492,7 @@ function CronogramaClientContent({
     };
 
     void loadLastVisits();
-  }, [companyIdsByConsultant, isGeneralScope, selectedConsultantId, supabase, t]);
+  }, [companyIdsByConsultant, selectedListConsultantIds.length, supabase, t]);
 
   const loadGeneralListCompanies = useCallback(async () => {
     const requestId = ++generalListCompaniesRequestIdRef.current;
@@ -2458,9 +2528,9 @@ function CronogramaClientContent({
   useEffect(() => {
     const isListTab =
       activeTab === "agendamentos" || activeTab === "empresas";
-    if (!isListTab || !isGeneralScope) return;
+    if (!isListTab) return;
     void loadGeneralListCompanies();
-  }, [activeTab, isGeneralScope, loadGeneralListCompanies]);
+  }, [activeTab, loadGeneralListCompanies]);
 
   const loadGeneralDashboard = useCallback(async () => {
     const requestId = ++generalRequestIdRef.current;
@@ -2535,9 +2605,9 @@ function CronogramaClientContent({
   }, [range.endIso, range.startIso, supabase, t]);
 
   useEffect(() => {
-    if (activeTab !== "dashboard" || dashboardScope !== "general") return;
+    if (activeTab !== "dashboard") return;
     void loadGeneralDashboard();
-  }, [activeTab, dashboardScope, loadGeneralDashboard]);
+  }, [activeTab, loadGeneralDashboard]);
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
@@ -2842,43 +2912,17 @@ function CronogramaClientContent({
   }, [companyPage, filteredCompanies.length]);
 
   useEffect(() => {
-    if (!selectedConsultantId) {
-      setLoadedConsultantId(null);
-      return;
-    }
-    if (!loading) {
-      setLoadedConsultantId(selectedConsultantId);
-    }
-  }, [loading, selectedConsultantId]);
-
-  useEffect(() => {
     if (activeTab !== "agendamentos") return;
     const requestId = ++listAppointmentsRequestIdRef.current;
-
-    if (!isGeneralScope && !selectedConsultantId?.trim()) {
-      setListAppointments([]);
-      setListAppointmentsError(null);
-      setListAppointmentsLoading(false);
-      return;
-    }
 
     const loadAppointmentsList = async () => {
       setListAppointmentsLoading(true);
       setListAppointmentsError(null);
       try {
-        let query = supabase
+        const { data, error: appointmentsError } = await supabase
           .from("apontamentos")
           .select(APPOINTMENT_LIST_SELECT)
           .order("starts_at", { ascending: false });
-        const consultantKey = selectedConsultantId?.trim() ?? "";
-        if (!isGeneralScope && consultantKey) {
-          if (consultantKey.includes("@")) {
-            query = query.eq("consultant_name", consultantKey);
-          } else {
-            query = query.eq("consultant_id", consultantKey);
-          }
-        }
-        const { data, error: appointmentsError } = await query;
 
         if (requestId !== listAppointmentsRequestIdRef.current) return;
 
@@ -2902,17 +2946,11 @@ function CronogramaClientContent({
     };
 
     void loadAppointmentsList();
-  }, [activeTab, isGeneralScope, selectedConsultantId, supabase, t]);
+  }, [activeTab, supabase, t]);
 
-  const isCompaniesLoading =
-    isGeneralScope
-      ? generalListCompaniesLoading
-      : Boolean(selectedConsultantId) &&
-        (loading || loadedConsultantId !== selectedConsultantId);
-  const isAppointmentsLoading = isGeneralScope
-    ? listAppointmentsLoading
-    : Boolean(selectedConsultantId) && listAppointmentsLoading;
-  const companiesListError = isGeneralScope ? generalListCompaniesError : error;
+  const isCompaniesLoading = generalListCompaniesLoading;
+  const isAppointmentsLoading = listAppointmentsLoading;
+  const companiesListError = generalListCompaniesError;
 
   const companyColumns = useMemo(
     () =>
@@ -3345,8 +3383,6 @@ function CronogramaClientContent({
   const handleSchedulePeriodChange = useCallback(
     (value: string) => {
       const nextMonth = parseMonth(value, selectedMonth);
-      monthUrlDirtyRef.current = true;
-      weekUrlDirtyRef.current = true;
       setSelectedMonth(nextMonth);
     },
     [selectedMonth],
@@ -3354,8 +3390,6 @@ function CronogramaClientContent({
 
   const handleDashboardPeriodChange = useCallback(
     (value: string) => {
-      monthUrlDirtyRef.current = true;
-      weekUrlDirtyRef.current = true;
       if (dashboardView === "year") {
         const parsedYear = Number(value);
         if (Number.isInteger(parsedYear)) {
@@ -3371,8 +3405,6 @@ function CronogramaClientContent({
 
   const shiftDashboardPeriod = useCallback(
     (direction: -1 | 1) => {
-      monthUrlDirtyRef.current = true;
-      weekUrlDirtyRef.current = true;
       if (dashboardView === "year") {
         setSelectedMonth(
           (prev) => new Date(prev.getFullYear() + direction, prev.getMonth(), 1),
@@ -3385,13 +3417,10 @@ function CronogramaClientContent({
   );
 
   const renderDashboard = () => {
-    const selectedDashboardConsultantId = isVisitDashboard
-      ? selectedConsultantId
-      : selectedActionActorId;
-
     const needsDashboardSelection =
-      dashboardScope === "individual" &&
-      !selectedDashboardConsultantId &&
+      (isVisitDashboard
+        ? !selectedListConsultantIds.length
+        : !selectedDashboardActorIds.length) &&
       (isVisitDashboard || actionActorOptions.length > 0);
 
     if (needsDashboardSelection) {
@@ -3458,11 +3487,7 @@ function CronogramaClientContent({
               type="button"
               onClick={() => {
                 if (isVisitDashboard) {
-                  if (dashboardScope === "general") {
-                    void loadGeneralDashboard();
-                  } else {
-                    void refresh();
-                  }
+                  void loadGeneralDashboard();
                 } else {
                   setActionReloadKey((current) => current + 1);
                 }
@@ -3549,8 +3574,9 @@ function CronogramaClientContent({
             className={toolbarCardClass}
             summary={<span>{dashboardPeriodLabel}</span>}
           >
-            {scopeControl}
-            {consultantControl()}
+            {isVisitDashboard
+              ? consultantMultiSelectControl
+              : dashboardActorMultiSelectControl}
             <ToolbarField
               label={t("schedule.dashboard.viewLabel")}
               srOnlyLabel
@@ -3620,7 +3646,6 @@ function CronogramaClientContent({
                           key={`${toDateKey(week.startAt)}-${index}`}
                           type="button"
                           onClick={() => {
-                            weekUrlDirtyRef.current = true;
                             setSelectedWeekIndex(index);
                           }}
                           className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
@@ -3637,7 +3662,9 @@ function CronogramaClientContent({
           />
 
           <div className="text-xs text-slate-500">
-            {dashboardScope === "general"
+            {(isVisitDashboard
+              ? allConsultantsSelected
+              : allDashboardActorsSelected)
               ? t(
                   isVisitDashboard
                     ? "schedule.dashboard.scopeHintGeneral"
@@ -3742,7 +3769,7 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          {isVisitDashboard && dashboardScope === "general" ? (
+          {isVisitDashboard && allConsultantsSelected ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.consultantAvgVisitsPerPeriod")}
@@ -3831,7 +3858,7 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          {isVisitDashboard && dashboardScope === "general" ? (
+          {isVisitDashboard && allConsultantsSelected ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.topConsultants")}
@@ -4141,7 +4168,7 @@ function CronogramaClientContent({
             </div>
           ) : null}
 
-          {isVisitDashboard && dashboardScope === "general" ? (
+          {isVisitDashboard && allConsultantsSelected ? (
             <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {t("schedule.dashboard.charts.activitiesByConsultant")}
@@ -4791,13 +4818,9 @@ function CronogramaClientContent({
                 options={monthSelectOptions}
                 onChange={handleSchedulePeriodChange}
                 onPrev={() => {
-                  monthUrlDirtyRef.current = true;
-                  weekUrlDirtyRef.current = true;
                   setSelectedMonth((prev) => addMonths(prev, -1));
                 }}
                 onNext={() => {
-                  monthUrlDirtyRef.current = true;
-                  weekUrlDirtyRef.current = true;
                   setSelectedMonth((prev) => addMonths(prev, 1));
                 }}
                 trailing={weeks.map((week, index) => {
@@ -4807,7 +4830,6 @@ function CronogramaClientContent({
                       key={`${toDateKey(week.startAt)}-${index}`}
                       type="button"
                       onClick={() => {
-                        weekUrlDirtyRef.current = true;
                         setSelectedWeekIndex(index);
                       }}
                       className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
@@ -5289,8 +5311,7 @@ function CronogramaClientContent({
                   )
                 }
               >
-                {scopeControl}
-                {consultantControl()}
+                {consultantMultiSelectControl}
                 <ToolbarField
                   label={t("schedule.statusFilterLabel")}
                   className="sm:min-w-[240px]"
@@ -5366,9 +5387,7 @@ function CronogramaClientContent({
                       setAppointmentSearch(event.target.value)
                     }
                     placeholder={t("schedule.appointmentsSearchPlaceholder")}
-                    disabled={
-                      dashboardScope === "individual" && !selectedConsultantId
-                    }
+                    disabled={!selectedListConsultantIds.length}
                     aria-label={t("schedule.search")}
                     className={toolbarInputClass}
                   />
@@ -5502,7 +5521,7 @@ function CronogramaClientContent({
               </div>
 
               <div className="divide-y divide-slate-200">
-                {dashboardScope === "individual" && !selectedConsultant ? (
+                {!selectedListConsultantIds.length ? (
                   <div className="px-5 py-4 text-sm text-slate-500">
                     {t("schedule.selectConsultantToViewAppointments")}
                   </div>
@@ -5546,16 +5565,8 @@ function CronogramaClientContent({
                   })
                 )}
 
-                {dashboardScope === "individual" &&
-                  selectedConsultant &&
-                  !isAppointmentsLoading &&
-                  filteredAppointments.length === 0 && (
-                    <div className="px-5 py-4 text-sm text-slate-500">
-                      {t("schedule.noAppointmentsFound")}
-                    </div>
-                  )}
-                {dashboardScope === "general" &&
-                  !isAppointmentsLoading &&
+                {!isAppointmentsLoading &&
+                  selectedListConsultantIds.length > 0 &&
                   filteredAppointments.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
                       {t("schedule.noAppointmentsFound")}
@@ -5608,8 +5619,7 @@ function CronogramaClientContent({
                   )
                 }
               >
-                {scopeControl}
-                {consultantControl()}
+                {consultantMultiSelectControl}
                 <ToolbarField
                   className="sm:min-w-[210px]"
                   contentClassName="w-full"
@@ -5621,9 +5631,7 @@ function CronogramaClientContent({
                       onChange={(event) =>
                         setShowOutsidePortfolio(event.target.checked)
                       }
-                      disabled={
-                        dashboardScope === "individual" && !selectedConsultantId
-                      }
+                      disabled={!selectedListConsultantIds.length}
                       className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <span>{t("schedule.outsidePortfolioToggle")}</span>
@@ -5652,13 +5660,11 @@ function CronogramaClientContent({
                     value={companySearch}
                     onChange={(event) => setCompanySearch(event.target.value)}
                     placeholder={
-                      dashboardScope === "general" || selectedConsultantId
+                      selectedListConsultantIds.length
                         ? t("schedule.searchPlaceholderWithConsultant")
                         : t("schedule.searchPlaceholderNoConsultant")
                     }
-                    disabled={
-                      dashboardScope === "individual" && !selectedConsultantId
-                    }
+                    disabled={!selectedListConsultantIds.length}
                     aria-label={t("schedule.search")}
                     className={toolbarInputClass}
                   />
@@ -5802,7 +5808,7 @@ function CronogramaClientContent({
               </div>
 
               <div className="divide-y divide-slate-200">
-                {dashboardScope === "individual" && !selectedConsultant ? (
+                {!selectedListConsultantIds.length ? (
                   <div className="px-5 py-4 text-sm text-slate-500">
                     {t("schedule.selectConsultantToViewCompanies")}
                   </div>
@@ -5844,16 +5850,8 @@ function CronogramaClientContent({
                   ))
                 )}
 
-                {dashboardScope === "individual" &&
-                  selectedConsultant &&
-                  !isCompaniesLoading &&
-                  filteredCompanies.length === 0 && (
-                    <div className="px-5 py-4 text-sm text-slate-500">
-                      {t("schedule.noCompaniesFound")}
-                    </div>
-                  )}
-                {dashboardScope === "general" &&
-                  !isCompaniesLoading &&
+                {!isCompaniesLoading &&
+                  selectedListConsultantIds.length > 0 &&
                   filteredCompanies.length === 0 && (
                     <div className="px-5 py-4 text-sm text-slate-500">
                       {t("schedule.noCompaniesFound")}

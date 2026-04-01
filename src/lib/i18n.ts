@@ -80,6 +80,8 @@ const MESSAGES = {
       statusFilterSearchPlaceholder: "Buscar status...",
       statusFilterNoResults: "Nenhum status encontrado.",
       multiSelectSelectedCount: "{count} selecionados",
+      multiSelectSelectAll: "Selecionar todos",
+      multiSelectClearAll: "Desmarcar todos",
       opportunityFilterLabel: "Oportunidade",
       opportunityAll: "Todas",
       opportunityFilterSearchPlaceholder: "Buscar oportunidade...",
@@ -183,6 +185,9 @@ const MESSAGES = {
         loadError: "Não foi possível carregar as ações.",
         empty: "Nenhuma ação encontrada com esses filtros.",
         actorLabel: "Ator",
+        actorAll: "Todos os atores",
+        selectAtLeastOneActorToView:
+          "Selecione ao menos um ator para ver as ações.",
         selectActorToView: "Selecione um ator para ver as ações.",
         searchPlaceholder:
           "Buscar por empresa, ator, consultor, NF/OS ou observação",
