@@ -1015,6 +1015,7 @@ function CronogramaClientContent({
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const persistedSelectedConsultantHydratedRef = useRef(false);
   const [protheusCounts, setProtheusCounts] = useState<
     Map<string, ProtheusCounts>
   >(new Map());
@@ -1155,26 +1156,17 @@ function CronogramaClientContent({
       className="sm:min-w-[220px]"
       contentClassName="w-full"
     >
-      <select
-        value={selectedConsultantId ?? ""}
-        onChange={(event) => {
-          const next = event.target.value || null;
-          setSelectedConsultantId(next);
-        }}
+      <LeadTypesMultiSelect
+        value={selectedConsultantId ? [selectedConsultantId] : []}
+        options={consultantOptions}
+        onChange={(next) => setSelectedConsultantId(next[0] ?? null)}
+        selectionMode="single"
+        showToggleAll={false}
         disabled={!consultants.length}
-        aria-label={t("schedule.consultant")}
-        className={toolbarInputClass}
-      >
-        {consultants.length ? (
-          consultants.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))
-        ) : (
-          <option value="">{t("schedule.emptyConsultant")}</option>
-        )}
-      </select>
+        placeholder={t("schedule.consultant")}
+        searchPlaceholder={t("schedule.consultantFilterSearchPlaceholder")}
+        noResultsText={t("schedule.emptyConsultant")}
+      />
     </ToolbarField>
   );
 
@@ -1214,20 +1206,20 @@ function CronogramaClientContent({
   }, [weeks, today]);
 
   useEffect(() => {
-    if (!persistedCronogramaState.selectedConsultantId) return;
     if (!consultants.length) return;
+    if (persistedSelectedConsultantHydratedRef.current) return;
+    persistedSelectedConsultantHydratedRef.current = true;
+    if (!persistedCronogramaState.selectedConsultantId) return;
     if (
       consultants.some(
         (item) => item.id === persistedCronogramaState.selectedConsultantId,
-      ) &&
-      selectedConsultantId !== persistedCronogramaState.selectedConsultantId
+      )
     ) {
       setSelectedConsultantId(persistedCronogramaState.selectedConsultantId);
     }
   }, [
     consultants,
     persistedCronogramaState.selectedConsultantId,
-    selectedConsultantId,
     setSelectedConsultantId,
   ]);
 

@@ -14,6 +14,9 @@ type LeadTypesMultiSelectProps = {
   value: string[];
   options: Array<string | { value: string; label: string }>;
   onChange: (next: string[]) => void;
+  selectionMode?: "multiple" | "single";
+  showToggleAll?: boolean;
+  disabled?: boolean;
   placeholder?: string;
   allSelectedLabel?: string;
   searchPlaceholder?: string;
@@ -48,6 +51,9 @@ export function LeadTypesMultiSelect({
   value,
   options,
   onChange,
+  selectionMode = "multiple",
+  showToggleAll,
+  disabled = false,
   placeholder,
   allSelectedLabel,
   searchPlaceholder,
@@ -60,6 +66,7 @@ export function LeadTypesMultiSelect({
     () => (Array.isArray(value) ? value : []),
     [value],
   );
+  const isSingleSelect = selectionMode === "single";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -93,6 +100,12 @@ export function LeadTypesMultiSelect({
       return label.includes(normalized) || value.includes(normalized);
     });
   }, [normalizedOptions, query]);
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +149,11 @@ export function LeadTypesMultiSelect({
 
   const toggleOption = useCallback(
     (option: string) => {
+      if (isSingleSelect) {
+        onChange(selectedValues[0] === option ? [] : [option]);
+        setOpen(false);
+        return;
+      }
       const selected = new Set(selectedValues);
       if (selected.has(option)) {
         selected.delete(option);
@@ -144,7 +162,7 @@ export function LeadTypesMultiSelect({
       }
       onChange(Array.from(selected));
     },
-    [onChange, selectedValues],
+    [isSingleSelect, onChange, selectedValues],
   );
 
   const allOptionValues = useMemo(
@@ -155,6 +173,7 @@ export function LeadTypesMultiSelect({
   const allSelected =
     allOptionValues.length > 0 &&
     allOptionValues.every((option) => selectedValues.includes(option));
+  const shouldShowToggleAll = showToggleAll ?? !isSingleSelect;
 
   const handleToggleAll = useCallback(() => {
     onChange(allSelected ? [] : allOptionValues);
@@ -228,12 +247,15 @@ export function LeadTypesMultiSelect({
       <button
         ref={triggerRef}
         type="button"
+        disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+        className={`flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 ${
+          disabled ? "cursor-not-allowed opacity-60" : ""
+        }`}
       >
         <span
           className={`truncate ${
@@ -249,7 +271,7 @@ export function LeadTypesMultiSelect({
         <div
           className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           role="listbox"
-          aria-multiselectable="true"
+          aria-multiselectable={isSingleSelect ? undefined : "true"}
           id={listId}
         >
           <div className="border-b border-slate-200 px-2 py-2">
@@ -262,7 +284,7 @@ export function LeadTypesMultiSelect({
               className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             />
           </div>
-          {normalizedOptions.length ? (
+          {shouldShowToggleAll && normalizedOptions.length ? (
             <div className="border-b border-slate-200 px-2 py-2">
               <button
                 type="button"
