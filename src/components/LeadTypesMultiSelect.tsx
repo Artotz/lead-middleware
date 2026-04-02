@@ -224,7 +224,7 @@ export function LeadTypesMultiSelect({
   };
 
   return (
-    <div ref={wrapperRef} className="relative z-20">
+    <div ref={wrapperRef} className="relative z-20 min-w-0">
       <button
         ref={triggerRef}
         type="button"
@@ -238,11 +238,11 @@ export function LeadTypesMultiSelect({
         <span
           className={`truncate ${
             selectedValues.length ? "text-slate-900" : "text-slate-400"
-          }`}
+          } min-w-0 flex-1`}
         >
           {summary}
         </span>
-        <span className="text-slate-400">v</span>
+        <span className="shrink-0 text-slate-400">v</span>
       </button>
 
       {open ? (
@@ -294,7 +294,7 @@ export function LeadTypesMultiSelect({
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-slate-700 transition hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
                   >
                     <span
-                      className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
                         selected
                           ? "border-sky-400 bg-sky-50 text-sky-700"
                           : "border-slate-300 text-transparent"
@@ -303,7 +303,7 @@ export function LeadTypesMultiSelect({
                     >
                       x
                     </span>
-                    <span className="truncate">{option.label}</span>
+                    <span className="min-w-0 truncate">{option.label}</span>
                   </button>
                 );
               })
