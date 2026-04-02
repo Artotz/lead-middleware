@@ -1271,7 +1271,11 @@ function CronogramaClientContent({
       companySort !== "name" &&
       companySort !== "name_desc" &&
       companySort !== "csa_asc" &&
-      companySort !== "csa_desc"
+      companySort !== "csa_desc" &&
+      companySort !== "quotes_asc" &&
+      companySort !== "quotes_desc" &&
+      companySort !== "last_visit_asc" &&
+      companySort !== "last_visit_desc"
     ) {
       setCompanySort("name");
     }
@@ -1280,10 +1284,17 @@ function CronogramaClientContent({
   useEffect(() => {
     if (
       appointmentSort !== "date_desc" &&
+      appointmentSort !== "date_asc" &&
       appointmentSort !== "alpha_asc" &&
       appointmentSort !== "alpha_desc" &&
       appointmentSort !== "consultant_asc" &&
-      appointmentSort !== "consultant_desc"
+      appointmentSort !== "consultant_desc" &&
+      appointmentSort !== "status_asc" &&
+      appointmentSort !== "status_desc" &&
+      appointmentSort !== "opportunities_asc" &&
+      appointmentSort !== "opportunities_desc" &&
+      appointmentSort !== "quotes_asc" &&
+      appointmentSort !== "quotes_desc"
     ) {
       setAppointmentSort("date_desc");
     }
@@ -3425,9 +3436,8 @@ function CronogramaClientContent({
   const appointmentHeaderSortOptions = useMemo(
     () => ({
       data: [
-        { value: "__none__", label: t("schedule.columnSortNone") },
-        { value: "date_asc", label: t("schedule.columnSortAsc") },
         { value: "date_desc", label: t("schedule.columnSortDesc") },
+        { value: "date_asc", label: t("schedule.columnSortAsc") },
       ],
       empresa: [
         { value: "__none__", label: t("schedule.columnSortNone") },
@@ -5844,8 +5854,10 @@ function CronogramaClientContent({
                         label={column.label}
                         sortValue={appointmentSort === "date_asc" || appointmentSort === "date_desc" ? appointmentSort : "__none__"}
                         sortOptions={appointmentHeaderSortOptions.data}
-                        onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
+                        onSortChange={(next) => setAppointmentSort(next as typeof appointmentSort)}
                         sortAriaLabel={column.label}
+                        disableSortReset
+                        defaultSortValue="date_desc"
                       />
                     ) : column.id === "status" ? (
                       <TableColumnFilterHeader

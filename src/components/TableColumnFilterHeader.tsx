@@ -28,15 +28,22 @@ type TableColumnFilterHeaderProps = {
   sortOptions?: SortOption[];
   onSortChange?: (next: string) => void;
   sortAriaLabel?: string;
+  disableSortReset?: boolean;
+  defaultSortValue?: string;
 };
 
 const getNextSortValue = (
   current: string | undefined,
   options: SortOption[],
+  disableSortReset = false,
+  defaultSortValue?: string,
 ) => {
   if (!options.length) return current ?? "";
   const index = options.findIndex((option) => option.value === current);
-  if (index < 0) return options[0]!.value;
+  if (index < 0) return defaultSortValue ?? options[0]!.value;
+  if (disableSortReset && index === options.length - 1) {
+    return options[0]!.value;
+  }
   return options[(index + 1) % options.length]!.value;
 };
 
@@ -63,6 +70,8 @@ export function TableColumnFilterHeader({
   sortOptions = [],
   onSortChange,
   sortAriaLabel,
+  disableSortReset = false,
+  defaultSortValue,
 }: TableColumnFilterHeaderProps) {
   const hasSort = Boolean(onSortChange && sortOptions.length);
   const hasFilter = Boolean(onFilterChange && filterOptions.length);
@@ -80,7 +89,14 @@ export function TableColumnFilterHeader({
           <button
             type="button"
             onClick={() =>
-              onSortChange?.(getNextSortValue(sortValue, sortOptions))
+              onSortChange?.(
+                getNextSortValue(
+                  sortValue,
+                  sortOptions,
+                  disableSortReset,
+                  defaultSortValue,
+                ),
+              )
             }
             aria-label={`${sortAriaLabel ?? label}: ${currentSortLabel}`}
             title={currentSortLabel}
