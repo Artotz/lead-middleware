@@ -23,6 +23,11 @@ type Sort =
   | "consultant_desc"
   | "actor_asc"
   | "actor_desc"
+  | "result_asc"
+  | "result_desc"
+  | "opportunity_asc"
+  | "opportunity_desc"
+  | "value_asc"
   | "value_desc";
 type Col = "empresa" | "consultor" | "ator" | "data" | "resultado" | "oportunidade" | "valor" | "nfOs";
 type ActionRow = {
@@ -116,7 +121,7 @@ export default function ActionsListClient({ locale }: Props) {
             resultFilter: Array.isArray(data.resultFilter) ? data.resultFilter.filter((item): item is Result => RESULTS.includes(item as Result)) : [],
             oppFilter: Array.isArray(data.oppFilter) ? data.oppFilter.filter((item): item is string => typeof item === "string") : [],
             columns: Array.isArray(data.columns) ? ((data.columns.filter((item): item is Col => COLS.includes(item as Col)) as Col[]).length ? Array.from(new Set(data.columns.filter((item): item is Col => COLS.includes(item as Col)))) : [...COLS]) : [...COLS],
-            sort: data.sort && ["date_desc", "date_asc", "company_asc", "company_desc", "consultant_asc", "consultant_desc", "actor_asc", "actor_desc", "value_desc"].includes(data.sort) ? data.sort : "date_desc",
+            sort: data.sort && ["date_desc", "date_asc", "company_asc", "company_desc", "consultant_asc", "consultant_desc", "actor_asc", "actor_desc", "result_asc", "result_desc", "opportunity_asc", "opportunity_desc", "value_asc", "value_desc"].includes(data.sort) ? data.sort : "date_desc",
             page: typeof data.page === "number" && Number.isInteger(data.page) && data.page > 0 ? data.page : 1,
           };
         },
@@ -243,6 +248,27 @@ export default function ActionsListClient({ locale }: Props) {
     });
   }, [consultantOptionValues]);
 
+  useEffect(() => {
+    if (
+      sort !== "date_desc" &&
+      sort !== "date_asc" &&
+      sort !== "company_asc" &&
+      sort !== "company_desc" &&
+      sort !== "consultant_asc" &&
+      sort !== "consultant_desc" &&
+      sort !== "actor_asc" &&
+      sort !== "actor_desc" &&
+      sort !== "result_asc" &&
+      sort !== "result_desc" &&
+      sort !== "opportunity_asc" &&
+      sort !== "opportunity_desc" &&
+      sort !== "value_asc" &&
+      sort !== "value_desc"
+    ) {
+      setSort("date_desc");
+    }
+  }, [sort]);
+
   const colDefs = useMemo(() => ([
     { id: "empresa", label: t("schedule.actionsList.columns.company"), width: "1.7fr" },
     { id: "consultor", label: t("schedule.actionsList.columns.consultant"), width: "1.1fr" },
@@ -260,13 +286,23 @@ export default function ActionsListClient({ locale }: Props) {
   const allActorsSelected = actorOptionValues.length > 0 && selectedActorIds.length === actorOptionValues.length;
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const getResultLabel = (item: Item) =>
+      item.result === "vendido"
+        ? t("appointment.action.resultSold")
+        : item.result === "perdido"
+          ? t("appointment.action.resultLost")
+          : t("appointment.action.resultInProgress");
+    const getOpportunityLabel = (item: Item) =>
+      item.opportunityType
+        ? t(`schedule.opportunity.${item.opportunityType}`, undefined, item.opportunityType)
+        : "";
     return items.filter((item) => allActorsSelected ? true : selectedActorIds.length ? selectedActorIds.some((value) => norm(item.actorId) === norm(value)) : false)
       .filter((item) => companyFilter.length ? companyFilter.some((value) => norm(item.companyName) === norm(value)) : true)
       .filter((item) => consultantFilter.length ? consultantFilter.some((value) => norm(item.consultantName) === norm(value)) : true)
       .filter((item) => resultFilter.length ? resultFilter.includes(item.result) : true)
       .filter((item) => oppFilter.length ? item.opportunityType != null && oppFilter.includes(item.opportunityType) : true)
       .filter((item) => !q || [item.companyName, item.companyDocument, item.consultantName, item.actorLabel, item.actorId, item.nfOuOs, item.note, item.opportunityType ? t(`schedule.opportunity.${item.opportunityType}`, undefined, item.opportunityType) : null, item.lossReason ? t(`appointment.action.lossReasons.${item.lossReason}`, undefined, item.lossReason) : null].some((v) => v?.toLowerCase().includes(q)))
-      .sort((a, b) => sort === "date_asc" ? (a.createdAt ?? "").localeCompare(b.createdAt ?? "") : sort === "company_asc" ? (a.companyName ?? "").localeCompare(b.companyName ?? "", "pt-BR") : sort === "company_desc" ? (b.companyName ?? "").localeCompare(a.companyName ?? "", "pt-BR") : sort === "consultant_asc" ? (a.consultantName ?? "").localeCompare(b.consultantName ?? "", "pt-BR") : sort === "consultant_desc" ? (b.consultantName ?? "").localeCompare(a.consultantName ?? "", "pt-BR") : sort === "actor_asc" ? (a.actorLabel ?? "").localeCompare(b.actorLabel ?? "", "pt-BR") : sort === "actor_desc" ? (b.actorLabel ?? "").localeCompare(a.actorLabel ?? "", "pt-BR") : sort === "value_desc" ? (b.value ?? -1) - (a.value ?? -1) : (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+      .sort((a, b) => sort === "date_asc" ? (a.createdAt ?? "").localeCompare(b.createdAt ?? "") : sort === "company_asc" ? (a.companyName ?? "").localeCompare(b.companyName ?? "", "pt-BR") : sort === "company_desc" ? (b.companyName ?? "").localeCompare(a.companyName ?? "", "pt-BR") : sort === "consultant_asc" ? (a.consultantName ?? "").localeCompare(b.consultantName ?? "", "pt-BR") : sort === "consultant_desc" ? (b.consultantName ?? "").localeCompare(a.consultantName ?? "", "pt-BR") : sort === "actor_asc" ? (a.actorLabel ?? "").localeCompare(b.actorLabel ?? "", "pt-BR") : sort === "actor_desc" ? (b.actorLabel ?? "").localeCompare(a.actorLabel ?? "", "pt-BR") : sort === "result_asc" ? getResultLabel(a).localeCompare(getResultLabel(b), "pt-BR") : sort === "result_desc" ? getResultLabel(b).localeCompare(getResultLabel(a), "pt-BR") : sort === "opportunity_asc" ? getOpportunityLabel(a).localeCompare(getOpportunityLabel(b), "pt-BR") : sort === "opportunity_desc" ? getOpportunityLabel(b).localeCompare(getOpportunityLabel(a), "pt-BR") : sort === "value_asc" ? (a.value ?? -1) - (b.value ?? -1) : sort === "value_desc" ? (b.value ?? -1) - (a.value ?? -1) : (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
   }, [allActorsSelected, companyFilter, consultantFilter, items, oppFilter, resultFilter, search, selectedActorIds, sort, t]);
   useEffect(() => setPage(1), [actorFilter, companyFilter, consultantFilter, oppFilter, resultFilter, search, sort]);
   useEffect(() => {
@@ -293,6 +329,11 @@ export default function ActionsListClient({ locale }: Props) {
   const resultBadge = (r: Result) => r === "vendido" ? <Badge tone="emerald">{t("appointment.action.resultSold")}</Badge> : r === "perdido" ? <Badge tone="rose">{t("appointment.action.resultLost")}</Badge> : <Badge tone="amber">{t("appointment.action.resultInProgress")}</Badge>;
   const headerSortOptions = useMemo(
     () => ({
+      data: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "date_asc", label: t("schedule.columnSortAsc") },
+        { value: "date_desc", label: t("schedule.columnSortDesc") },
+      ],
       empresa: [
         { value: "__none__", label: t("schedule.columnSortNone") },
         { value: "company_asc", label: t("schedule.columnSortAsc") },
@@ -308,7 +349,30 @@ export default function ActionsListClient({ locale }: Props) {
         { value: "actor_asc", label: t("schedule.columnSortAsc") },
         { value: "actor_desc", label: t("schedule.columnSortDesc") },
       ],
+      resultado: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "result_asc", label: t("schedule.columnSortAsc") },
+        { value: "result_desc", label: t("schedule.columnSortDesc") },
+      ],
+      oportunidade: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "opportunity_asc", label: t("schedule.columnSortAsc") },
+        { value: "opportunity_desc", label: t("schedule.columnSortDesc") },
+      ],
+      valor: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "value_asc", label: t("schedule.columnSortAsc") },
+        { value: "value_desc", label: t("schedule.columnSortDesc") },
+      ],
     }),
+    [t],
+  );
+  const resultOptions = useMemo(
+    () => [
+      { value: "em_andamento", label: t("appointment.action.resultInProgress") },
+      { value: "vendido", label: t("appointment.action.resultSold") },
+      { value: "perdido", label: t("appointment.action.resultLost") },
+    ],
     [t],
   );
   const cell = (col: Col, item: Item) => {
@@ -330,35 +394,14 @@ export default function ActionsListClient({ locale }: Props) {
         <div className={`${panel} p-3 sm:p-4`}>
           <div className="flex flex-col gap-3">
             <ToolbarRow className={toolbar} summary={loading ? <div className="h-3 w-28 rounded-full bg-slate-200 animate-pulse" /> : <span>{t("schedule.actionsList.count", { count: filtered.length })}</span>}>
-              <ToolbarField label={t("schedule.actionsList.actorLabel")} srOnlyLabel className="sm:min-w-[240px]" contentClassName="w-full">
-                <div className="w-full min-w-[220px]">
-                  <LeadTypesMultiSelect
-                    value={selectedActorIds}
-                    options={actorOptions}
-                    onChange={setActorFilter}
-                    placeholder={t("schedule.actionsList.actorLabel")}
-                    allSelectedLabel={t("schedule.actionsList.actorAll")}
-                    searchPlaceholder={t("schedule.actionsList.searchPlaceholder")}
-                    noResultsText={t("schedule.emptyConsultant")}
-                    selectedCountTemplate={t("schedule.multiSelectSelectedCount")}
-                    selectAllLabel={t("schedule.multiSelectSelectAll")}
-                    clearAllLabel={t("schedule.multiSelectClearAll")}
-                  />
-                </div>
-              </ToolbarField>
-              <ToolbarField label={t("schedule.actionsList.resultFilterLabel")} className="sm:min-w-[240px]" contentClassName="w-full"><div className="w-full min-w-[180px]"><LeadTypesMultiSelect value={resultFilter} options={[{ value: "em_andamento", label: t("appointment.action.resultInProgress") }, { value: "vendido", label: t("appointment.action.resultSold") }, { value: "perdido", label: t("appointment.action.resultLost") }]} onChange={(next) => setResultFilter(next.filter((v): v is Result => RESULTS.includes(v as Result)))} placeholder={t("schedule.actionsList.resultFilterAll")} searchPlaceholder={t("schedule.actionsList.resultFilterSearchPlaceholder")} noResultsText={t("schedule.statusFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
-              <ToolbarField label={t("schedule.opportunityFilterLabel")} className="sm:min-w-[270px]" contentClassName="w-full"><div className="w-full min-w-[210px]"><LeadTypesMultiSelect value={oppFilter} options={OPPORTUNITY_OPTIONS.map((o) => ({ value: o.id, label: t(`schedule.opportunity.${o.id}`, undefined, o.label) }))} onChange={setOppFilter} placeholder={t("schedule.opportunityAll")} searchPlaceholder={t("schedule.opportunityFilterSearchPlaceholder")} noResultsText={t("schedule.opportunityFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
-            </ToolbarRow>
-            <ToolbarRow className={toolbar} summary={<span className="sr-only">.</span>}>
               <ToolbarField label={t("schedule.search")} srOnlyLabel className="sm:min-w-[280px]" contentClassName="w-full"><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("schedule.actionsList.searchPlaceholder")} disabled={!selectedActorIds.length} aria-label={t("schedule.search")} className={input} /></ToolbarField>
               <ToolbarField label={t("schedule.visibleColumnsLabel")} className="sm:min-w-[250px]" contentClassName="w-full"><div className="w-full min-w-[190px]"><LeadTypesMultiSelect value={columns} options={colDefs.map((c) => ({ value: c.id, label: c.label }))} onChange={(next) => setColumns(((next.filter((v): v is Col => COLS.includes(v as Col)) as Col[]).length ? Array.from(new Set(next.filter((v): v is Col => COLS.includes(v as Col)))) : [...COLS]))} placeholder={t("schedule.visibleColumnsPlaceholder")} searchPlaceholder={t("schedule.visibleColumnsSearchPlaceholder")} noResultsText={t("schedule.visibleColumnsNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} /></div></ToolbarField>
-              <ToolbarField label={t("schedule.orderBy")} className="sm:min-w-[240px]" contentClassName="w-full"><select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("schedule.orderBy")} className={input}><option value="date_desc">{t("schedule.actionsList.sortDateDesc")}</option><option value="date_asc">{t("schedule.actionsList.sortDateAsc")}</option><option value="company_asc">{t("schedule.actionsList.sortCompanyAsc")}</option><option value="company_desc">{t("schedule.columnSortDesc")}</option><option value="consultant_asc">{t("schedule.columnSortAsc")} · {t("schedule.actionsList.columns.consultant")}</option><option value="consultant_desc">{t("schedule.columnSortDesc")} · {t("schedule.actionsList.columns.consultant")}</option><option value="actor_asc">{t("schedule.actionsList.sortActorAsc")}</option><option value="actor_desc">{t("schedule.columnSortDesc")} · {t("schedule.actionsList.columns.actor")}</option><option value="value_desc">{t("schedule.actionsList.sortValueDesc")}</option></select></ToolbarField>
             </ToolbarRow>
             <PaginationControls className="px-1" summary={loading ? <div className="h-3 w-36 rounded-full bg-slate-200 animate-pulse" /> : t("schedule.paginationSummary", summary)} pageInfo={loading ? <div className="h-3 w-20 rounded-full bg-slate-200 animate-pulse" /> : t("schedule.paginationPage", { page, total: totalPages })} prevLabel={t("schedule.paginationPrev")} nextLabel={t("schedule.paginationNext")} onPrev={() => setPage((p) => Math.max(1, p - 1))} onNext={() => setPage((p) => Math.min(totalPages, p + 1))} prevDisabled={page <= 1 || loading} nextDisabled={page >= totalPages || loading} />
             {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</div> : null}
           </div>
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
-            <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={c.id} className="min-w-0">{c.id === "empresa" ? <TableColumnFilterHeader label={c.label} filterValue={companyFilter} filterOptions={companyOptions} onFilterChange={setCompanyFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.dashboard.allCompanies")} filterSearchPlaceholder={t("schedule.companyFilterSearchPlaceholder")} filterNoResultsText={t("schedule.companyFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "company_asc" || sort === "company_desc" ? sort : "__none__"} sortOptions={headerSortOptions.empresa} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "consultor" ? <TableColumnFilterHeader label={c.label} filterValue={consultantFilter} filterOptions={consultantOptions} onFilterChange={setConsultantFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.dashboard.allConsultants")} filterSearchPlaceholder={t("schedule.consultantFilterSearchPlaceholder")} filterNoResultsText={t("schedule.emptyConsultant")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "consultant_asc" || sort === "consultant_desc" ? sort : "__none__"} sortOptions={headerSortOptions.consultor} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "ator" ? <TableColumnFilterHeader label={c.label} filterValue={actorFilter} filterOptions={actorOptions} onFilterChange={setActorFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.dashboard.allActors")} filterSearchPlaceholder={t("schedule.actorFilterSearchPlaceholder")} filterNoResultsText={t("schedule.emptyConsultant")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "actor_asc" || sort === "actor_desc" ? sort : "__none__"} sortOptions={headerSortOptions.ator} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : <span className="block truncate text-xs font-semibold uppercase tracking-wide text-slate-600">{c.label}</span>}</div>)}</div>
+            <div className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={c.id} className="min-w-0">{c.id === "empresa" ? <TableColumnFilterHeader label={c.label} filterValue={companyFilter} filterOptions={companyOptions} onFilterChange={setCompanyFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.dashboard.allCompanies")} filterSearchPlaceholder={t("schedule.companyFilterSearchPlaceholder")} filterNoResultsText={t("schedule.companyFilterNoResults")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "company_asc" || sort === "company_desc" ? sort : "__none__"} sortOptions={headerSortOptions.empresa} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "consultor" ? <TableColumnFilterHeader label={c.label} filterValue={consultantFilter} filterOptions={consultantOptions} onFilterChange={setConsultantFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.dashboard.allConsultants")} filterSearchPlaceholder={t("schedule.consultantFilterSearchPlaceholder")} filterNoResultsText={t("schedule.emptyConsultant")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "consultant_asc" || sort === "consultant_desc" ? sort : "__none__"} sortOptions={headerSortOptions.consultor} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "ator" ? <TableColumnFilterHeader label={c.label} filterValue={actorFilter} filterOptions={actorOptions} onFilterChange={setActorFilter} filterPlaceholder={c.label} filterAllLabel={t("schedule.actionsList.actorAll")} filterSearchPlaceholder={t("schedule.actorFilterSearchPlaceholder")} filterNoResultsText={t("schedule.emptyConsultant")} selectedCountTemplate={t("schedule.multiSelectSelectedCount")} selectAllLabel={t("schedule.multiSelectSelectAll")} clearAllLabel={t("schedule.multiSelectClearAll")} sortValue={sort === "actor_asc" || sort === "actor_desc" ? sort : "__none__"} sortOptions={headerSortOptions.ator} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "data" ? <TableColumnFilterHeader label={c.label} sortValue={sort === "date_asc" || sort === "date_desc" ? sort : "__none__"} sortOptions={headerSortOptions.data} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "resultado" ? <TableColumnFilterHeader label={c.label} sortValue={sort === "result_asc" || sort === "result_desc" ? sort : "__none__"} sortOptions={headerSortOptions.resultado} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "oportunidade" ? <TableColumnFilterHeader label={c.label} sortValue={sort === "opportunity_asc" || sort === "opportunity_desc" ? sort : "__none__"} sortOptions={headerSortOptions.oportunidade} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : c.id === "valor" ? <TableColumnFilterHeader label={c.label} sortValue={sort === "value_asc" || sort === "value_desc" ? sort : "__none__"} sortOptions={headerSortOptions.valor} onSortChange={(next) => setSort(next === "__none__" ? "date_desc" : next as Sort)} sortAriaLabel={c.label} /> : <span className="block truncate text-xs font-semibold uppercase tracking-wide text-slate-600">{c.label}</span>}</div>)}</div>
             <div className="divide-y divide-slate-200">
               {!selectedActorIds.length ? <div className="px-5 py-4 text-sm text-slate-500">{t("schedule.actionsList.selectAtLeastOneActorToView")}</div> : loading ? skeleton.map((i) => <div key={`actions-skeleton-${i}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm min-h-[56px]" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${i}-${c.id}`} className="min-w-0"><div className="h-4 w-4/5 rounded-full bg-slate-200 animate-pulse" /></div>)}</div>) : pageItems.map((item) => <Link key={item.id} href={`/cronograma/${item.appointmentId}`} className="grid min-w-0 items-center gap-4 px-5 py-3 text-sm text-slate-800 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F2A900]/50" style={{ gridTemplateColumns: grid }}>{visibleCols.map((c) => <div key={`${item.id}-${c.id}`} className="min-w-0 overflow-hidden">{cell(c.id, item)}</div>)}</Link>)}
               {!loading && filtered.length === 0 ? <div className="px-5 py-4 text-sm text-slate-500">{t("schedule.actionsList.empty")}</div> : null}

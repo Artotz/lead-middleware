@@ -147,8 +147,10 @@ type CronogramaSessionState = {
     | "csa_desc"
     | "preventivas"
     | "reconexoes"
-    | "cotacoes"
-    | "last_visit";
+    | "quotes_asc"
+    | "quotes_desc"
+    | "last_visit_asc"
+    | "last_visit_desc";
   companyPage: number;
   companySearch: string;
   companyNameFilter: string[];
@@ -168,7 +170,12 @@ type CronogramaSessionState = {
     | "alpha_desc"
     | "consultant_asc"
     | "consultant_desc"
-    | "cotacoes";
+    | "status_asc"
+    | "status_desc"
+    | "opportunities_asc"
+    | "opportunities_desc"
+    | "quotes_asc"
+    | "quotes_desc";
   appointmentPage: number;
   showOutsidePortfolio: boolean;
   selectedMonth: string;
@@ -407,8 +414,10 @@ const COMPANY_SORT_VALUES = [
   "csa_desc",
   "preventivas",
   "reconexoes",
-  "cotacoes",
-  "last_visit",
+  "quotes_asc",
+  "quotes_desc",
+  "last_visit_asc",
+  "last_visit_desc",
 ] as const;
 const APPOINTMENT_SORT_VALUES = [
   "date_desc",
@@ -417,7 +426,12 @@ const APPOINTMENT_SORT_VALUES = [
   "alpha_desc",
   "consultant_asc",
   "consultant_desc",
-  "cotacoes",
+  "status_asc",
+  "status_desc",
+  "opportunities_asc",
+  "opportunities_desc",
+  "quotes_asc",
+  "quotes_desc",
 ] as const;
 const APPOINTMENT_STATUS_VALUES = [
   "scheduled",
@@ -941,8 +955,10 @@ function CronogramaClientContent({
     | "csa_desc"
     | "preventivas"
     | "reconexoes"
-    | "cotacoes"
-    | "last_visit"
+    | "quotes_asc"
+    | "quotes_desc"
+    | "last_visit_asc"
+    | "last_visit_desc"
   >(persistedCronogramaState.companySort);
   const [companyPage, setCompanyPage] = useState(persistedCronogramaState.companyPage);
   const [appointmentSearch, setAppointmentSearch] = useState(
@@ -973,7 +989,12 @@ function CronogramaClientContent({
     | "alpha_desc"
     | "consultant_asc"
     | "consultant_desc"
-    | "cotacoes"
+    | "status_asc"
+    | "status_desc"
+    | "opportunities_asc"
+    | "opportunities_desc"
+    | "quotes_asc"
+    | "quotes_desc"
   >(persistedCronogramaState.appointmentSort);
   const [appointmentPage, setAppointmentPage] = useState(
     persistedCronogramaState.appointmentPage,
@@ -1244,6 +1265,29 @@ function CronogramaClientContent({
       return dashboardActorOptionValues;
     });
   }, [dashboardActorOptionValues]);
+
+  useEffect(() => {
+    if (
+      companySort !== "name" &&
+      companySort !== "name_desc" &&
+      companySort !== "csa_asc" &&
+      companySort !== "csa_desc"
+    ) {
+      setCompanySort("name");
+    }
+  }, [companySort]);
+
+  useEffect(() => {
+    if (
+      appointmentSort !== "date_desc" &&
+      appointmentSort !== "alpha_asc" &&
+      appointmentSort !== "alpha_desc" &&
+      appointmentSort !== "consultant_asc" &&
+      appointmentSort !== "consultant_desc"
+    ) {
+      setAppointmentSort("date_desc");
+    }
+  }, [appointmentSort]);
 
   useEffect(() => {
     saveSessionStorage(CRONOGRAMA_SESSION_STORAGE_KEY, {
@@ -2309,6 +2353,21 @@ function CronogramaClientContent({
   const sortedAppointments = useMemo(() => {
     const sorted = [...filteredAppointments];
     const getOpenQuotes = (companyId: string) => openQuotesTotals.get(companyId) ?? 0;
+    const getStatusLabel = (appointment: Appointment) =>
+      appointment.status === "scheduled"
+        ? t("schedule.status.scheduled")
+        : appointment.status === "in_progress"
+          ? t("schedule.status.in_progress")
+          : appointment.status === "done"
+            ? t("schedule.status.done")
+            : appointment.status === "absent"
+              ? t("schedule.status.absent")
+              : t("schedule.status.atuado");
+    const getOpportunityLabel = (appointment: Appointment) =>
+      (appointment.oportunidades ?? [])
+        .map((item) => t(`schedule.opportunity.${item}`, undefined, item))
+        .sort((a, b) => a.localeCompare(b, locale))
+        .join(" · ");
     sorted.sort((a, b) => {
       if (appointmentSort === "date_desc") {
         return b.startAt.localeCompare(a.startAt);
@@ -2321,8 +2380,11 @@ function CronogramaClientContent({
       const consultantA = a.consultantName ?? a.consultantId ?? "";
       const consultantB = b.consultantName ?? b.consultantId ?? "";
       const nameComparison = companyA.localeCompare(companyB, locale);
-      if (appointmentSort === "cotacoes") {
-        const diff = getOpenQuotes(b.companyId) - getOpenQuotes(a.companyId);
+      if (appointmentSort === "quotes_asc" || appointmentSort === "quotes_desc") {
+        const diff =
+          appointmentSort === "quotes_desc"
+            ? getOpenQuotes(b.companyId) - getOpenQuotes(a.companyId)
+            : getOpenQuotes(a.companyId) - getOpenQuotes(b.companyId);
         if (diff !== 0) return diff;
         return nameComparison !== 0
           ? nameComparison
@@ -2345,12 +2407,33 @@ function CronogramaClientContent({
           ? consultantComparison
           : b.startAt.localeCompare(a.startAt);
       }
+      if (appointmentSort === "status_asc" || appointmentSort === "status_desc") {
+        const statusComparison =
+          appointmentSort === "status_desc"
+            ? getStatusLabel(b).localeCompare(getStatusLabel(a), locale)
+            : getStatusLabel(a).localeCompare(getStatusLabel(b), locale);
+        return statusComparison !== 0
+          ? statusComparison
+          : a.startAt.localeCompare(b.startAt);
+      }
+      if (
+        appointmentSort === "opportunities_asc" ||
+        appointmentSort === "opportunities_desc"
+      ) {
+        const opportunityComparison =
+          appointmentSort === "opportunities_desc"
+            ? getOpportunityLabel(b).localeCompare(getOpportunityLabel(a), locale)
+            : getOpportunityLabel(a).localeCompare(getOpportunityLabel(b), locale);
+        return opportunityComparison !== 0
+          ? opportunityComparison
+          : a.startAt.localeCompare(b.startAt);
+      }
       return nameComparison !== 0
         ? nameComparison
         : a.startAt.localeCompare(b.startAt);
     });
     return sorted;
-  }, [appointmentSort, filteredAppointments, listCompanyById, locale, openQuotesTotals]);
+  }, [appointmentSort, filteredAppointments, listCompanyById, locale, openQuotesTotals, t]);
 
   useEffect(() => {
     setAppointmentPage(1);
@@ -3052,8 +3135,10 @@ function CronogramaClientContent({
         companySort === "csa_desc" ||
         companySort === "preventivas" ||
         companySort === "reconexoes" ||
-        companySort === "cotacoes" ||
-        companySort === "last_visit"
+        companySort === "quotes_asc" ||
+        companySort === "quotes_desc" ||
+        companySort === "last_visit_asc" ||
+        companySort === "last_visit_desc"
       ) {
         if (companySort === "name_desc") {
           return b.name.localeCompare(a.name, locale);
@@ -3070,8 +3155,10 @@ function CronogramaClientContent({
       if (
         companySort === "preventivas" ||
         companySort === "reconexoes" ||
-        companySort === "cotacoes" ||
-        companySort === "last_visit"
+        companySort === "quotes_asc" ||
+        companySort === "quotes_desc" ||
+        companySort === "last_visit_asc" ||
+        companySort === "last_visit_desc"
       ) {
         const diff =
           companySort === "preventivas" || companySort === "reconexoes"
@@ -3082,14 +3169,18 @@ function CronogramaClientContent({
                   ? bCounts.preventivas - aCounts.preventivas
                   : bCounts.reconexoes - aCounts.reconexoes;
               })()
-            : companySort === "cotacoes"
+            : companySort === "quotes_desc"
               ? getOpenQuotes(b.id) - getOpenQuotes(a.id)
+              : companySort === "quotes_asc"
+                ? getOpenQuotes(a.id) - getOpenQuotes(b.id)
               : (() => {
                   const aDays = getLastVisitDays(a.id);
                   const bDays = getLastVisitDays(b.id);
                   const safeA = aDays ?? -1;
                   const safeB = bDays ?? -1;
-                  return safeB - safeA;
+                  return companySort === "last_visit_desc"
+                    ? safeB - safeA
+                    : safeA - safeB;
                 })();
         if (diff !== 0) return diff;
       }
@@ -3333,6 +3424,11 @@ function CronogramaClientContent({
   );
   const appointmentHeaderSortOptions = useMemo(
     () => ({
+      data: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "date_asc", label: t("schedule.columnSortAsc") },
+        { value: "date_desc", label: t("schedule.columnSortDesc") },
+      ],
       empresa: [
         { value: "__none__", label: t("schedule.columnSortNone") },
         { value: "alpha_asc", label: t("schedule.columnSortAsc") },
@@ -3342,6 +3438,21 @@ function CronogramaClientContent({
         { value: "__none__", label: t("schedule.columnSortNone") },
         { value: "consultant_asc", label: t("schedule.columnSortAsc") },
         { value: "consultant_desc", label: t("schedule.columnSortDesc") },
+      ],
+      status: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "status_asc", label: t("schedule.columnSortAsc") },
+        { value: "status_desc", label: t("schedule.columnSortDesc") },
+      ],
+      oportunidades: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "opportunities_asc", label: t("schedule.columnSortAsc") },
+        { value: "opportunities_desc", label: t("schedule.columnSortDesc") },
+      ],
+      cotacoes: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "quotes_asc", label: t("schedule.columnSortAsc") },
+        { value: "quotes_desc", label: t("schedule.columnSortDesc") },
       ],
     }),
     [t],
@@ -3357,6 +3468,16 @@ function CronogramaClientContent({
         { value: "__none__", label: t("schedule.columnSortNone") },
         { value: "csa_asc", label: t("schedule.columnSortAsc") },
         { value: "csa_desc", label: t("schedule.columnSortDesc") },
+      ],
+      ultimaVisita: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "last_visit_asc", label: t("schedule.columnSortAsc") },
+        { value: "last_visit_desc", label: t("schedule.columnSortDesc") },
+      ],
+      cotacoes: [
+        { value: "__none__", label: t("schedule.columnSortNone") },
+        { value: "quotes_asc", label: t("schedule.columnSortAsc") },
+        { value: "quotes_desc", label: t("schedule.columnSortDesc") },
       ],
     }),
     [t],
@@ -5582,69 +5703,6 @@ function CronogramaClientContent({
                   )
                 }
               >
-                {consultantMultiSelectControl}
-                <ToolbarField
-                  label={t("schedule.statusFilterLabel")}
-                  className="sm:min-w-[240px]"
-                  contentClassName="w-full"
-                >
-                  <div className="w-full min-w-[180px]">
-                      <LeadTypesMultiSelect
-                        value={appointmentStatus}
-                        options={appointmentStatusOptions}
-                        onChange={(next) =>
-                          setAppointmentStatus(
-                            next.filter(
-                              (status): status is AppointmentListStatusFilter =>
-                                status === "expired" ||
-                                status === "scheduled" ||
-                                status === "in_progress" ||
-                                status === "done" ||
-                              status === "absent" ||
-                              status === "atuado",
-                          ),
-                        )
-                      }
-                      placeholder={t("schedule.statusAll")}
-                      searchPlaceholder={t(
-                        "schedule.statusFilterSearchPlaceholder",
-                      )}
-                      noResultsText={t("schedule.statusFilterNoResults")}
-                      selectedCountTemplate={t(
-                        "schedule.multiSelectSelectedCount",
-                      )}
-                    />
-                  </div>
-                </ToolbarField>
-                <ToolbarField
-                  label={t("schedule.opportunityFilterLabel")}
-                  className="sm:min-w-[270px]"
-                  contentClassName="w-full"
-                >
-                  <div className="w-full min-w-[210px]">
-                    <LeadTypesMultiSelect
-                      value={appointmentOpportunity}
-                      options={appointmentOpportunityOptions}
-                      onChange={(next) => setAppointmentOpportunity(next)}
-                      placeholder={t("schedule.opportunityAll")}
-                      searchPlaceholder={t(
-                        "schedule.opportunityFilterSearchPlaceholder",
-                      )}
-                      noResultsText={t(
-                        "schedule.opportunityFilterNoResults",
-                      )}
-                      selectedCountTemplate={t(
-                        "schedule.multiSelectSelectedCount",
-                      )}
-                    />
-                  </div>
-                </ToolbarField>
-              </ToolbarRow>
-
-              <ToolbarRow
-                className={toolbarCardClass}
-                summary={<span className="sr-only">.</span>}
-              >
                 <ToolbarField
                   label={t("schedule.search")}
                   srOnlyLabel
@@ -5692,55 +5750,6 @@ function CronogramaClientContent({
                       )}
                     />
                   </div>
-                </ToolbarField>
-                <ToolbarField
-                  label={t("schedule.orderBy")}
-                  className="sm:min-w-[220px]"
-                  contentClassName="w-full"
-                >
-                  <select
-                    value={appointmentSort}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (
-                        value === "date_desc" ||
-                        value === "date_asc" ||
-                        value === "alpha_asc" ||
-                        value === "alpha_desc" ||
-                        value === "consultant_asc" ||
-                        value === "consultant_desc" ||
-                        value === "cotacoes"
-                      ) {
-                        setAppointmentSort(value);
-                        return;
-                      }
-                      setAppointmentSort("date_desc");
-                    }}
-                    aria-label={t("schedule.appointmentSortLabel")}
-                    className={toolbarInputClass}
-                  >
-                    <option value="date_asc">
-                      {t("schedule.appointmentSortDateAsc")}
-                    </option>
-                    <option value="date_desc">
-                      {t("schedule.appointmentSortDateDesc")}
-                    </option>
-                    <option value="alpha_asc">
-                      {t("schedule.appointmentSortAlphaAsc")}
-                    </option>
-                    <option value="alpha_desc">
-                      {t("schedule.appointmentSortAlphaDesc")}
-                    </option>
-                    <option value="consultant_asc">
-                      {t("schedule.columnSortAsc")} · {t("schedule.appointmentList.consultant")}
-                    </option>
-                    <option value="consultant_desc">
-                      {t("schedule.columnSortDesc")} · {t("schedule.appointmentList.consultant")}
-                    </option>
-                    <option value="cotacoes">
-                      {t("schedule.orderByQuotes")}
-                    </option>
-                  </select>
                 </ToolbarField>
               </ToolbarRow>
 
@@ -5815,9 +5824,9 @@ function CronogramaClientContent({
                     ) : column.id === "consultor" ? (
                       <TableColumnFilterHeader
                         label={column.label}
-                        filterValue={appointmentConsultantFilter}
-                        filterOptions={appointmentConsultantOptions}
-                        onFilterChange={setAppointmentConsultantFilter}
+                        filterValue={selectedListConsultantIds}
+                        filterOptions={consultantOptions}
+                        onFilterChange={setSelectedListConsultantIds}
                         filterPlaceholder={column.label}
                         filterAllLabel={t("schedule.dashboard.allConsultants")}
                         filterSearchPlaceholder={t("schedule.consultantFilterSearchPlaceholder")}
@@ -5827,6 +5836,38 @@ function CronogramaClientContent({
                         clearAllLabel={t("schedule.multiSelectClearAll")}
                         sortValue={appointmentSort === "consultant_asc" || appointmentSort === "consultant_desc" ? appointmentSort : "__none__"}
                         sortOptions={appointmentHeaderSortOptions.consultor}
+                        onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "data" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={appointmentSort === "date_asc" || appointmentSort === "date_desc" ? appointmentSort : "__none__"}
+                        sortOptions={appointmentHeaderSortOptions.data}
+                        onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "status" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={appointmentSort === "status_asc" || appointmentSort === "status_desc" ? appointmentSort : "__none__"}
+                        sortOptions={appointmentHeaderSortOptions.status}
+                        onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "oportunidades" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={appointmentSort === "opportunities_asc" || appointmentSort === "opportunities_desc" ? appointmentSort : "__none__"}
+                        sortOptions={appointmentHeaderSortOptions.oportunidades}
+                        onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "cotacoes" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={appointmentSort === "quotes_asc" || appointmentSort === "quotes_desc" ? appointmentSort : "__none__"}
+                        sortOptions={appointmentHeaderSortOptions.cotacoes}
                         onSortChange={(next) => setAppointmentSort(next === "__none__" ? "date_desc" : next as typeof appointmentSort)}
                         sortAriaLabel={column.label}
                       />
@@ -5938,7 +5979,6 @@ function CronogramaClientContent({
                   )
                 }
               >
-                {consultantMultiSelectControl}
                 <ToolbarField
                   className="sm:min-w-[210px]"
                   contentClassName="w-full"
@@ -5956,18 +5996,6 @@ function CronogramaClientContent({
                     <span>{t("schedule.outsidePortfolioToggle")}</span>
                   </div>
                 </ToolbarField>
-                {/* <button
-                  type="button"
-                  onClick={() => refresh()}
-                  className={`w-full sm:w-auto ${softButtonClass}`}
-                >
-                  Atualizar
-                </button> */}
-              </ToolbarRow>
-              <ToolbarRow
-                className={toolbarCardClass}
-                summary={<span className="sr-only">.</span>}
-              >
                 <ToolbarField
                   label={t("schedule.search")}
                   srOnlyLabel
@@ -6017,56 +6045,6 @@ function CronogramaClientContent({
                       )}
                     />
                   </div>
-                </ToolbarField>
-                <ToolbarField
-                  label={t("schedule.orderBy")}
-                  className="sm:min-w-[220px]"
-                  contentClassName="w-full"
-                >
-                  <select
-                    value={companySort}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (
-                        value === "name_desc" ||
-                        value === "csa_asc" ||
-                        value === "csa_desc" ||
-                        value === "preventivas" ||
-                        value === "reconexoes" ||
-                        value === "cotacoes" ||
-                        value === "last_visit"
-                      ) {
-                        setCompanySort(value);
-                        return;
-                      }
-                      setCompanySort("name");
-                    }}
-                    aria-label={t("schedule.orderBy")}
-                    className={toolbarInputClass}
-                  >
-                    <option value="name">{t("schedule.orderByName")}</option>
-                    <option value="name_desc">
-                      {t("schedule.columnSortDesc")} · {t("company.info.name")}
-                    </option>
-                    <option value="csa_asc">
-                      {t("schedule.columnSortAsc")} · {t("company.info.csa")}
-                    </option>
-                    <option value="csa_desc">
-                      {t("schedule.columnSortDesc")} · {t("company.info.csa")}
-                    </option>
-                    <option value="preventivas">
-                      {t("schedule.orderByPreventivas")}
-                    </option>
-                    <option value="reconexoes">
-                      {t("schedule.orderByReconexoes")}
-                    </option>
-                    <option value="cotacoes">
-                      {t("schedule.orderByQuotes")}
-                    </option>
-                    <option value="last_visit">
-                      {t("schedule.orderByLastVisit")}
-                    </option>
-                  </select>
                 </ToolbarField>
               </ToolbarRow>
               <PaginationControls
@@ -6154,9 +6132,9 @@ function CronogramaClientContent({
                     ) : column.id === "csa" ? (
                       <TableColumnFilterHeader
                         label={column.label}
-                        filterValue={companyConsultantFilter}
-                        filterOptions={companyConsultantOptions}
-                        onFilterChange={setCompanyConsultantFilter}
+                        filterValue={selectedListConsultantIds}
+                        filterOptions={consultantOptions}
+                        onFilterChange={setSelectedListConsultantIds}
                         filterPlaceholder={column.label}
                         filterAllLabel={t("schedule.dashboard.allConsultants")}
                         filterSearchPlaceholder={t("schedule.consultantFilterSearchPlaceholder")}
@@ -6166,6 +6144,22 @@ function CronogramaClientContent({
                         clearAllLabel={t("schedule.multiSelectClearAll")}
                         sortValue={companySort === "csa_asc" || companySort === "csa_desc" ? companySort : "__none__"}
                         sortOptions={companyHeaderSortOptions.consultor}
+                        onSortChange={(next) => setCompanySort(next === "__none__" ? "name" : next as typeof companySort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "ultimaVisita" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={companySort === "last_visit_asc" || companySort === "last_visit_desc" ? companySort : "__none__"}
+                        sortOptions={companyHeaderSortOptions.ultimaVisita}
+                        onSortChange={(next) => setCompanySort(next === "__none__" ? "name" : next as typeof companySort)}
+                        sortAriaLabel={column.label}
+                      />
+                    ) : column.id === "cotacoes" ? (
+                      <TableColumnFilterHeader
+                        label={column.label}
+                        sortValue={companySort === "quotes_asc" || companySort === "quotes_desc" ? companySort : "__none__"}
+                        sortOptions={companyHeaderSortOptions.cotacoes}
                         onSortChange={(next) => setCompanySort(next === "__none__" ? "name" : next as typeof companySort)}
                         sortAriaLabel={column.label}
                       />
