@@ -3182,13 +3182,15 @@ function CronogramaClientContent({
               })()
             : companySort === "quotes_desc"
               ? getOpenQuotes(b.id) - getOpenQuotes(a.id)
-              : companySort === "quotes_asc"
+            : companySort === "quotes_asc"
                 ? getOpenQuotes(a.id) - getOpenQuotes(b.id)
               : (() => {
                   const aDays = getLastVisitDays(a.id);
                   const bDays = getLastVisitDays(b.id);
-                  const safeA = aDays ?? -1;
-                  const safeB = bDays ?? -1;
+                  const safeA =
+                    aDays ?? (companySort === "last_visit_desc" ? -1 : Number.POSITIVE_INFINITY);
+                  const safeB =
+                    bDays ?? (companySort === "last_visit_desc" ? -1 : Number.POSITIVE_INFINITY);
                   return companySort === "last_visit_desc"
                     ? safeB - safeA
                     : safeA - safeB;
