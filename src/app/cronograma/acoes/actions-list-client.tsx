@@ -14,7 +14,7 @@ import { loadSessionStorage, saveSessionStorage } from "@/lib/sessionStorage";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 type Props = { locale: Locale };
-type Result = "em_andamento" | "vendido" | "perdido";
+type Result = "sem_tratativa" | "em_andamento" | "vendido" | "perdido";
 type Sort =
   | "date_desc"
   | "date_asc"
@@ -34,7 +34,7 @@ type Col = "empresa" | "consultor" | "ator" | "data" | "resultado" | "oportunida
 type ActionRow = {
   id: string; apontamento_id: string | null; resultado: Result; tipo_oportunidade?: string | null;
   nf_ou_os: string | null; valor: number | string | null; motivo_perda: string | null;
-  observacao: string | null; created_by: string | null; created_at: string | null;
+  observacao: string | null; created_by: string | null; created_for?: string | null; created_at: string | null;
 };
 type AppointmentRow = { id: string; company_id: string | null; consultant_name: string | null };
 type CompanyRow = { id: string; name: string; document: string | null };
@@ -67,10 +67,15 @@ function ToolbarField({ label, srOnlyLabel = false, children, className, content
 }
 
 const COLS: readonly Col[] = ["empresa", "consultor", "ator", "data", "resultado", "oportunidade", "valor", "nfOs"];
-const RESULTS: readonly Result[] = ["em_andamento", "vendido", "perdido"];
+const RESULTS: readonly Result[] = ["sem_tratativa", "em_andamento", "vendido", "perdido"];
 const chunk = <T,>(arr: T[], size: number) => Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
 const toNumber = (v: number | string | null | undefined) => v == null ? null : Number.isFinite(typeof v === "string" ? Number(v) : v) ? Number(v) : null;
 const norm = (v: string | null | undefined) => v?.trim().toLowerCase() ?? "";
+const isMissingColumnError = (error: { code?: string | null; message?: string | null; details?: string | null } | null) => {
+  if (!error) return false;
+  const message = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return error.code === "PGRST204" || error.code === "42703" || (message.includes("column") && message.includes("created_for"));
+};
 const actorName = (v: string | null | undefined) => {
   const raw = v?.trim() ?? "";
   if (!raw.includes("@")) return raw;
@@ -153,7 +158,14 @@ export default function ActionsListClient({ locale }: Props) {
       const req = ++reqRef.current;
       setLoading(true); setError(null);
       try {
-        const { data: raw, error: e } = await supabase.from("apontamento_acoes").select("id, apontamento_id, resultado, tipo_oportunidade, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at").order("created_at", { ascending: false });
+        const primaryResponse = await supabase.from("apontamento_acoes").select("id, apontamento_id, resultado, tipo_oportunidade, nf_ou_os, valor, motivo_perda, observacao, created_by, created_for, created_at").order("created_at", { ascending: false });
+        let raw = primaryResponse.data as ActionRow[] | null;
+        let e = primaryResponse.error as { code?: string | null; message?: string | null; details?: string | null } | null;
+        if (e && isMissingColumnError(e)) {
+          const fallbackResponse = await supabase.from("apontamento_acoes").select("id, apontamento_id, resultado, tipo_oportunidade, nf_ou_os, valor, motivo_perda, observacao, created_by, created_at").order("created_at", { ascending: false });
+          raw = fallbackResponse.data as ActionRow[] | null;
+          e = fallbackResponse.error as { code?: string | null; message?: string | null; details?: string | null } | null;
+        }
         if (req !== reqRef.current) return;
         if (e) throw e;
         const actions = ((raw ?? []) as ActionRow[]).filter((r): r is ActionRow & { apontamento_id: string } => Boolean(r.apontamento_id));
@@ -176,7 +188,7 @@ export default function ActionsListClient({ locale }: Props) {
         setItems(actions.map((row) => {
           const appointment = appointments.get(row.apontamento_id);
           const company = appointment?.company_id ? companies.get(appointment.company_id) : null;
-          const actorId = row.created_by?.trim() ?? null;
+          const actorId = row.created_for?.trim() ?? row.created_by?.trim() ?? null;
           return { id: row.id, appointmentId: row.apontamento_id, companyName: company?.name ?? null, companyDocument: company?.document ?? null, consultantName: appointment?.consultant_name ?? null, actorId, actorLabel: actorId ? actorName(actorId) : null, createdAt: row.created_at ?? null, result: row.resultado, opportunityType: row.tipo_oportunidade ?? null, nfOuOs: row.nf_ou_os ?? null, value: toNumber(row.valor), lossReason: row.motivo_perda ?? null, note: row.observacao ?? null };
         }));
       } catch (err) {
@@ -269,11 +281,13 @@ export default function ActionsListClient({ locale }: Props) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const getResultLabel = (item: Item) =>
-      item.result === "vendido"
-        ? t("appointment.action.resultSold")
-        : item.result === "perdido"
-          ? t("appointment.action.resultLost")
-          : t("appointment.action.resultInProgress");
+      item.result === "sem_tratativa"
+        ? t("appointment.action.resultNoHandling")
+        : item.result === "vendido"
+          ? t("appointment.action.resultSold")
+          : item.result === "perdido"
+            ? t("appointment.action.resultLost")
+            : t("appointment.action.resultInProgress");
     const getOpportunityLabel = (item: Item) =>
       item.opportunityType
         ? t(`schedule.opportunity.${item.opportunityType}`, undefined, item.opportunityType)
@@ -308,7 +322,7 @@ export default function ActionsListClient({ locale }: Props) {
   const summary = filtered.length === 0 ? { start: 0, end: 0, total: 0 } : { start: (page - 1) * perPage + 1, end: Math.min(page * perPage, filtered.length), total: filtered.length };
   const skeleton = useMemo(() => Array.from({ length: perPage }, (_, i) => i), []);
 
-  const resultBadge = (r: Result) => r === "vendido" ? <Badge tone="emerald">{t("appointment.action.resultSold")}</Badge> : r === "perdido" ? <Badge tone="rose">{t("appointment.action.resultLost")}</Badge> : <Badge tone="amber">{t("appointment.action.resultInProgress")}</Badge>;
+  const resultBadge = (r: Result) => r === "sem_tratativa" ? <Badge tone="slate">{t("appointment.action.resultNoHandling")}</Badge> : r === "vendido" ? <Badge tone="emerald">{t("appointment.action.resultSold")}</Badge> : r === "perdido" ? <Badge tone="rose">{t("appointment.action.resultLost")}</Badge> : <Badge tone="amber">{t("appointment.action.resultInProgress")}</Badge>;
   const headerSortOptions = useMemo(
     () => ({
       data: [
@@ -350,6 +364,7 @@ export default function ActionsListClient({ locale }: Props) {
   );
   const resultOptions = useMemo(
     () => [
+      { value: "sem_tratativa", label: t("appointment.action.resultNoHandling") },
       { value: "em_andamento", label: t("appointment.action.resultInProgress") },
       { value: "vendido", label: t("appointment.action.resultSold") },
       { value: "perdido", label: t("appointment.action.resultLost") },

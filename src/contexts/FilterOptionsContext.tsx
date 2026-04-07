@@ -26,6 +26,7 @@ type FilterOptionsContextValue = {
 
 type ActorRow = {
   created_by: string | null;
+  created_for?: string | null;
 };
 
 const FilterOptionsContext = createContext<FilterOptionsContextValue | null>(
@@ -81,8 +82,8 @@ export function FilterOptionsProvider({
       try {
         const { data, error } = await supabase
           .from("apontamento_acoes")
-          .select("created_by")
-          .order("created_by", { ascending: true });
+          .select("created_by, created_for")
+          .order("created_for", { ascending: true });
 
         if (requestId !== requestIdRef.current) return;
 
@@ -95,7 +96,9 @@ export function FilterOptionsProvider({
 
         const counts = new Map<string, number>();
         ((data ?? []) as ActorRow[]).forEach((row) => {
-          const actor = row.created_by?.trim().toLowerCase();
+          const actor =
+            row.created_for?.trim().toLowerCase() ??
+            row.created_by?.trim().toLowerCase();
           if (!actor) return;
           counts.set(actor, (counts.get(actor) ?? 0) + 1);
         });

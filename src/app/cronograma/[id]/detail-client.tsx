@@ -85,7 +85,7 @@ type AppointmentMediaItem = {
 
 type AppointmentAction = {
   id: string;
-  resultado: "em_andamento" | "vendido" | "perdido";
+  resultado: "sem_tratativa" | "em_andamento" | "vendido" | "perdido";
   tipoOportunidade: string | null;
   nfOuOs: string | null;
   filial: string | null;
@@ -93,12 +93,13 @@ type AppointmentAction = {
   motivoPerda: string | null;
   observacao: string | null;
   createdBy: string | null;
+  createdFor: string | null;
   createdAt: string | null;
 };
 
 type AppointmentActionRow = {
   id: string;
-  resultado: "em_andamento" | "vendido" | "perdido";
+  resultado: "sem_tratativa" | "em_andamento" | "vendido" | "perdido";
   tipo_oportunidade?: string | null;
   nf_ou_os: string | null;
   filial?: string | null;
@@ -106,6 +107,7 @@ type AppointmentActionRow = {
   motivo_perda: string | null;
   observacao: string | null;
   created_by: string | null;
+  created_for?: string | null;
   created_at: string | null;
 };
 
@@ -587,7 +589,7 @@ export default function AppointmentDetailClient({
         const primaryResponse = await supabase
           .from("apontamento_acoes")
           .select(
-            "id, resultado, tipo_oportunidade, nf_ou_os, filial, valor, motivo_perda, observacao, created_by, created_at",
+            "id, resultado, tipo_oportunidade, nf_ou_os, filial, valor, motivo_perda, observacao, created_by, created_for, created_at",
           )
           .eq("apontamento_id", id)
           .order("created_at", { ascending: false });
@@ -640,6 +642,7 @@ export default function AppointmentDetailClient({
             motivoPerda: item.motivo_perda ?? null,
             observacao: item.observacao ?? null,
             createdBy: item.created_by ?? null,
+            createdFor: item.created_for ?? null,
             createdAt: item.created_at ?? null,
           })),
         );
@@ -938,6 +941,44 @@ export default function AppointmentDetailClient({
     setActionModalOpen(true);
   }, []);
 
+  const handleStartAction = useCallback(
+    async (action: AppointmentAction) => {
+      if (!appointmentId) return;
+      setActionLoading(true);
+      setActionError(null);
+
+      try {
+        const { error } = await supabase
+          .from("apontamento_acoes")
+          .update({
+            resultado: "em_andamento",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", action.id)
+          .eq("created_for", user?.email?.trim() || "");
+
+        if (error) {
+          logSupabaseError("Falha ao iniciar tratativa da ação", error);
+          setActionError(
+            isMissingColumnError(error)
+              ? t("appointment.action.columnsMissing")
+              : t("appointment.action.loadError"),
+          );
+          setActionLoading(false);
+          return;
+        }
+
+        await loadAppointmentActions(appointmentId);
+        setActionLoading(false);
+      } catch (error) {
+        console.error(error);
+        setActionError(t("appointment.action.loadError"));
+        setActionLoading(false);
+      }
+    },
+    [appointmentId, loadAppointmentActions, supabase, t, user],
+  );
+
   const handleConfirmAction = useCallback(async () => {
     if (!appointment || !appointmentId) return;
     if (!actionOpportunityType) {
@@ -976,6 +1017,7 @@ export default function AppointmentDetailClient({
 
     const normalizedValue =
       actionResult === "vendido" ? parseActionMoneyValue(actionValue) : null;
+    const actionTimestamp = new Date().toISOString();
 
     try {
       if (isEditingAction && editingAction) {
@@ -989,6 +1031,7 @@ export default function AppointmentDetailClient({
             valor: actionResult === "vendido" ? normalizedValue : null,
             motivo_perda: actionResult === "perdido" ? actionLossReason : null,
             observacao: actionNote.trim() || null,
+            updated_at: actionTimestamp,
           })
           .eq("id", editingAction.id);
 
@@ -1017,6 +1060,8 @@ export default function AppointmentDetailClient({
             motivo_perda: null,
             observacao: actionNote.trim() || null,
             created_by: user?.email?.trim() || null,
+            created_for: user?.email?.trim() || null,
+            updated_at: actionTimestamp,
           });
 
         if (insertError) {
@@ -1350,18 +1395,22 @@ export default function AppointmentDetailClient({
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         tone={
-                          appointmentAction.resultado === "vendido"
+                          appointmentAction.resultado === "sem_tratativa"
+                            ? "slate"
+                            : appointmentAction.resultado === "vendido"
                             ? "emerald"
                             : appointmentAction.resultado === "perdido"
                               ? "rose"
                               : "amber"
                         }
                       >
-                        {appointmentAction.resultado === "vendido"
-                          ? t("appointment.action.resultSold")
-                          : appointmentAction.resultado === "perdido"
-                            ? t("appointment.action.resultLost")
-                            : t("appointment.action.resultInProgress")}
+                        {appointmentAction.resultado === "sem_tratativa"
+                          ? t("appointment.action.resultNoHandling")
+                          : appointmentAction.resultado === "vendido"
+                            ? t("appointment.action.resultSold")
+                            : appointmentAction.resultado === "perdido"
+                              ? t("appointment.action.resultLost")
+                              : t("appointment.action.resultInProgress")}
                       </Badge>
                       {appointmentAction.createdAt ? (
                         <span className="text-xs text-slate-500">
@@ -1449,25 +1498,40 @@ export default function AppointmentDetailClient({
                       ) : null}
                       <div>
                         <span className="font-semibold text-slate-600">
+                          {t("appointment.action.createdForLabel")}:{" "}
+                        </span>
+                        {appointmentAction.createdFor?.trim() ||
+                          t("appointment.notInformed")}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-slate-600">
                           {t("appointment.action.createdByLabel")}:{" "}
                         </span>
                         {appointmentAction.createdBy?.trim() ||
                           t("appointment.notInformed")}
                       </div>
                     </div>
-                    {appointmentAction.resultado === "em_andamento" &&
+                    {(appointmentAction.resultado === "em_andamento" ||
+                      appointmentAction.resultado === "sem_tratativa") &&
                     loggedUserEmail !== "" &&
-                    appointmentAction.createdBy?.trim().toLowerCase() ===
+                    appointmentAction.createdFor?.trim().toLowerCase() ===
                       loggedUserEmail ? (
                       <div className="mt-auto pt-4">
                         <button
                           type="button"
                           onClick={() =>
-                            openUpdateActionModal(appointmentAction)
+                            appointmentAction.resultado === "sem_tratativa"
+                              ? void handleStartAction(appointmentAction)
+                              : openUpdateActionModal(appointmentAction)
                           }
+                          disabled={actionLoading}
                           className="rounded-xl border border-slate-200 bg-[#FFDE00] px-4 py-2 text-sm font-semibold text-[#0B0D10] shadow-md shadow-black/20 transition hover:brightness-95"
                         >
-                          {t("appointment.action.progressButton")}
+                          {appointmentAction.resultado === "sem_tratativa"
+                            ? actionLoading
+                              ? t("appointment.action.startLoading")
+                              : t("appointment.action.startButton")
+                            : t("appointment.action.progressButton")}
                         </button>
                       </div>
                     ) : null}

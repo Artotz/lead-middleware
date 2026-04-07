@@ -126,6 +126,7 @@ type ActionDashboardRow = {
   motivo_perda: string | null;
   created_at: string | null;
   created_by: string | null;
+  created_for?: string | null;
   company_id?: string | null;
 };
 
@@ -1820,7 +1821,11 @@ function CronogramaClientContent({
     );
     if (!selectedActors.size) return [];
     return dashboardActions.filter((action) =>
-      selectedActors.has(action.created_by?.trim().toLowerCase() ?? ""),
+      selectedActors.has(
+        action.created_for?.trim().toLowerCase() ??
+          action.created_by?.trim().toLowerCase() ??
+          "",
+      ),
     );
   }, [allDashboardActorsSelected, dashboardActions, selectedDashboardActorIds]);
 
@@ -1842,7 +1847,9 @@ function CronogramaClientContent({
     let totalRevenue = 0;
 
     filteredDashboardActions.forEach((action) => {
-      const actor = action.created_by?.trim().toLowerCase();
+      const actor =
+        action.created_for?.trim().toLowerCase() ??
+        action.created_by?.trim().toLowerCase();
       const result = action.resultado;
       if (result && result in statusTotals) {
         statusTotals[result] += 1;
@@ -3003,7 +3010,7 @@ function CronogramaClientContent({
         const { data, error } = await supabase
           .from("apontamento_acoes")
           .select(
-            "apontamento_id, resultado, valor, tipo_oportunidade, motivo_perda, created_at, created_by",
+            "apontamento_id, resultado, valor, tipo_oportunidade, motivo_perda, created_at, created_by, created_for",
           )
           .gte("created_at", range.startIso)
           .lte("created_at", range.endIso)

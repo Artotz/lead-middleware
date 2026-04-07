@@ -490,9 +490,11 @@ const MESSAGES = {
         loading: "Carregando atuação...",
         empty: "Nenhuma atuação registrada.",
         createdByLabel: "Registrado por",
+        createdForLabel: "Criado para",
         createdAt: "Registrado em {date} · {time}",
         resultLabel: "Resultado",
         resultPlaceholder: "Selecione o resultado",
+        resultNoHandling: "Sem tratativa",
         resultSold: "Vendido",
         resultLost: "Perdido",
         opportunityTypeLabel: "Tipo da oportunidade",
@@ -524,6 +526,8 @@ const MESSAGES = {
         columnsMissing:
           "As colunas necessárias da ação ainda não existem no banco.",
         doneRequired: "Disponível após concluir a visita",
+        startButton: "Começar tratativa",
+        startLoading: "Iniciando...",
         progressButton: "Registrar resultado",
         progressDialogTitle: "Concluir ação",
         progressDialogSubtitle:
