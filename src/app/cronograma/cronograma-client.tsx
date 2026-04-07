@@ -32,6 +32,7 @@ import { PageShell } from "@/components/PageShell";
 import { TableColumnFilterHeader } from "@/components/TableColumnFilterHeader";
 import { Tabs } from "@/components/Tabs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFilterOptions } from "@/contexts/FilterOptionsContext";
 import { useSchedule } from "@/contexts/ScheduleContext";
 import {
   buildDocumentVariants,
@@ -199,6 +200,8 @@ const statusChartColors: Record<SupabaseAppointmentStatus, string> = {
   absent: "#F43F5E",
   atuado: "#8B5CF6",
 };
+
+const EMPTY_NUMBER_MAP = new Map<string, number>();
 
 const toNumber = (value: number | string | null | undefined): number | null => {
   if (value === null || value === undefined) return null;
@@ -661,6 +664,12 @@ function CronogramaClientContent({
   } = useSchedule();
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const { role } = useAuth();
+  const {
+    actorOptions,
+    actorOptionValues,
+    consultantOptions,
+    consultantOptionValues,
+  } = useFilterOptions();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const today = useMemo(() => new Date(), []);
   const defaultSelectedMonth = useMemo(
@@ -917,6 +926,7 @@ function CronogramaClientContent({
   const [generalLoading, setGeneralLoading] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const generalRequestIdRef = useRef(0);
+  const lastGeneralDashboardLoadKeyRef = useRef<string | null>(null);
   const [generalListCompanies, setGeneralListCompanies] = useState<Company[]>(
     [],
   );
@@ -926,6 +936,7 @@ function CronogramaClientContent({
     string | null
   >(null);
   const generalListCompaniesRequestIdRef = useRef(0);
+  const lastGeneralListCompaniesLoadKeyRef = useRef<string | null>(null);
   const [activityCounts, setActivityCounts] = useState<Map<string, number>>(
     new Map(),
   );
@@ -935,12 +946,14 @@ function CronogramaClientContent({
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
   const activityRequestIdRef = useRef(0);
+  const lastActivityLoadKeyRef = useRef<string | null>(null);
   const [dashboardActions, setDashboardActions] = useState<ActionDashboardRow[]>(
     [],
   );
   const [actionDataLoading, setActionDataLoading] = useState(false);
   const [actionDataError, setActionDataError] = useState<string | null>(null);
   const actionDataRequestIdRef = useRef(0);
+  const lastActionLoadKeyRef = useRef<string | null>(null);
   const [actionReloadKey, setActionReloadKey] = useState(0);
   const [selectedListConsultantIds, setSelectedListConsultantIds] = useState<string[]>(
     persistedCronogramaState.selectedListConsultantIds,
@@ -1073,27 +1086,6 @@ function CronogramaClientContent({
   const canCreateAppointment = role === "admin";
   const toolbarInputClass =
     "w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
-  const actionActorOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    dashboardActions.forEach((action) => {
-      const actor = action.created_by?.trim().toLowerCase();
-      if (!actor) return;
-      counts.set(actor, (counts.get(actor) ?? 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .map(([id, count]) => ({ id, name: formatActorDisplayName(id), count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "pt-BR"))
-      .map(({ id, name }) => ({ id, name }));
-  }, [dashboardActions, formatActorDisplayName]);
-  const consultantOptions = useMemo(
-    () => consultants.map((item) => ({ value: item.id, label: item.name })),
-    [consultants],
-  );
-  const consultantOptionValues = useMemo(
-    () => consultantOptions.map((item) => item.value),
-    [consultantOptions],
-  );
   const selectedConsultantOptions = useMemo(
     () =>
       consultants.filter((item) => selectedListConsultantIds.includes(item.id)),
@@ -1111,13 +1103,9 @@ function CronogramaClientContent({
   const allConsultantsSelected =
     consultantOptionValues.length > 0 &&
     selectedListConsultantIds.length === consultantOptionValues.length;
-  const dashboardActorOptionValues = useMemo(
-    () => actionActorOptions.map((item) => item.id),
-    [actionActorOptions],
-  );
   const allDashboardActorsSelected =
-    dashboardActorOptionValues.length > 0 &&
-    selectedDashboardActorIds.length === dashboardActorOptionValues.length;
+    actorOptionValues.length > 0 &&
+    selectedDashboardActorIds.length === actorOptionValues.length;
 
   const consultantMultiSelectControl = (
     <ToolbarField
@@ -1153,10 +1141,7 @@ function CronogramaClientContent({
       <div className="w-full min-w-[220px]">
         <LeadTypesMultiSelect
           value={selectedDashboardActorIds}
-          options={actionActorOptions.map((item) => ({
-            value: item.id,
-            label: item.name,
-          }))}
+          options={actorOptions}
           onChange={setSelectedDashboardActorIds}
           placeholder={t("schedule.actionsList.actorLabel")}
           allSelectedLabel={t("schedule.dashboard.allActors")}
@@ -1257,14 +1242,14 @@ function CronogramaClientContent({
 
   useEffect(() => {
     setSelectedDashboardActorIds((current) => {
-      if (!dashboardActorOptionValues.length) return [];
+      if (!actorOptionValues.length) return [];
       const sanitized = current.filter((value) =>
-        dashboardActorOptionValues.includes(value),
+        actorOptionValues.includes(value),
       );
       if (sanitized.length) return sanitized;
-      return dashboardActorOptionValues;
+      return actorOptionValues;
     });
-  }, [dashboardActorOptionValues]);
+  }, [actorOptionValues]);
 
   useEffect(() => {
     if (
@@ -2197,45 +2182,12 @@ function CronogramaClientContent({
         .map((value) => ({ value, label: value })),
     [listAppointments, listCompanyById, locale],
   );
-  const appointmentConsultantOptions = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          listAppointments
-            .map(
-              (appointment) =>
-                appointment.consultantName?.trim() ??
-                appointment.consultantId?.trim() ??
-                "",
-            )
-            .filter(Boolean)
-            .map((value) => [value, value]),
-        ).values(),
-      )
-        .sort((a, b) => a.localeCompare(b, locale))
-        .map((value) => ({ value, label: value })),
-    [listAppointments, locale],
-  );
   const companyNameOptions = useMemo(
     () =>
       Array.from(
         new Map(
           generalListCompanies
             .map((company) => company.name.trim())
-            .filter(Boolean)
-            .map((value) => [value, value]),
-        ).values(),
-      )
-        .sort((a, b) => a.localeCompare(b, locale))
-        .map((value) => ({ value, label: value })),
-    [generalListCompanies, locale],
-  );
-  const companyConsultantOptions = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          generalListCompanies
-            .map((company) => company.csa?.trim() ?? "")
             .filter(Boolean)
             .map((value) => [value, value]),
         ).values(),
@@ -2254,10 +2206,10 @@ function CronogramaClientContent({
   useEffect(() => {
     setAppointmentConsultantFilter((current) =>
       current.filter((value) =>
-        appointmentConsultantOptions.some((option) => option.value === value),
+        consultantOptions.some((option) => option.value === value),
       ),
     );
-  }, [appointmentConsultantOptions]);
+  }, [consultantOptions]);
   useEffect(() => {
     setCompanyNameFilter((current) =>
       current.filter((value) =>
@@ -2268,10 +2220,10 @@ function CronogramaClientContent({
   useEffect(() => {
     setCompanyConsultantFilter((current) =>
       current.filter((value) =>
-        companyConsultantOptions.some((option) => option.value === value),
+        consultantOptions.some((option) => option.value === value),
       ),
     );
-  }, [companyConsultantOptions]);
+  }, [consultantOptions]);
 
   const totalAppointments = visibleAppointments.length;
   const normalizedCompanySearch = companySearch.trim().toLowerCase();
@@ -2819,8 +2771,21 @@ function CronogramaClientContent({
     const isListTab =
       activeTab === "agendamentos" || activeTab === "empresas";
     if (!isListTab) return;
+    if (!selectedListConsultantIds.length) {
+      lastGeneralListCompaniesLoadKeyRef.current = null;
+      setGeneralListCompanies([]);
+      setGeneralListCompaniesError(null);
+      setGeneralListCompaniesLoading(false);
+      return;
+    }
+    const loadKey = `list-companies:${selectedListConsultantIds
+      .slice()
+      .sort()
+      .join("|")}`;
+    if (lastGeneralListCompaniesLoadKeyRef.current === loadKey) return;
+    lastGeneralListCompaniesLoadKeyRef.current = loadKey;
     void loadGeneralListCompanies();
-  }, [activeTab, loadGeneralListCompanies]);
+  }, [activeTab, loadGeneralListCompanies, selectedListConsultantIds]);
 
   const loadGeneralDashboard = useCallback(async () => {
     const requestId = ++generalRequestIdRef.current;
@@ -2896,11 +2861,41 @@ function CronogramaClientContent({
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
+    if (isVisitDashboard && !selectedListConsultantIds.length) {
+      lastGeneralDashboardLoadKeyRef.current = null;
+      setGeneralAppointments([]);
+      setGeneralCompanies([]);
+      setGeneralError(null);
+      setGeneralLoading(false);
+      return;
+    }
+    const loadKey = `dashboard:${range.startIso}:${range.endIso}`;
+    if (lastGeneralDashboardLoadKeyRef.current === loadKey) return;
+    lastGeneralDashboardLoadKeyRef.current = loadKey;
     void loadGeneralDashboard();
-  }, [activeTab, loadGeneralDashboard]);
+  }, [
+    activeTab,
+    isVisitDashboard,
+    loadGeneralDashboard,
+    range.endIso,
+    range.startIso,
+    selectedListConsultantIds.length,
+  ]);
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
+    if (isVisitDashboard && !selectedListConsultantIds.length) {
+      lastActivityLoadKeyRef.current = null;
+      setActivityCounts((current) =>
+        current.size ? EMPTY_NUMBER_MAP : current,
+      );
+      setActivityByConsultantCounts((current) =>
+        current.size ? EMPTY_NUMBER_MAP : current,
+      );
+      setActivityError(null);
+      setActivityLoading(false);
+      return;
+    }
     if (dashboardLoading) return;
 
     const appointmentIds = dashboardCountableAppointments
@@ -2908,11 +2903,21 @@ function CronogramaClientContent({
       .filter(Boolean);
 
     if (!appointmentIds.length) {
-      setActivityCounts(new Map());
+      lastActivityLoadKeyRef.current = null;
+      setActivityCounts((current) =>
+        current.size ? EMPTY_NUMBER_MAP : current,
+      );
+      setActivityByConsultantCounts((current) =>
+        current.size ? EMPTY_NUMBER_MAP : current,
+      );
       setActivityError(null);
       setActivityLoading(false);
       return;
     }
+
+    const loadKey = `activities:${appointmentIds.join("|")}`;
+    if (lastActivityLoadKeyRef.current === loadKey) return;
+    lastActivityLoadKeyRef.current = loadKey;
 
     const requestId = ++activityRequestIdRef.current;
     const loadActivities = async () => {
@@ -2978,12 +2983,17 @@ function CronogramaClientContent({
     appointmentConsultantById,
     dashboardCountableAppointments,
     dashboardLoading,
+    isVisitDashboard,
+    selectedListConsultantIds.length,
     supabase,
     t,
   ]);
 
   useEffect(() => {
     if (activeTab !== "dashboard") return;
+    const loadKey = `actions:${range.startIso}:${range.endIso}:${actionReloadKey}`;
+    if (lastActionLoadKeyRef.current === loadKey) return;
+    lastActionLoadKeyRef.current = loadKey;
     const requestId = ++actionDataRequestIdRef.current;
     const loadActions = async () => {
       setActionDataLoading(true);
@@ -3825,16 +3835,111 @@ function CronogramaClientContent({
       (isVisitDashboard
         ? !selectedListConsultantIds.length
         : !selectedDashboardActorIds.length) &&
-      (isVisitDashboard || actionActorOptions.length > 0);
+      (isVisitDashboard || actorOptions.length > 0);
 
     if (needsDashboardSelection) {
       return (
-        <div className={`${panelClass} p-4 text-sm text-slate-600`}>
-          {t(
-            isVisitDashboard
-              ? "schedule.dashboard.selectConsultant"
-              : "schedule.dashboard.selectActor",
-          )}
+        <div className={`${panelClass} p-4`}>
+          <div className="flex flex-col gap-3">
+            <ToolbarRow
+              className={toolbarCardClass}
+              summary={<span>{dashboardPeriodLabel}</span>}
+            >
+              {isVisitDashboard
+                ? consultantMultiSelectControl
+                : dashboardActorMultiSelectControl}
+              <ToolbarField
+                label={t("schedule.dashboard.viewLabel")}
+                srOnlyLabel
+                className="sm:min-w-[140px]"
+                contentClassName="w-full"
+              >
+                <select
+                  value={dashboardView}
+                  onChange={(event) =>
+                    setDashboardView(event.target.value as DashboardView)
+                  }
+                  aria-label={t("schedule.dashboard.viewLabel")}
+                  className={toolbarInputClass}
+                >
+                  <option value="week">{t("schedule.dashboard.viewWeek")}</option>
+                  <option value="month">
+                    {t("schedule.dashboard.viewMonth")}
+                  </option>
+                  <option value="year">{t("schedule.dashboard.viewYear")}</option>
+                </select>
+              </ToolbarField>
+              <Tabs
+                tabs={[
+                  { id: "visita", label: t("schedule.dashboard.stageVisit") },
+                  { id: "atuacao", label: t("schedule.dashboard.stageAction") },
+                ]}
+                activeTabId={dashboardStage}
+                onTabChange={(id) => {
+                  if (id === "visita" || id === "atuacao") {
+                    setDashboardStage(id);
+                  }
+                }}
+              />
+            </ToolbarRow>
+
+            <PeriodNavigator
+              containerClassName={toolbarCardClass}
+              label={t("schedule.dashboard.viewLabel")}
+              prevLabel={t(
+                dashboardView === "year"
+                  ? "schedule.dashboard.prevYear"
+                  : "schedule.prevMonth",
+              )}
+              nextLabel={t(
+                dashboardView === "year"
+                  ? "schedule.dashboard.nextYear"
+                  : "schedule.nextMonth",
+              )}
+              value={
+                dashboardView === "year"
+                  ? String(selectedMonth.getFullYear())
+                  : toMonthKey(selectedMonth)
+              }
+              options={
+                dashboardView === "year" ? yearSelectOptions : monthSelectOptions
+              }
+              onChange={handleDashboardPeriodChange}
+              onPrev={() => shiftDashboardPeriod(-1)}
+              onNext={() => shiftDashboardPeriod(1)}
+              trailing={
+                <>
+                  {dashboardView === "week"
+                    ? weeks.map((week, index) => {
+                        const isActive = index === selectedWeekIndex;
+                        return (
+                          <button
+                            key={`${toDateKey(week.startAt)}-${index}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedWeekIndex(index);
+                            }}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                              isActive ? toggleActiveClass : toggleInactiveClass
+                            }`}
+                          >
+                            {week.label}
+                          </button>
+                        );
+                      })
+                    : null}
+                </>
+              }
+            />
+          </div>
+
+          <div className="mt-4 text-sm text-slate-600">
+            {t(
+              isVisitDashboard
+                ? "schedule.dashboard.selectConsultant"
+                : "schedule.dashboard.selectActor",
+            )}
+          </div>
         </div>
       );
     }

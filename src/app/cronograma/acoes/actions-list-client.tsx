@@ -7,6 +7,7 @@ import { LeadTypesMultiSelect } from "@/components/LeadTypesMultiSelect";
 import { PaginationControls } from "@/components/PaginationControls";
 import { PageShell } from "@/components/PageShell";
 import { TableColumnFilterHeader } from "@/components/TableColumnFilterHeader";
+import { useFilterOptions } from "@/contexts/FilterOptionsContext";
 import { createTranslator, getMessages, type Locale } from "@/lib/i18n";
 import { OPPORTUNITY_OPTIONS, formatDateLabel, formatTime } from "@/lib/schedule";
 import { loadSessionStorage, saveSessionStorage } from "@/lib/sessionStorage";
@@ -79,6 +80,12 @@ const actorName = (v: string | null | undefined) => {
 export default function ActionsListClient({ locale }: Props) {
   const t = useMemo(() => createTranslator(getMessages(locale)), [locale]);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const {
+    actorOptions,
+    actorOptionValues,
+    consultantOptions,
+    consultantOptionValues,
+  } = useFilterOptions();
   const reqRef = useRef(0);
   const panel = "rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5";
   const toolbar = "rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm";
@@ -184,12 +191,6 @@ export default function ActionsListClient({ locale }: Props) {
   }, [supabase, t]);
 
   const money = useMemo(() => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL" }), [locale]);
-  const actorOptions = useMemo(() => Array.from(items.reduce((m, item) => {
-    if (!item.actorId) return m;
-    m.set(item.actorId, (m.get(item.actorId) ?? 0) + 1);
-    return m;
-  }, new Map<string, number>()).entries()).map(([value, count]) => ({ value, label: actorName(value), count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR")).map(({ value, label }) => ({ value, label })), [items]);
-  const actorOptionValues = useMemo(() => actorOptions.map((option) => option.value), [actorOptions]);
   const companyOptions = useMemo(
     () =>
       Array.from(
@@ -208,25 +209,6 @@ export default function ActionsListClient({ locale }: Props) {
   const companyOptionValues = useMemo(
     () => companyOptions.map((option) => option.value),
     [companyOptions],
-  );
-  const consultantOptions = useMemo(
-    () =>
-      Array.from(
-        items.reduce((map, item) => {
-          const value = item.consultantName?.trim();
-          if (!value) return map;
-          map.set(value, (map.get(value) ?? 0) + 1);
-          return map;
-        }, new Map<string, number>()).entries(),
-      )
-        .map(([value, count]) => ({ value, label: value, count }))
-        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "pt-BR"))
-        .map(({ value, label }) => ({ value, label })),
-    [items],
-  );
-  const consultantOptionValues = useMemo(
-    () => consultantOptions.map((option) => option.value),
-    [consultantOptions],
   );
   useEffect(() => {
     setActorFilter((current) => {

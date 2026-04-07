@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { RequireAuth } from "@/components/RequireAuth";
+import { FilterOptionsProvider } from "@/contexts/FilterOptionsContext";
 import { ScheduleProvider } from "@/contexts/ScheduleContext";
 
 export default function CronogramaLayout({
@@ -10,7 +11,9 @@ export default function CronogramaLayout({
 }) {
   return (
     <RequireAuth>
-      <ScheduleProvider>{children}</ScheduleProvider>
+      <ScheduleProvider>
+        <FilterOptionsProvider>{children}</FilterOptionsProvider>
+      </ScheduleProvider>
     </RequireAuth>
   );
 }
