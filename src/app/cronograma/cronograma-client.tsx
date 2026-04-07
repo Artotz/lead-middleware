@@ -5913,7 +5913,7 @@ function CronogramaClientContent({
               ) : null}
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
+            <div className="mt-3 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
               <div
                 className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3"
                 style={{ gridTemplateColumns: appointmentGridTemplateColumns }}
@@ -6223,7 +6223,7 @@ function CronogramaClientContent({
               ) : null}
             </div>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
+            <div className="mt-3 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-lg shadow-black/5">
               <div
                 className="grid gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3"
                 style={{ gridTemplateColumns: companyGridTemplateColumns }}
